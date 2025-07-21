@@ -30,3 +30,27 @@ export type User = {
   wins: number;
   losses: number;
 };
+
+export type Bet = {
+  id: string; // Auto-generated
+  creatorId: string;
+  creatorUsername: string;
+  creatorPhotoURL: string;
+  challengerId: string | null;
+  challengerUsername: string | null;
+  challengerPhotoURL: string | null;
+  sportKey: string;
+  eventId: string;
+  eventDate: Timestamp;
+  homeTeam: string;
+  awayTeam: string;
+  betType: 'spread' | 'moneyline' | 'total';
+  line: number;
+  odds: number;
+  teamSelection: string;
+  stake: number;
+  status: 'open' | 'matched' | 'settled' | 'void';
+  winnerId: string | null;
+  createdAt: Timestamp;
+  uniqueLink: string;
+};
