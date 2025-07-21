@@ -164,6 +164,13 @@ export const handleDeposit = onCall(async (request) => {
     }
     const userData = userDoc.data()!;
 
+    // --- Self-Exclusion Check ---
+    if (userData.selfExclusion?.isActive === true) {
+        throw new HttpsError('failed-precondition', 'Your account is currently in a self-exclusion period. You cannot make a deposit.');
+    }
+    // --- End Self-Exclusion Check ---
+
+
     // --- Responsible Gaming: Deposit Limit Check ---
     const rgLimits = userData.responsibleGamingLimits?.deposit || {};
     const dailyLimit = rgLimits.daily || 0;
@@ -172,10 +179,7 @@ export const handleDeposit = onCall(async (request) => {
     
     if (dailyLimit > 0 || weeklyLimit > 0 || monthlyLimit > 0) {
         const now = new Date();
-        const startOfDay = new Date(now.getTime() - (24 * 60 * 60 * 1000));
-        const startOfWeek = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
         const startOfMonth = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
-
 
         const transactionsSnap = await db.collection('transactions')
             .where('userId', '==', uid)
@@ -187,6 +191,9 @@ export const handleDeposit = onCall(async (request) => {
         let dailyTotal = 0;
         let weeklyTotal = 0;
         let monthlyTotal = 0;
+        
+        const startOfDay = new Date(now.getTime() - (24 * 60 * 60 * 1000));
+        const startOfWeek = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
 
         transactionsSnap.forEach(doc => {
             const tx = doc.data();
@@ -435,6 +442,8 @@ export const processBetOutcomes = onCall(async (request) => {
     }
 
     let processedCount = 0;
+    const batch = db.batch();
+
     for (const betDoc of matchedBetsSnap.docs) {
         const betId = betDoc.id;
         const betData = betDoc.data();
@@ -468,11 +477,11 @@ export const processBetOutcomes = onCall(async (request) => {
                         loserId: winnerId === betData.creatorId ? betData.challengerId : betData.creatorId,
                         escrowId: betData.escrowId
                     });
-                    await betDoc.ref.update({ status: 'settled', winnerId, settledAt: Timestamp.now() });
+                    batch.update(betDoc.ref, { status: 'settled', winnerId, settledAt: Timestamp.now() });
                     processedCount++;
                 } else {
                     // Handle push/void cases
-                    await betDoc.ref.update({ status: 'void', settledAt: Timestamp.now() });
+                    batch.update(betDoc.ref, { status: 'void', settledAt: Timestamp.now() });
                     // Here you would also refund the stakes
                     logger.log(`Bet ${betId} resulted in a push/void.`);
                 }
@@ -481,12 +490,13 @@ export const processBetOutcomes = onCall(async (request) => {
             logger.error(`Failed to process outcome for bet ${betId}:`, error);
         }
     }
-
+    
+    await batch.commit();
     logger.log(`Finished processBetOutcomes. Processed ${processedCount} bets.`);
     return { success: true, processedCount };
 });
 
-// This is not a callable function, but a helper for processBetOutcomes
+// This is not a callable function, but a helper for processBetOutcome
 async function processPayout(data: { betId: string, winnerId: string, loserId: string | null, stake: number, escrowId: string | null }) {
     const { betId, winnerId, loserId, stake, escrowId } = data;
     const PLATFORM_COMMISSION_RATE = 0.05; // 5%

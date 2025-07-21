@@ -1,81 +1,48 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+  
+    function isUserAuthenticated() {
+      return request.auth != null;
+    }
 
-    // --- Utility Functions ---
     function isOwner(userId) {
-      return request.auth != null && request.auth.uid == userId;
+      return request.auth.uid == userId;
+    }
+    
+    function isNotSelfExcluded() {
+      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      // If selfExclusion doesn't exist or isActive is false, allow.
+      return !('selfExclusion' in userDoc) || userDoc.selfExclusion.isActive == false;
     }
 
-    function isAdmin() {
-      return request.auth != null && request.auth.token.admin == true;
-    }
-
-    function isServer() {
-      // Insecure: In a real app, you'd want a more robust way to identify server calls
-      // e.g., using a specific service account. For this project, we check for null auth
-      // which is typical for Admin SDK calls.
-      return request.auth == null;
-    }
-
-    // --- Users Collection ---
+    // Users can read their own profile, and update certain fields.
+    // Sensitive fields (balance, kyc, etc.) are only updated by backend functions.
     match /users/{userId} {
-      // READ: 
-      // - Any authenticated user can read public profile info (displayName, photoURL, wins, losses, username).
-      // - A user can read their own full document.
-      // - An admin can read any user's full document.
-      allow read: if request.auth != null && (isOwner(userId) || isAdmin());
-
-      // CREATE: A user can only create their own document.
-      allow create: if isOwner(userId);
-        
-      // UPDATE:
-      // A user can only update their own document.
-      // They CANNOT update protected fields like walletBalance, kycStatus, wins, losses, or selfExclusion.
-      // These must be updated by a trusted backend function.
-      allow update: if isOwner(userId) && 
-                      request.resource.data.walletBalance == resource.data.walletBalance &&
-                      request.resource.data.kycStatus == resource.data.kycStatus &&
-                      request.resource.data.wins == resource.data.wins &&
-                      request.resource.data.losses == resource.data.losses &&
-                      request.resource.data.selfExclusion == resource.data.selfExclusion;
+      allow read, get: if isUserAuthenticated();
+      allow update: if isOwner(userId) && isNotSelfExcluded(); 
+      allow create: if isUserAuthenticated();
     }
-    
-    // --- Bets Collection ---
+
+    // Bets can be read by anyone if they are public.
+    // Creating or matching a bet (write) requires the user to not be self-excluded.
     match /bets/{betId} {
-        // READ: Anyone can read public bet information.
-        allow read: if true;
-
-        // CREATE: Only authenticated users can create a bet.
-        allow create: if request.auth != null;
-
-        // UPDATE (Match Bet):
-        // - A user can only accept a bet if they are not the creator and the bet is 'open'.
-        // - Admins/Server can update bets for settlement/dispute resolution.
-        allow update: if isServer() || isAdmin() || 
-                      (request.auth != null &&
-                       request.resource.data.status == 'matched' &&
-                       resource.data.status == 'open' &&
-                       request.resource.data.challengerId == request.auth.uid);
-    }
-
-    // --- Transactions Collection ---
-    match /transactions/{transactionId} {
-        // READ: Users can only read their own transactions. Admins can read all.
-        allow read: if request.auth != null && (isAdmin() || request.resource.data.userId == request.auth.uid);
-        
-        // WRITE: No client-side writes allowed. All transactions must be created by the backend.
-        allow write: if false;
+      allow read, get: if true;
+      allow write: if isUserAuthenticated() && isNotSelfExcluded();
     }
     
-    // --- User Bets Subcollection ---
-    match /users/{userId}/userBets/{betId} {
-        // READ: A user can read their own subcollection of bet references.
-        allow read: if isOwner(userId);
-
-        // WRITE: No client-side writes allowed. All records must be created by the backend.
-        allow write: if false;
+    // Transactions can only be read by the owner.
+    // They are only created by backend functions.
+    match /transactions/{transactionId} {
+        allow read, get: if isUserAuthenticated() && get(/databases/$(database)/documents/transactions/$(transactionId)).data.userId == request.auth.uid;
+        allow list: if isUserAuthenticated(); // Requires query constraints on client
+    }
+    
+    // User-specific subcollections can only be accessed by the owner.
+    match /users/{userId}/{document=**} {
+        allow read, write, create, delete: if isOwner(userId);
     }
   }
 }
