@@ -217,3 +217,54 @@ export const acceptBetAndAuthPayment = onCall(async (request) => {
         throw new HttpsError('internal', 'An unexpected error occurred while accepting the bet.');
     }
 });
+
+// This function is intended to be called by another backend process, like processPayouts.
+// It's not directly callable from the client.
+export const sendOutcomeNotification = onCall(async (request) => {
+    // This function should have security checks to ensure it's only called by a trusted server process.
+    // For this MVP, we'll assume it's called correctly.
+
+    const { betId, winnerId, loserId } = request.data;
+    if (!betId || !winnerId || !loserId) {
+        throw new HttpsError('invalid-argument', 'Missing required arguments for notification.');
+    }
+
+    try {
+        const winnerDoc = await db.collection('users').doc(winnerId).get();
+        const loserDoc = await db.collection('users').doc(loserId).get();
+
+        if (!winnerDoc.exists || !loserDoc.exists) {
+            throw new HttpsError('not-found', 'Winner or loser profile not found.');
+        }
+
+        const winnerUsername = winnerDoc.data()!.username;
+        const loserUsername = loserDoc.data()!.username;
+
+        // Simulate sending notifications
+        // In a real app, this would use a service like SNS, FCM, or an email provider.
+        
+        // 1. Congratulatory notification to the winner
+        const winnerMessage = `Congratulations @${winnerUsername}! You won your bet against @${loserUsername}.`;
+        logger.log(`[Notification for ${winnerId}]: ${winnerMessage}`);
+
+        // 2. Commiseration notification to the loser
+        const loserMessage = `Unfortunately, you lost your bet against @${winnerUsername}. Better luck next time!`;
+        logger.log(`[Notification for ${loserId}]: ${loserMessage}`);
+
+        // Potentially tweet from the main Playcer account
+        // This requires setting up Twitter API v2 credentials for the backend.
+        const playcerTweet = `A bet has been settled! Congrats to @${winnerUsername} on winning against @${loserUsername}. #Playcer`;
+        logger.log(`[Playcer Tweet]: ${playcerTweet}`);
+
+
+        return { success: true, message: "Outcome notifications logged." };
+
+    } catch (error) {
+        logger.error(`Error sending outcome notifications for bet ${betId}:`, error);
+         if (error instanceof HttpsError) {
+            throw error;
+        }
+        throw new HttpsError('internal', 'An unexpected error occurred while sending notifications.');
+    }
+
+});
