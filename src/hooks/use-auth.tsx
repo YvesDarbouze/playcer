@@ -3,7 +3,7 @@
 
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import type { User as FirebaseUser } from 'firebase/auth';
-import { getFirebaseAuth } from '@/lib/firebase';
+import { auth } from '@/lib/firebase';
 import { onAuthStateChanged, getIdTokenResult } from 'firebase/auth';
 
 interface AuthContextType {
@@ -20,7 +20,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [claims, setClaims] = useState<{ [key: string]: any } | null>(null);
 
   useEffect(() => {
-    const auth = getFirebaseAuth();
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         const idTokenResult = await getIdTokenResult(user);

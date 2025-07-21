@@ -7,7 +7,7 @@ import { Twitter } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { getFirebaseAuth, getTwitterProvider } from "@/lib/firebase";
+import { auth, twitterProvider } from "@/lib/firebase";
 import { signInWithPopup } from "firebase/auth";
 
 export function LoginButton() {
@@ -18,9 +18,7 @@ export function LoginButton() {
   const handleSignIn = async () => {
     setIsLoading(true);
     try {
-      const auth = getFirebaseAuth();
-      const provider = getTwitterProvider();
-      await signInWithPopup(auth, provider);
+      await signInWithPopup(auth, twitterProvider);
       // On successful sign-in, redirect to the dashboard.
       router.push("/dashboard");
     } catch (error: any) {

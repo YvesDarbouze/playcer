@@ -12,18 +12,11 @@ const firebaseConfig: FirebaseOptions = {
 };
 
 
-// A single Firebase app instance is created and reused.
-function getFirebaseApp() {
-    if (!getApps().length) {
-        return initializeApp(firebaseConfig);
-    }
-    return getApp();
-}
-
-const app = getFirebaseApp();
+// Initialize Firebase
+const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const firestore = getFirestore(app);
 const twitterProvider = new TwitterAuthProvider();
 
 
-export { getFirebaseApp, auth as getFirebaseAuth, firestore as getFirestoreInstance, twitterProvider as getTwitterProvider };
+export { app as getFirebaseApp, auth, firestore, twitterProvider };
