@@ -29,21 +29,21 @@ interface UserBetsTableProps {
 const OpponentDisplay = ({ bet, currentUserId }: { bet: Bet, currentUserId: string }) => {
     const isCreator = bet.creatorId === currentUserId;
     const opponent = isCreator
-      ? { username: bet.challengerUsername, photoURL: bet.challengerPhotoURL }
-      : { username: bet.creatorUsername, photoURL: bet.creatorPhotoURL };
+      ? { id: bet.challengerId, username: bet.challengerUsername, photoURL: bet.challengerPhotoURL }
+      : { id: bet.creatorId, username: bet.creatorUsername, photoURL: bet.creatorPhotoURL };
 
-    if (!opponent.username) {
+    if (!opponent.username || !opponent.id) {
         return <span className="text-muted-foreground">Awaiting Challenger</span>
     }
     
     return (
-        <div className="flex items-center gap-2">
+        <Link href={`/profile/${opponent.id}`} className="flex items-center gap-2 hover:underline">
             <Avatar className="size-6">
                 <AvatarImage src={opponent.photoURL || undefined} alt={opponent.username} />
                 <AvatarFallback>{opponent.username.charAt(0)}</AvatarFallback>
             </Avatar>
             <span className="font-medium">@{opponent.username}</span>
-        </div>
+        </Link>
     )
 }
 
