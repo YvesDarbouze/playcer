@@ -117,15 +117,3 @@ export type Transaction = {
   gatewayTransactionId: string | null;
   createdAt: Timestamp;
 }
-
-export type Dispute = {
-  id: string;
-  betId: string;
-  creatorId: string;
-  takerId: string;
-  status: 'open' | 'under_review' | 'resolved';
-  reason: string;
-  resolution: string | null;
-  createdAt: Timestamp;
-  resolvedAt: Timestamp | null;
-}
