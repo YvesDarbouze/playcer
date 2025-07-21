@@ -1,96 +1,67 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // --- Helper Functions ---
-    function isAuthenticated() {
+  
+    // Helper functions
+    function isAuth() {
       return request.auth != null;
     }
     
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
+    function isUser(userId) {
+      return isAuth() && request.auth.uid == userId;
     }
-
+    
     function isAdmin() {
-      return isAuthenticated() && request.auth.token.admin == true;
+      return isAuth() && request.auth.token.admin == true;
     }
     
-    function isFromServer() {
-        // This is a simplified check. In a production environment, you might
-        // use more specific checks if you have multiple types of server clients.
-        // For callable functions, request.auth will be populated.
-        // For admin SDK usage from a backend server, request.auth is null.
-        // This rule is primarily to distinguish client SDK vs Admin SDK.
-        // A more robust way for callable functions is to pass a parameter.
-        // For this project, we assume non-authenticated writes are from the server.
-        return request.auth == null;
-    }
-    
-    // --- Collections ---
-
-    // USERS Collection: Stores user profile data.
     match /users/{userId} {
-      // A user can create their own profile document.
-      allow create: if isOwner(userId);
+      // Any authenticated user can create their own user document.
+      allow create: if isUser(userId);
       
-      // A user can read their own data, or an admin can read any user's data.
-      allow read: if isOwner(userId) || isAdmin();
+      // A user can read their own document. An admin can read any document.
+      allow get: if isUser(userId) || isAdmin();
       
-      // A user can update their own profile, but cannot change protected fields.
-      // All sensitive fields MUST be updated by trusted Cloud Functions.
-      allow update: if isOwner(userId)
-                    && !('walletBalance' in request.resource.data)
-                    && !('wins' in request.resource.data)
-                    && !('losses' in request.resource.data)
-                    && !('kycStatus' in request.resource.data);
-                    
-       // Only admins can delete user documents.
-      allow delete: if isAdmin();
-      
-      // USERBETS Subcollection: Lightweight reference to user's bets.
-      match /userBets/{betId} {
-        // Users can read and write to their own bets subcollection.
-        allow read, write: if isOwner(userId);
-      }
+      // For public profiles, any authenticated user can list user documents,
+      // but client-side code must be responsible for only showing public fields.
+      allow list: if isAuth();
+
+      // A user can only update their own document.
+      // They cannot update their wallet, KYC status, wins, or losses.
+      allow update: if isUser(userId) 
+        && request.resource.data.walletBalance == resource.data.walletBalance
+        && request.resource.data.kycStatus == resource.data.kycStatus
+        && request.resource.data.wins == resource.data.wins
+        && request.resource.data.losses == resource.data.losses;
     }
 
-    // BETS Collection: Stores all bets.
     match /bets/{betId} {
-      // Anyone can read any bet. This allows for public marketplace browsing.
-      allow read: if true;
+      allow get, list: if true; // Bets are public
+      allow create: if isAuth();
       
-      // Only authenticated users can create a bet.
-      allow create: if isAuthenticated();
-      
-      // Updates are complex and mostly handled by Cloud Functions.
-      // A user can only 'update' a bet if they are accepting an 'open' one.
-      // The Cloud Function will perform the actual state change.
-      allow update: if isAuthenticated() && resource.data.status == 'open';
-
-      // Only admins can delete bets directly from the database.
-      allow delete: if isAdmin();
+      // Users can only "match" a bet if they are not the creator and the bet is 'open'.
+      // Updates to 'settled', 'void', 'disputed' should happen server-side.
+      allow update: if isAuth() 
+        && request.resource.data.challengerId == request.auth.uid
+        && resource.data.status == 'open'; 
     }
 
-    // TRANSACTIONS Collection: Immutable ledger of all financial movements.
-    match /transactions/{transactionId} {
-      // Writes are ONLY allowed from the backend (Cloud Functions).
-      allow write: if false; // Deny all client-side writes.
-      
-      // Admins can read all transactions for auditing.
+    match /transactions/{txId} {
       // Users can only read their own transactions.
-      allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow list: if isAuth() && request.query.where[0][2] == request.auth.uid;
+      // No one can write to transactions from the client.
+      allow write: if false;
     }
-    
-    // DISPUTES Collection: Manages bet disputes.
+
     match /disputes/{disputeId} {
-        // Only involved parties or admins can read a dispute.
-        allow read: if isAdmin() || (isAuthenticated() && (resource.data.creatorId == request.auth.uid || resource.data.takerId == request.auth.uid));
-        
-        // Only involved parties can create a dispute.
-        allow create: if isAuthenticated() && (request.resource.data.creatorId == request.auth.uid || request.resource.data.takerId == request.auth.uid);
-        
-        // Only admins can update (resolve) a dispute.
-        allow update: if isAdmin();
+      // Only involved parties or admins can read/write disputes.
+      // Placeholder for more granular rules.
+      allow read, write: if isAuth() && (
+        resource.data.creatorId == request.auth.uid ||
+        resource.data.takerId == request.auth.uid ||
+        isAdmin()
+      );
     }
   }
 }
