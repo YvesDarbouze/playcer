@@ -57,6 +57,11 @@ const escrowService = {
         logger.log(`Releasing funds from escrow ${escrowId} to winner ${winnerId}.`);
         // In a real app, this would call the escrow provider to disburse funds.
         return { success: true };
+    },
+    async refundFunds(escrowId: string, partyIds: string[]): Promise<{success: boolean}> {
+        logger.log(`Refunding funds from escrow ${escrowId} to parties ${partyIds.join(', ')}.`);
+        // In a real app, this would call the escrow provider to return funds to both parties.
+        return { success: true };
     }
 }
 
@@ -635,4 +640,82 @@ export const issueManualRefund = onCall(async (request) => {
     // This is a simplified placeholder.
     logger.log(`Admin initiated manual refund for user ${userId} concerning bet ${betId}.`);
     return { success: true, message: `Refund process initiated for bet ${betId}.` };
+});
+
+export const resolveDispute = onCall(async (request) => {
+    ensureIsAdmin(request);
+
+    const { disputeId, ruling, adminNotes } = request.data;
+    if (!disputeId || !ruling || !adminNotes) {
+        throw new HttpsError('invalid-argument', 'disputeId, ruling, and adminNotes are required.');
+    }
+    if (!['creator_wins', 'taker_wins', 'void'].includes(ruling)) {
+        throw new HttpsError('invalid-argument', 'Invalid ruling provided.');
+    }
+
+    const disputeRef = db.collection('disputes').doc(disputeId);
+    
+    try {
+        const disputeDoc = await disputeRef.get();
+        if (!disputeDoc.exists) {
+            throw new HttpsError('not-found', 'Dispute not found.');
+        }
+        const disputeData = disputeDoc.data()!;
+        if (disputeData.status !== 'open') {
+            throw new HttpsError('failed-precondition', 'This dispute has already been resolved.');
+        }
+        
+        const betRef = db.collection('bets').doc(disputeData.betId);
+        const betDoc = await betRef.get();
+        if (!betDoc.exists) {
+            throw new HttpsError('not-found', `Related bet ${disputeData.betId} not found.`);
+        }
+        const betData = betDoc.data()!;
+
+        // Handle based on ruling
+        if (ruling === 'void') {
+            await escrowService.refundFunds(betData.escrowId, [betData.creatorId, betData.challengerId]);
+            await db.runTransaction(async (transaction) => {
+                 transaction.update(betRef, { status: 'void', settledAt: Timestamp.now() });
+                 transaction.update(disputeRef, {
+                    status: 'resolved',
+                    resolution: { outcome: 'void', adminNotes, resolvedAt: Timestamp.now() }
+                });
+                // Refund stakes to both users
+                const creatorRef = db.collection('users').doc(betData.creatorId);
+                const takerRef = db.collection('users').doc(betData.challengerId);
+                transaction.update(creatorRef, { walletBalance: FieldValue.increment(betData.stake) });
+                transaction.update(takerRef, { walletBalance: FieldValue.increment(betData.stake) });
+            });
+        } else {
+            const winnerId = ruling === 'creator_wins' ? betData.creatorId : betData.challengerId;
+            const loserId = ruling === 'creator_wins' ? betData.challengerId : betData.creatorId;
+
+            await processPayout({
+                betId: betDoc.id,
+                winnerId,
+                loserId,
+                stake: betData.stake,
+                escrowId: betData.escrowId,
+            });
+
+            await db.runTransaction(async (transaction) => {
+                transaction.update(betRef, { status: 'settled', winnerId, settledAt: Timestamp.now() });
+                transaction.update(disputeRef, {
+                    status: 'resolved',
+                    resolution: { outcome: ruling, adminNotes, resolvedAt: Timestamp.now() }
+                });
+            });
+        }
+
+        // TODO: Send notifications to users about the outcome.
+
+        logger.log(`Dispute ${disputeId} resolved with ruling: ${ruling}.`);
+        return { success: true, message: 'Dispute resolved successfully.' };
+
+    } catch (error) {
+        logger.error(`Error resolving dispute ${disputeId}:`, error);
+        if (error instanceof HttpsError) throw error;
+        throw new HttpsError('internal', 'An internal error occurred while resolving the dispute.');
+    }
 });

@@ -1,3 +1,4 @@
+
 import { GameList } from "@/components/game-list";
 import { Game } from "@/types";
 

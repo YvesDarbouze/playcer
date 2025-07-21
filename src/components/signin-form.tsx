@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -20,6 +21,12 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Logo } from "./icons";
 import { Chrome } from "lucide-react";
+
+// Placeholder icon for Twitter
+const TwitterIcon = (props: React.SVGProps<SVGSVGElement>) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M22 4s-.7 2.1-2 3.4c1.6 1.4 3.3 4.9 3.3 4.9s-5.2-.6-5.2-.6l-1.5-1.5s-2.3 2.7-4.8 2.7c-2.5 0-4.8-2.7-4.8-2.7S5 12.3 5 12.3s3.7-1.4 3.7-1.4L10 9.8s-1.8-2.2-1.8-2.2l-1.2-1.2S4.8 4 4.8 4s5.4 3.5 12.4 3.5c7 0 4.8-3.5 4.8-3.5z"/></svg>
+);
+
 
 export function SignInForm() {
   const [email, setEmail] = useState("");
@@ -46,15 +53,16 @@ export function SignInForm() {
     }
   };
 
-  const handleGoogleSignIn = async () => {
+  const handleSocialSignIn = async () => {
     setIsGoogleLoading(true);
     try {
+      // Using Google provider as a placeholder for Twitter
       await signInWithPopup(auth, googleProvider);
       router.push("/");
     } catch (error: any) {
        toast({
         title: "Sign-in Failed",
-        description: "Could not sign in with Google. Please try again.",
+        description: "Could not sign in at this time. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -74,6 +82,24 @@ export function SignInForm() {
         </CardDescription>
       </CardHeader>
       <CardContent>
+        <div className="grid grid-cols-2 gap-4">
+            <Button variant="outline" onClick={handleSocialSignIn} disabled={isLoading || isGoogleLoading}>
+             {isGoogleLoading ? ( "Signing in..." ) : ( <> <TwitterIcon className="mr-2" /> Twitter </> )}
+            </Button>
+            <Button variant="outline" onClick={handleSocialSignIn} disabled={isLoading || isGoogleLoading}>
+              {isGoogleLoading ? ( "Signing in..." ) : ( <> <Chrome className="mr-2" /> Google </> )}
+            </Button>
+        </div>
+
+        <div className="relative my-4">
+            <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
+            </div>
+        </div>
+
         <form onSubmit={handleEmailSignIn} className="grid gap-4">
           <div className="grid gap-2">
             <Label htmlFor="email">Email</Label>
@@ -99,20 +125,10 @@ export function SignInForm() {
             />
           </div>
           <Button type="submit" className="w-full" disabled={isLoading || isGoogleLoading}>
-            {isLoading ? "Signing In..." : "Sign In"}
+            {isLoading ? "Signing In..." : "Sign In with Email"}
           </Button>
         </form>
-        <Separator className="my-4" />
-        <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={isLoading || isGoogleLoading}>
-          {isGoogleLoading ? (
-            "Signing in..."
-          ) : (
-            <>
-              <Chrome className="mr-2" />
-              Sign in with Google
-            </>
-          )}
-        </Button>
+
         <div className="mt-4 text-center text-sm">
           Don&apos;t have an account?{" "}
           <Link href="/signup" className="underline">
