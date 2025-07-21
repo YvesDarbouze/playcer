@@ -416,9 +416,10 @@ export const matchBet = onCall(async (request) => {
     }
 });
 
-export const processBetOutcome = onCall(async (request) => {
+export const processBetOutcomes = onCall(async (request) => {
     // In production, this should be a scheduled function and secured.
-    logger.log("Starting processBetOutcome...");
+    // For this demo, it's an onCall function that can be triggered manually or by a cron job.
+    logger.log("Starting processBetOutcomes...");
     
     const now = Timestamp.now();
     const query = db.collection('bets')
@@ -480,11 +481,11 @@ export const processBetOutcome = onCall(async (request) => {
         }
     }
 
-    logger.log(`Finished processBetOutcome. Processed ${processedCount} bets.`);
+    logger.log(`Finished processBetOutcomes. Processed ${processedCount} bets.`);
     return { success: true, processedCount };
 });
 
-// This is not a callable function, but a helper for processBetOutcome
+// This is not a callable function, but a helper for processBetOutcomes
 async function processPayout(data: { betId: string, winnerId: string, loserId: string | null, stake: number, escrowId: string | null }) {
     const { betId, winnerId, loserId, stake, escrowId } = data;
     const PLATFORM_COMMISSION_RATE = 0.05; // 5%
