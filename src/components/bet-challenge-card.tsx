@@ -123,7 +123,7 @@ export function BetChallengeCard({
             {bet.sportKey.replace(/_/g, ' ').toUpperCase()}
         </CardTitle>
         <CardDescription>
-            {format(new Date(bet.eventDate.toDate()), "EEE, MMM d, yyyy 'at' h:mm a")}
+            {format(new Date(bet.eventDate), "EEE, MMM d, yyyy 'at' h:mm a")}
         </CardDescription>
       </CardHeader>
       <CardContent className="p-6">
@@ -132,7 +132,7 @@ export function BetChallengeCard({
              <div className="flex flex-col items-center">
                 <TeamDisplay team={bet.homeTeam} />
                 <Swords className="text-muted-foreground my-2" />
-                <TeamDisplay team={bet.away_team} />
+                <TeamDisplay team={bet.awayTeam} />
             </div>
             {bet.challengerId ? (
                  <UserDisplay username={bet.challengerUsername!} photoURL={bet.challengerPhotoURL!} />
@@ -151,10 +151,10 @@ export function BetChallengeCard({
         <div className="space-y-2">
             <BetDetail label="Bet Type" value={bet.betType.charAt(0).toUpperCase() + bet.betType.slice(1)} />
             <BetDetail label="Creator's Pick" value={bet.teamSelection} />
-            {bet.line && <BetDetail label="Line" value={bet.line} />}
+            {bet.line ? <BetDetail label="Line" value={bet.line} /> : null}
             <BetDetail label="Wager" value={`$${bet.stake.toFixed(2)}`} />
         </div>
-      </CardContent>
+      </Content>
       <CardFooter className="p-4 bg-muted/30">
         {renderActionButton()}
       </CardFooter>

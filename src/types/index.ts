@@ -64,16 +64,16 @@ export type Bet = {
   challengerPhotoURL: string | null;
   sportKey: string;
   eventId: string;
-  eventDate: Timestamp;
+  eventDate: Date; // Changed from Timestamp to Date for easier client-side handling
   homeTeam: string;
   awayTeam: string;
   betType: 'spread' | 'moneyline' | 'total';
-  line: number;
+  line: number | null;
   odds: number;
   teamSelection: string;
   stake: number;
   status: 'open' | 'matched' | 'settled' | 'void';
   winnerId: string | null;
-  createdAt: Timestamp;
+  createdAt: Date; // Changed from Timestamp to Date
   uniqueLink: string;
 };

@@ -1,5 +1,5 @@
 import {initializeApp} from "firebase-admin/app";
-import {getFirestore, Timestamp, FieldValue} from "firebase-admin/firestore";
+import {getFirestore, Timestamp, FieldValue, Transaction} from "firebase-admin/firestore";
 import {onUserCreate} from "firebase-functions/v2/auth";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import {logger} from "firebase-functions";
@@ -8,6 +8,24 @@ import { v4 as uuidv4 } from "uuid";
 // Initialize Firebase Admin SDK
 initializeApp();
 const db = getFirestore();
+
+// --- PLACEHOLDER PAYMENT GATEWAY ---
+// In a real application, this would interact with a service like Stripe.
+const paymentGateway = {
+    async hasSufficientFunds(userId: string, amount: number): Promise<boolean> {
+        // Placeholder: In a real app, check the user's connected payment method.
+        // For this MVP, we'll assume everyone has enough funds.
+        logger.log(`Checking funds for user ${userId} for amount ${amount}.`);
+        return true; 
+    },
+    async placeAuthHold(userId: string, amount: number): Promise<{success: boolean, transactionId?: string}> {
+        // Placeholder: In a real app, this would create an authorization hold.
+        // For this MVP, we'll just log the action and assume success.
+        logger.log(`Placing auth hold for user ${userId} for amount ${amount}.`);
+        return { success: true, transactionId: `hold_${uuidv4()}`};
+    }
+}
+
 
 export const onusercreate = onUserCreate(async (event) => {
   const user = event.data;
@@ -18,14 +36,8 @@ export const onusercreate = onUserCreate(async (event) => {
     (provider) => provider.providerId === "twitter.com"
   );
 
-  if (!twitterProvider) {
-    logger.error("Twitter provider data not found for user:", uid);
-    return;
-  }
-
-  // The screenName is the user's Twitter handle
-  const username = twitterProvider.screenName || "";
-  const twitterId = twitterProvider.uid;
+  const username = twitterProvider?.screenName || "";
+  const twitterId = twitterProvider?.uid || "";
 
 
   // Create a new user document in Firestore
@@ -69,9 +81,14 @@ export const createBet = onCall(async (request) => {
     } = request.data;
     
     // Basic validation
-    if (!sportKey || !eventId || !eventDate || !homeTeam || !awayTeam || !betType || !teamSelection || !stake) {
+    if (!sportKey || !eventId || !eventDate || !homeTeam || !awayTeam || !betType || !teamSelection || stake === undefined) {
         throw new HttpsError('invalid-argument', 'Missing required bet information.');
     }
+    
+    if (typeof stake !== 'number' || stake <= 0) {
+        throw new HttpsError('invalid-argument', 'The stake must be a positive number.');
+    }
+
 
     try {
         const userDocRef = db.collection('users').doc(uid);
@@ -125,7 +142,7 @@ export const createBet = onCall(async (request) => {
 });
 
 
-export const acceptBet = onCall(async (request) => {
+export const acceptBetAndAuthPayment = onCall(async (request) => {
     if (!request.auth) {
         throw new HttpsError('unauthenticated', 'You must be logged in to accept a bet.');
     }
@@ -137,44 +154,63 @@ export const acceptBet = onCall(async (request) => {
         throw new HttpsError('invalid-argument', 'The `betId` must be provided.');
     }
 
+    const betDocRef = db.collection('bets').doc(betId);
+    const challengerDocRef = db.collection('users').doc(challengerId);
+
     try {
-        const betDocRef = db.collection('bets').doc(betId);
-        const challengerDocRef = db.collection('users').doc(challengerId);
+        await db.runTransaction(async (transaction: Transaction) => {
+            const betDoc = await transaction.get(betDocRef);
+            const challengerDoc = await transaction.get(challengerDocRef);
+            
+            if (!betDoc.exists) {
+                throw new HttpsError('not-found', 'Bet not found.');
+            }
+             if (!challengerDoc.exists) {
+                throw new HttpsError('not-found', 'Challenger profile not found.');
+            }
 
-        const [betDoc, challengerDoc] = await Promise.all([betDocRef.get(), challengerDocRef.get()]);
+            const betData = betDoc.data()!;
+            const challengerData = challengerDoc.data()!;
+            const creatorId = betData.creatorId;
+            const stake = betData.stake;
 
-        if (!betDoc.exists) {
-            throw new HttpsError('not-found', 'Bet not found.');
-        }
+            if (creatorId === challengerId) {
+                throw new HttpsError('failed-precondition', 'You cannot accept your own bet.');
+            }
 
-        if (!challengerDoc.exists) {
-            throw new HttpsError('not-found', 'Challenger profile not found.');
-        }
-        
-        const betData = betDoc.data()!;
-        const challengerData = challengerDoc.data()!;
+            if (betData.status !== 'open') {
+                throw new HttpsError('failed-precondition', 'This bet is no longer open for challenges.');
+            }
 
-        if (betData.creatorId === challengerId) {
-            throw new HttpsError('failed-precondition', 'You cannot accept your own bet.');
-        }
+            // --- Payment Authorization Step ---
+            const creatorHasFunds = await paymentGateway.hasSufficientFunds(creatorId, stake);
+            const challengerHasFunds = await paymentGateway.hasSufficientFunds(challengerId, stake);
 
-        if (betData.status !== 'open') {
-            throw new HttpsError('failed-precondition', 'This bet is no longer open.');
-        }
+            if (!creatorHasFunds || !challengerHasFunds) {
+                throw new HttpsError('failed-precondition', 'One or both users have insufficient funds.');
+            }
 
-        await betDocRef.update({
-            challengerId: challengerId,
-            challengerUsername: challengerData.username,
-            challengerPhotoURL: challengerData.photoURL,
-            status: 'matched'
+            const creatorAuth = await paymentGateway.placeAuthHold(creatorId, stake);
+            const challengerAuth = await paymentGateway.placeAuthHold(challengerId, stake);
+
+            if (!creatorAuth.success || !challengerAuth.success) {
+                // In a real app, you would also need to void the successful hold if one failed.
+                throw new HttpsError('aborted', 'Payment authorization failed. The bet could not be matched.');
+            }
+
+            // --- Update Bet Document ---
+            transaction.update(betDocRef, {
+                challengerId: challengerId,
+                challengerUsername: challengerData.username,
+                challengerPhotoURL: challengerData.photoURL,
+                status: 'matched'
+            });
         });
 
-        logger.log(`Bet ${betId} accepted by user ${challengerId}`);
-
-        return { success: true, message: 'Bet accepted successfully!' };
-
+        logger.log(`Bet ${betId} successfully matched by ${challengerId} with payment authorization.`);
+        return { success: true, message: "Bet accepted and payment authorized!" };
     } catch (error) {
-        logger.error(`Error accepting bet ${betId}:`, error);
+        logger.error(`Error in acceptBetAndAuthPayment transaction for bet ${betId}:`, error);
         if (error instanceof HttpsError) {
             throw error;
         }
