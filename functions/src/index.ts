@@ -17,10 +17,33 @@ const auth = getAuth();
 // In a real application, these would interact with external APIs.
 
 const paymentGateway = {
-    async processDeposit(userId: string, amount: number, paymentToken: string): Promise<{success: boolean, transactionId: string}> {
-        logger.log(`Processing deposit for user ${userId} of amount ${amount} with token ${paymentToken}.`);
-        // In a real app, interact with Stripe, Braintree, etc.
-        return { success: true, transactionId: `deposit_${uuidv4()}` };
+    // This function simulates creating a payment intent (e.g., with Stripe).
+    // It returns a client secret that the frontend would use to confirm the payment.
+    async createPaymentIntent(userId: string, amount: number): Promise<{success: boolean, clientSecret: string, transactionId: string}> {
+        logger.log(`Creating payment intent for user ${userId} of amount ${amount}.`);
+        // In a real app, you'd call Stripe's API here.
+        // The clientSecret would be returned from Stripe.
+        return { success: true, clientSecret: `pi_${uuidv4()}_secret_${uuidv4()}`, transactionId: `deposit_${uuidv4()}` };
+    },
+    // This would be triggered by a webhook from the payment provider (e.g., Stripe)
+    // after the user successfully completes the payment on the frontend.
+    // We are not building the webhook endpoint in this step, but simulating its effect.
+    async processSuccessfulPayment(transactionId: string, amount: number, userId: string) {
+        logger.log(`Processing successful payment for transaction ${transactionId}`);
+        const userDocRef = db.collection('users').doc(userId);
+        await db.runTransaction(async (transaction) => {
+            transaction.update(userDocRef, { walletBalance: FieldValue.increment(amount) });
+            const transactionDocRef = db.collection('transactions').doc(transactionId);
+             transaction.set(transactionDocRef, {
+                userId: userId,
+                type: 'deposit',
+                amount: amount,
+                status: 'completed',
+                gatewayTransactionId: transactionId,
+                createdAt: Timestamp.now(),
+            });
+        });
+        logger.log(`Wallet balance updated for user ${userId}.`);
     }
 };
 
@@ -33,6 +56,11 @@ const escrowService = {
     async releaseFunds(escrowId: string, winnerId: string): Promise<{success: boolean}> {
         logger.log(`Releasing funds from escrow ${escrowId} to winner ${winnerId}.`);
         // In a real app, this would call the escrow provider to disburse funds.
+        return { success: true };
+    },
+    async refundFunds(escrowId: string, partyIds: string[]): Promise<{success: boolean}> {
+        logger.log(`Refunding funds from escrow ${escrowId} to parties ${partyIds.join(', ')}.`);
+        // In a real app, this would call the escrow provider to return funds to both parties.
         return { success: true };
     }
 }
@@ -128,10 +156,10 @@ export const handleDeposit = onCall(async (request) => {
         throw new HttpsError('unauthenticated', 'You must be logged in to make a deposit.');
     }
     const { uid } = request.auth;
-    const { amount, paymentToken } = request.data;
+    const { depositAmount } = request.data;
 
-    if (typeof amount !== 'number' || amount <= 0 || !paymentToken) {
-        throw new HttpsError('invalid-argument', 'A valid amount and payment token are required.');
+    if (typeof depositAmount !== 'number' || depositAmount <= 0) {
+        throw new HttpsError('invalid-argument', 'A valid deposit amount is required.');
     }
     
     const userDocRef = db.collection('users').doc(uid);
@@ -141,6 +169,13 @@ export const handleDeposit = onCall(async (request) => {
     }
     const userData = userDoc.data()!;
 
+    // --- Self-Exclusion Check ---
+    if (userData.selfExclusion?.isActive === true) {
+        throw new HttpsError('failed-precondition', 'Your account is currently in a self-exclusion period. You cannot make a deposit.');
+    }
+    // --- End Self-Exclusion Check ---
+
+
     // --- Responsible Gaming: Deposit Limit Check ---
     const rgLimits = userData.responsibleGamingLimits?.deposit || {};
     const dailyLimit = rgLimits.daily || 0;
@@ -149,10 +184,7 @@ export const handleDeposit = onCall(async (request) => {
     
     if (dailyLimit > 0 || weeklyLimit > 0 || monthlyLimit > 0) {
         const now = new Date();
-        const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
-        startOfWeek.setHours(0,0,0,0);
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const startOfMonth = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
 
         const transactionsSnap = await db.collection('transactions')
             .where('userId', '==', uid)
@@ -164,6 +196,9 @@ export const handleDeposit = onCall(async (request) => {
         let dailyTotal = 0;
         let weeklyTotal = 0;
         let monthlyTotal = 0;
+        
+        const startOfDay = new Date(now.getTime() - (24 * 60 * 60 * 1000));
+        const startOfWeek = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
 
         transactionsSnap.forEach(doc => {
             const tx = doc.data();
@@ -173,13 +208,13 @@ export const handleDeposit = onCall(async (request) => {
             if (txDate >= startOfDay) dailyTotal += tx.amount;
         });
 
-        if (dailyLimit > 0 && (dailyTotal + amount) > dailyLimit) {
+        if (dailyLimit > 0 && (dailyTotal + depositAmount) > dailyLimit) {
             throw new HttpsError('failed-precondition', `Deposit would exceed your daily limit of $${dailyLimit}.`);
         }
-        if (weeklyLimit > 0 && (weeklyTotal + amount) > weeklyLimit) {
+        if (weeklyLimit > 0 && (weeklyTotal + depositAmount) > weeklyLimit) {
             throw new HttpsError('failed-precondition', `Deposit would exceed your weekly limit of $${weeklyLimit}.`);
         }
-        if (monthlyLimit > 0 && (monthlyTotal + amount) > monthlyLimit) {
+        if (monthlyLimit > 0 && (monthlyTotal + depositAmount) > monthlyLimit) {
             throw new HttpsError('failed-precondition', `Deposit would exceed your monthly limit of $${monthlyLimit}.`);
         }
     }
@@ -187,26 +222,17 @@ export const handleDeposit = onCall(async (request) => {
 
 
     try {
-        const depositResult = await paymentGateway.processDeposit(uid, amount, paymentToken);
-        if (!depositResult.success) {
-            throw new HttpsError('aborted', 'Payment processing failed.');
+        const intentResult = await paymentGateway.createPaymentIntent(uid, depositAmount);
+        if (!intentResult.success) {
+            throw new HttpsError('aborted', 'Payment intent creation failed.');
         }
 
-        await db.runTransaction(async (transaction) => {
-            transaction.update(userDocRef, { walletBalance: FieldValue.increment(amount) });
+        // SIMULATION: In a real app, a webhook would trigger the following function.
+        // For this demo, we'll call it directly to complete the flow.
+        await paymentGateway.processSuccessfulPayment(intentResult.transactionId, depositAmount, uid);
 
-            const transactionDocRef = db.collection('transactions').doc(depositResult.transactionId);
-            transaction.set(transactionDocRef, {
-                userId: uid,
-                type: 'deposit',
-                amount: amount,
-                status: 'completed',
-                gatewayTransactionId: depositResult.transactionId,
-                createdAt: Timestamp.now(),
-            });
-        });
-
-        logger.log(`Successfully processed deposit for user ${uid}.`);
+        logger.log(`Successfully processed deposit simulation for user ${uid}.`);
+        
         return { success: true, message: 'Deposit successful.' };
 
     } catch (error) {
@@ -284,6 +310,7 @@ export const createBet = onCall(async (request) => {
             status: 'open',
             isPublic,
             winnerId: null,
+            escrowId: null,
             createdAt: Timestamp.now(),
             matchedAt: null,
             settledAt: null,
@@ -318,6 +345,8 @@ export const matchBet = onCall(async (request) => {
     const betDocRef = db.collection('bets').doc(betId);
     const challengerDocRef = db.collection('users').doc(challengerId);
     
+    // --- Firestore Transaction ---
+    // This block ensures all database reads and writes are atomic.
     await db.runTransaction(async (transaction) => {
         const betDoc = await transaction.get(betDocRef);
         const challengerDoc = await transaction.get(challengerDocRef);
@@ -331,12 +360,14 @@ export const matchBet = onCall(async (request) => {
 
         if (creatorId === challengerId) throw new HttpsError('failed-precondition', 'You cannot accept your own bet.');
         if (status !== 'open') throw new HttpsError('failed-precondition', 'This bet is no longer open.');
+        if (challengerData.kycStatus !== 'verified') throw new HttpsError('failed-precondition', 'You must complete identity verification to accept a bet.');
 
         const creatorDocRef = db.collection('users').doc(creatorId);
         const creatorDoc = await transaction.get(creatorDocRef);
         if (!creatorDoc.exists) throw new HttpsError('not-found', 'Creator profile not found.');
 
         const creatorData = creatorDoc.data()!;
+        if (creatorData.kycStatus !== 'verified') throw new HttpsError('failed-precondition', 'The bet creator is not verified.');
         if (creatorData.walletBalance < stake) throw new HttpsError('failed-precondition', 'Creator has insufficient funds.');
         if (challengerData.walletBalance < stake) throw new HttpsError('failed-precondition', 'You have insufficient funds.');
 
@@ -367,20 +398,41 @@ export const matchBet = onCall(async (request) => {
             userId: challengerId, type: 'bet_stake', amount: -stake, status: 'completed', relatedBetId: betId, createdAt: Timestamp.now()
         });
     });
+    // --- End of Transaction ---
 
-    // 5. Lock funds in escrow (outside of Firestore transaction)
-    const betData = (await betDocRef.get()).data()!;
-    const totalPot = betData.stake * 2;
-    await escrowService.lockFunds(betId, totalPot);
-    // In a real app, you'd save the escrowId to the bet document.
+    // --- Escrow Integration (Post-Transaction) ---
+    // This happens only if the transaction above was successful.
+    try {
+        const betData = (await betDocRef.get()).data()!;
+        const totalPot = betData.stake * 2;
+        
+        const escrowResult = await escrowService.lockFunds(betId, totalPot);
+        if (!escrowResult.success) {
+            // CRITICAL: If escrow fails, we need to revert the state.
+            // This would involve a complex compensation transaction (e.g., refunding users).
+            // For this simulation, we'll log a critical error.
+            logger.error(`CRITICAL: Escrow failed for bet ${betId} after transaction committed. Manual intervention required.`);
+            throw new HttpsError('aborted', 'Failed to secure funds in escrow. Please contact support.');
+        }
 
-    logger.log(`Bet ${betId} successfully matched by ${challengerId}.`);
-    return { success: true, message: "Bet accepted and matched!" };
+        // Save the escrow ID to the bet document.
+        await betDocRef.update({ escrowId: escrowResult.escrowId });
+
+        logger.log(`Bet ${betId} successfully matched by ${challengerId} and funds locked in escrow ${escrowResult.escrowId}.`);
+        return { success: true, message: "Bet accepted and matched!" };
+
+    } catch(error) {
+        logger.error(`Error during post-transaction escrow for bet ${betId}:`, error);
+        // If the error is an HttpsError, rethrow it. Otherwise, wrap it.
+        if (error instanceof HttpsError) throw error;
+        throw new HttpsError('internal', 'An error occurred during the escrow process.');
+    }
 });
 
-export const processBetOutcome = onCall(async (request) => {
+export const processBetOutcomes = onCall(async (request) => {
     // In production, this should be a scheduled function and secured.
-    logger.log("Starting processBetOutcome...");
+    // For this demo, it's an onCall function that can be triggered manually or by a cron job.
+    logger.log("Starting processBetOutcomes...");
     
     const now = Timestamp.now();
     const query = db.collection('bets')
@@ -395,6 +447,8 @@ export const processBetOutcome = onCall(async (request) => {
     }
 
     let processedCount = 0;
+    const batch = db.batch();
+
     for (const betDoc of matchedBetsSnap.docs) {
         const betId = betDoc.id;
         const betData = betDoc.data();
@@ -421,12 +475,18 @@ export const processBetOutcome = onCall(async (request) => {
                 
                 // If there's a winner, update status and process payout
                 if (winnerId) {
-                    await processPayout({ betId, winnerId, stake: betData.stake, loserId: winnerId === betData.creatorId ? betData.challengerId : betData.creatorId });
-                    await betDoc.ref.update({ status: 'settled', winnerId, settledAt: Timestamp.now() });
+                    await processPayout({ 
+                        betId, 
+                        winnerId, 
+                        stake: betData.stake, 
+                        loserId: winnerId === betData.creatorId ? betData.challengerId : betData.creatorId,
+                        escrowId: betData.escrowId
+                    });
+                    batch.update(betDoc.ref, { status: 'settled', winnerId, settledAt: Timestamp.now() });
                     processedCount++;
                 } else {
                     // Handle push/void cases
-                    await betDoc.ref.update({ status: 'void', settledAt: Timestamp.now() });
+                    batch.update(betDoc.ref, { status: 'void', settledAt: Timestamp.now() });
                     // Here you would also refund the stakes
                     logger.log(`Bet ${betId} resulted in a push/void.`);
                 }
@@ -435,14 +495,15 @@ export const processBetOutcome = onCall(async (request) => {
             logger.error(`Failed to process outcome for bet ${betId}:`, error);
         }
     }
-
-    logger.log(`Finished processBetOutcome. Processed ${processedCount} bets.`);
+    
+    await batch.commit();
+    logger.log(`Finished processBetOutcomes. Processed ${processedCount} bets.`);
     return { success: true, processedCount };
 });
 
 // This is not a callable function, but a helper for processBetOutcome
-async function processPayout(data: { betId: string, winnerId: string, loserId: string | null, stake: number }) {
-    const { betId, winnerId, loserId, stake } = data;
+async function processPayout(data: { betId: string, winnerId: string, loserId: string | null, stake: number, escrowId: string | null }) {
+    const { betId, winnerId, loserId, stake, escrowId } = data;
     const PLATFORM_COMMISSION_RATE = 0.05; // 5%
     
     const winnerDocRef = db.collection('users').doc(winnerId);
@@ -487,8 +548,11 @@ async function processPayout(data: { betId: string, winnerId: string, loserId: s
         });
     });
 
-    // In a real app, you would release funds from the real escrow service.
-    await escrowService.releaseFunds(`escrow_${betId}`, winnerId);
+    if (escrowId) {
+        await escrowService.releaseFunds(escrowId, winnerId);
+    } else {
+        logger.warn(`Payout for bet ${betId} processed, but no escrowId was found.`);
+    }
 
     logger.log(`Payout for bet ${betId} processed for winner ${winnerId}.`);
 }
@@ -576,4 +640,82 @@ export const issueManualRefund = onCall(async (request) => {
     // This is a simplified placeholder.
     logger.log(`Admin initiated manual refund for user ${userId} concerning bet ${betId}.`);
     return { success: true, message: `Refund process initiated for bet ${betId}.` };
+});
+
+export const resolveDispute = onCall(async (request) => {
+    ensureIsAdmin(request);
+
+    const { disputeId, ruling, adminNotes } = request.data;
+    if (!disputeId || !ruling || !adminNotes) {
+        throw new HttpsError('invalid-argument', 'disputeId, ruling, and adminNotes are required.');
+    }
+    if (!['creator_wins', 'taker_wins', 'void'].includes(ruling)) {
+        throw new HttpsError('invalid-argument', 'Invalid ruling provided.');
+    }
+
+    const disputeRef = db.collection('disputes').doc(disputeId);
+    
+    try {
+        const disputeDoc = await disputeRef.get();
+        if (!disputeDoc.exists) {
+            throw new HttpsError('not-found', 'Dispute not found.');
+        }
+        const disputeData = disputeDoc.data()!;
+        if (disputeData.status !== 'open') {
+            throw new HttpsError('failed-precondition', 'This dispute has already been resolved.');
+        }
+        
+        const betRef = db.collection('bets').doc(disputeData.betId);
+        const betDoc = await betRef.get();
+        if (!betDoc.exists) {
+            throw new HttpsError('not-found', `Related bet ${disputeData.betId} not found.`);
+        }
+        const betData = betDoc.data()!;
+
+        // Handle based on ruling
+        if (ruling === 'void') {
+            await escrowService.refundFunds(betData.escrowId, [betData.creatorId, betData.challengerId]);
+            await db.runTransaction(async (transaction) => {
+                 transaction.update(betRef, { status: 'void', settledAt: Timestamp.now() });
+                 transaction.update(disputeRef, {
+                    status: 'resolved',
+                    resolution: { outcome: 'void', adminNotes, resolvedAt: Timestamp.now() }
+                });
+                // Refund stakes to both users
+                const creatorRef = db.collection('users').doc(betData.creatorId);
+                const takerRef = db.collection('users').doc(betData.challengerId);
+                transaction.update(creatorRef, { walletBalance: FieldValue.increment(betData.stake) });
+                transaction.update(takerRef, { walletBalance: FieldValue.increment(betData.stake) });
+            });
+        } else {
+            const winnerId = ruling === 'creator_wins' ? betData.creatorId : betData.challengerId;
+            const loserId = ruling === 'creator_wins' ? betData.challengerId : betData.creatorId;
+
+            await processPayout({
+                betId: betDoc.id,
+                winnerId,
+                loserId,
+                stake: betData.stake,
+                escrowId: betData.escrowId,
+            });
+
+            await db.runTransaction(async (transaction) => {
+                transaction.update(betRef, { status: 'settled', winnerId, settledAt: Timestamp.now() });
+                transaction.update(disputeRef, {
+                    status: 'resolved',
+                    resolution: { outcome: ruling, adminNotes, resolvedAt: Timestamp.now() }
+                });
+            });
+        }
+
+        // TODO: Send notifications to users about the outcome.
+
+        logger.log(`Dispute ${disputeId} resolved with ruling: ${ruling}.`);
+        return { success: true, message: 'Dispute resolved successfully.' };
+
+    } catch (error) {
+        logger.error(`Error resolving dispute ${disputeId}:`, error);
+        if (error instanceof HttpsError) throw error;
+        throw new HttpsError('internal', 'An internal error occurred while resolving the dispute.');
+    }
 });
