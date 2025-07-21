@@ -31,8 +31,23 @@ export type User = {
   wins: number;
   losses: number;
   kycStatus: 'pending' | 'verified' | 'rejected';
-  responsibleGamingLimits: Record<string, any>; // map
-  selfExclusion: Record<string, any>; // map
+  responsibleGamingLimits: {
+      deposit: {
+          daily: number;
+          weekly: number;
+          monthly: number;
+      };
+      wager: {
+          daily: number;
+          weekly: number;
+          monthly: number;
+      };
+  };
+  selfExclusion: {
+      isActive: boolean;
+      startDate: Timestamp | null;
+      endDate: Timestamp | null; // null for permanent
+  };
 };
 
 export type Game = {

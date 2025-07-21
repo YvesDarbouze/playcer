@@ -11,7 +11,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UserBetsTable } from "./user-bets-table";
-import { Banknote, Trophy, ShieldHalf, Swords, Hourglass } from "lucide-react";
+import { Banknote, Trophy, ShieldHalf, Swords, Hourglass, LifeBuoy } from "lucide-react";
+import Link from 'next/link';
 
 const convertToBet = (doc: any): Bet => {
     const data = doc.data();
@@ -133,10 +134,18 @@ export function UserDashboard() {
                                 <p className="text-sm text-muted-foreground">Wallet</p>
                             </div>
                         </div>
-                        <Button>
-                            <Banknote className="mr-2" />
-                            Manage Wallet
-                        </Button>
+                        <div className="flex flex-col gap-2">
+                             <Button>
+                                <Banknote className="mr-2" />
+                                Manage Wallet
+                            </Button>
+                            <Link href="/dashboard/responsible-gaming" passHref>
+                                <Button variant="outline" className="w-full">
+                                    <LifeBuoy className="mr-2" />
+                                    Gaming Controls
+                                </Button>
+                            </Link>
+                        </div>
                     </CardContent>
                 </Card>
             </header>

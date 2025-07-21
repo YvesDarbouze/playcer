@@ -73,8 +73,15 @@ export const onusercreate = onUserCreate(async (event) => {
       wins: 0,
       losses: 0,
       kycStatus: "pending",
-      responsibleGamingLimits: {},
-      selfExclusion: {},
+      responsibleGamingLimits: {
+        deposit: { daily: 0, weekly: 0, monthly: 0 },
+        wager: { daily: 0, weekly: 0, monthly: 0 },
+      },
+      selfExclusion: {
+        isActive: false,
+        startDate: null,
+        endDate: null,
+      },
     });
     logger.log("User document created successfully for UID:", uid);
   } catch (error) {
@@ -95,22 +102,67 @@ export const handleDeposit = onCall(async (request) => {
     if (typeof amount !== 'number' || amount <= 0 || !paymentToken) {
         throw new HttpsError('invalid-argument', 'A valid amount and payment token are required.');
     }
+    
+    const userDocRef = db.collection('users').doc(uid);
+    const userDoc = await userDocRef.get();
+    if (!userDoc.exists) {
+        throw new HttpsError('not-found', 'User profile not found.');
+    }
+    const userData = userDoc.data()!;
+
+    // --- Responsible Gaming: Deposit Limit Check ---
+    const rgLimits = userData.responsibleGamingLimits?.deposit || {};
+    const dailyLimit = rgLimits.daily || 0;
+    const weeklyLimit = rgLimits.weekly || 0;
+    const monthlyLimit = rgLimits.monthly || 0;
+    
+    if (dailyLimit > 0 || weeklyLimit > 0 || monthlyLimit > 0) {
+        const now = new Date();
+        const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
+        startOfWeek.setHours(0,0,0,0);
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+        const transactionsSnap = await db.collection('transactions')
+            .where('userId', '==', uid)
+            .where('type', '==', 'deposit')
+            .where('status', '==', 'completed')
+            .where('createdAt', '>=', startOfMonth) // Most broad range, then filter in code
+            .get();
+
+        let dailyTotal = 0;
+        let weeklyTotal = 0;
+        let monthlyTotal = 0;
+
+        transactionsSnap.forEach(doc => {
+            const tx = doc.data();
+            const txDate = (tx.createdAt as Timestamp).toDate();
+            monthlyTotal += tx.amount;
+            if (txDate >= startOfWeek) weeklyTotal += tx.amount;
+            if (txDate >= startOfDay) dailyTotal += tx.amount;
+        });
+
+        if (dailyLimit > 0 && (dailyTotal + amount) > dailyLimit) {
+            throw new HttpsError('failed-precondition', `Deposit would exceed your daily limit of $${dailyLimit}.`);
+        }
+        if (weeklyLimit > 0 && (weeklyTotal + amount) > weeklyLimit) {
+            throw new HttpsError('failed-precondition', `Deposit would exceed your weekly limit of $${weeklyLimit}.`);
+        }
+        if (monthlyLimit > 0 && (monthlyTotal + amount) > monthlyLimit) {
+            throw new HttpsError('failed-precondition', `Deposit would exceed your monthly limit of $${monthlyLimit}.`);
+        }
+    }
+    // --- End RG Check ---
+
 
     try {
         const depositResult = await paymentGateway.processDeposit(uid, amount, paymentToken);
         if (!depositResult.success) {
             throw new HttpsError('aborted', 'Payment processing failed.');
         }
-        
-        const userDocRef = db.collection('users').doc(uid);
 
         await db.runTransaction(async (transaction) => {
-            const userDoc = await transaction.get(userDocRef);
-            if (!userDoc.exists) {
-                throw new HttpsError('not-found', 'User profile not found.');
-            }
-            const newBalance = (userDoc.data()!.walletBalance || 0) + amount;
-            transaction.update(userDocRef, { walletBalance: newBalance });
+            transaction.update(userDocRef, { walletBalance: FieldValue.increment(amount) });
 
             const transactionDocRef = db.collection('transactions').doc(depositResult.transactionId);
             transaction.set(transactionDocRef, {
