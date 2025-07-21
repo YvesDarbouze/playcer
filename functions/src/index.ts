@@ -38,11 +38,48 @@ const escrowService = {
 }
 
 const sportsDataAPI = {
-    async getEventResult(eventId: string): Promise<{winnerTeamName: string, status: 'Final' | 'InProgress'}> {
+     async getEventResult(sportKey: string, eventId: string): Promise<{ winnerTeamName: string | null, status: 'Final' | 'InProgress' }> {
         logger.log(`Fetching result for event ${eventId} from sports data oracle.`);
-        // In a real app, this would call an API like The Odds API, Sportradar, etc.
-        // Returning a mock result for demonstration.
-        return { winnerTeamName: 'Team A', status: 'Final' }; // Mock winner
+        const apiKey = process.env.ODDS_API_KEY;
+
+        if (!apiKey || apiKey === 'YOUR_ODDS_API_KEY') {
+            logger.warn(`ODDS_API_KEY is not set. Returning mock winner for event ${eventId}.`);
+            // Return a mock result for demonstration when API key is not available
+            return { winnerTeamName: 'Team A', status: 'Final' };
+        }
+
+        try {
+            const url = `https://api.the-odds-api.com/v4/sports/${sportKey}/scores/?daysFrom=3&apiKey=${apiKey}&eventIds=${eventId}`;
+            const response = await fetch(url);
+
+            if (!response.ok) {
+                logger.error(`Error fetching event result from TheOddsAPI for event ${eventId}. Status: ${response.status}`);
+                throw new Error('Failed to fetch from TheOddsAPI');
+            }
+
+            const data = await response.json();
+            const eventResult = data[0];
+
+            if (!eventResult || !eventResult.completed) {
+                return { winnerTeamName: null, status: 'InProgress' };
+            }
+
+            const homeScore = parseInt(eventResult.scores.find((s: any) => s.name === eventResult.home_team)?.score || '0');
+            const awayScore = parseInt(eventResult.scores.find((s: any) => s.name === eventResult.away_team)?.score || '0');
+
+            if (homeScore > awayScore) {
+                return { winnerTeamName: eventResult.home_team, status: 'Final' };
+            } else if (awayScore > homeScore) {
+                return { winnerTeamName: eventResult.away_team, status: 'Final' };
+            } else {
+                return { winnerTeamName: null, status: 'Final' }; // Push/Tie
+            }
+
+        } catch (error) {
+            logger.error(`Exception fetching event result for ${eventId}:`, error);
+            // In case of any error, return a non-final status to retry later
+            return { winnerTeamName: null, status: 'InProgress' };
+        }
     }
 }
 
@@ -365,17 +402,17 @@ export const processBetOutcome = onCall(async (request) => {
         const betData = betDoc.data();
         
         try {
-            const result = await sportsDataAPI.getEventResult(betData.eventId);
+            const result = await sportsDataAPI.getEventResult(betData.sportKey, betData.eventId);
 
             if (result.status === 'Final') {
                 let winnerId = null;
-                // Determine winner based on who picked the winning team
-                if (betData.teamSelection === result.winnerTeamName) {
-                    // Logic depends on who made the selection (creator or implied challenger)
-                    // Simplified: Assuming teamSelection is always the creator's pick for this example.
-                    winnerId = betData.creatorId; 
-                } else {
-                    winnerId = betData.challengerId;
+
+                if (betData.betType === 'moneyline' || betData.betType === 'spread') {
+                    if (result.winnerTeamName === betData.teamSelection) {
+                         winnerId = betData.creatorId;
+                    } else if (result.winnerTeamName) { // if there is a winner, and it wasn't the creator's pick
+                         winnerId = betData.challengerId;
+                    }
                 }
                 
                 // If there's a winner, update status and process payout
