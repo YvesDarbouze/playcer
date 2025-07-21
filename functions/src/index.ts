@@ -36,7 +36,7 @@ const paymentGateway = {
 
 export const onusercreate = onUserCreate(async (event) => {
   const user = event.data;
-  const {uid, displayName, photoURL} = user;
+  const {uid, displayName, photoURL, email} = user;
 
   // Extract Twitter specific data
   const twitterProvider = user.providerData.find(
@@ -56,10 +56,14 @@ export const onusercreate = onUserCreate(async (event) => {
       displayName: displayName || "",
       username: username,
       photoURL: photoURL || "",
+      email: email || "",
       createdAt: Timestamp.now(),
       walletBalance: 0.00,
       wins: 0,
       losses: 0,
+      kycStatus: "pending",
+      responsibleGamingLimits: {},
+      selfExclusion: {},
     });
     logger.log("User document created successfully for UID:", uid);
   } catch (error) {
@@ -81,10 +85,13 @@ export const createBet = onCall(async (request) => {
         homeTeam,
         awayTeam,
         betType,
+        marketDescription,
+        outcomeDescription,
         line,
         odds,
         teamSelection,
-        stake
+        stake,
+        isPublic = true,
     } = request.data;
     
     // Basic validation
@@ -99,41 +106,57 @@ export const createBet = onCall(async (request) => {
 
     try {
         const userDocRef = db.collection('users').doc(uid);
-        const userDoc = await userDocRef.get();
-
-        if (!userDoc.exists) {
-            throw new HttpsError('not-found', 'User profile not found.');
-        }
-        const userData = userDoc.data()!;
-
         const betId = uuidv4();
         const baseUrl = 'https://playcer-mvp.web.app'; // Replace with your actual domain
         const uniqueLink = `${baseUrl}/bet/${betId}`;
 
-        const newBet = {
-            creatorId: uid,
-            creatorUsername: userData.username,
-            creatorPhotoURL: userData.photoURL,
-            challengerId: null,
-            challengerUsername: null,
-            challengerPhotoURL: null,
-            sportKey,
-            eventId,
-            eventDate: Timestamp.fromDate(new Date(eventDate)),
-            homeTeam,
-            awayTeam,
-            betType,
-            line: line ?? null,
-            odds,
-            teamSelection,
-            stake,
-            status: 'open',
-            winnerId: null,
-            createdAt: Timestamp.now(),
-            uniqueLink,
-        };
+        await db.runTransaction(async (transaction) => {
+            const userDoc = await transaction.get(userDocRef);
 
-        await db.collection('bets').doc(betId).set(newBet);
+            if (!userDoc.exists) {
+                throw new HttpsError('not-found', 'User profile not found.');
+            }
+            const userData = userDoc.data()!;
+
+            const newBet = {
+                creatorId: uid,
+                creatorUsername: userData.username,
+                creatorPhotoURL: userData.photoURL,
+                challengerId: null,
+                challengerUsername: null,
+                challengerPhotoURL: null,
+                sportKey,
+                eventId,
+                eventDate: Timestamp.fromDate(new Date(eventDate)),
+                homeTeam,
+                awayTeam,
+                betType,
+                marketDescription: marketDescription || "N/A",
+                outcomeDescription: outcomeDescription || "N/A",
+                line: line ?? null,
+                odds,
+                teamSelection,
+                stake,
+                status: 'open',
+                isPublic,
+                winnerId: null,
+                createdAt: Timestamp.now(),
+                matchedAt: null,
+                settledAt: null,
+                uniqueLink,
+            };
+
+            const betDocRef = db.collection('bets').doc(betId);
+            transaction.set(betDocRef, newBet);
+            
+            // Create userBet subcollection entry
+            const userBetDocRef = db.collection('users').doc(uid).collection('userBets').doc(betId);
+            transaction.set(userBetDocRef, {
+                betRef: betDocRef.path,
+                role: 'creator',
+                createdAt: Timestamp.now()
+            });
+        });
         
         logger.log(`Bet ${betId} created by user ${uid}`);
 
@@ -210,7 +233,16 @@ export const acceptBetAndAuthPayment = onCall(async (request) => {
                 challengerId: challengerId,
                 challengerUsername: challengerData.username,
                 challengerPhotoURL: challengerData.photoURL,
-                status: 'matched'
+                status: 'matched',
+                matchedAt: Timestamp.now()
+            });
+
+             // Create userBet subcollection entry for the challenger
+            const userBetDocRef = db.collection('users').doc(challengerId).collection('userBets').doc(betId);
+            transaction.set(userBetDocRef, {
+                betRef: betDocRef.path,
+                role: 'taker',
+                createdAt: Timestamp.now()
             });
         });
 

@@ -25,10 +25,14 @@ export type User = {
   displayName: string;
   username: string;
   photoURL: string;
+  email?: string; // from new schema
   createdAt: Timestamp;
   walletBalance: number;
   wins: number;
   losses: number;
+  kycStatus: 'pending' | 'verified' | 'rejected';
+  responsibleGamingLimits: Record<string, any>; // map
+  selfExclusion: Record<string, any>; // map
 };
 
 export type Game = {
@@ -57,23 +61,60 @@ export type Game = {
 export type Bet = {
   id: string; 
   creatorId: string;
-  creatorUsername: string;
+  creatorUsername: string; // creatorDisplayName in new schema
   creatorPhotoURL: string;
-  challengerId: string | null;
-  challengerUsername: string | null;
-  challengerPhotoURL: string | null;
+  challengerId: string | null; // takerId in new schema
+  challengerUsername: string | null; // takerDisplayName in new schema
+  challengerPhotoURL: string | null; // takerPhotoURL in new schema
   sportKey: string;
   eventId: string;
   eventDate: Timestamp;
   homeTeam: string;
   awayTeam: string;
   betType: 'spread' | 'moneyline' | 'total';
+  marketDescription: string; // from new schema
+  outcomeDescription: string; // from new schema
   line: number | null;
   odds: number;
   teamSelection: string;
   stake: number;
-  status: 'open' | 'matched' | 'settled' | 'void';
+  status: 'open' | 'matched' | 'settled' | 'void' | 'disputed';
+  isPublic: boolean; // from new schema
   winnerId: string | null;
   createdAt: Timestamp; 
+  matchedAt: Timestamp | null; // from new schema
+  settledAt: Timestamp | null; // from new schema
   uniqueLink: string;
 };
+
+// From new schema
+export type UserBet = {
+  betRef: string; // Using string to represent reference path
+  role: 'creator' | 'taker';
+  createdAt: Timestamp;
+}
+
+// From new schema
+export type Transaction = {
+  id: string;
+  userId: string;
+  type: 'deposit' | 'withdrawal' | 'bet_stake' | 'bet_payout' | 'commission';
+  amount: number;
+  status: 'pending' | 'completed' | 'failed';
+  relatedBetId: string | null;
+  gatewayTransactionId: string | null;
+  createdAt: Timestamp;
+}
+
+// From new schema
+export type Dispute = {
+  id: string;
+  betId: string;
+  creatorId: string;
+  takerId: string;
+  status: 'open' | 'under_review' | 'resolved';
+  reason: string;
+  resolution: string | null;
+  createdAt: Timestamp;
+  resolvedAt: Timestamp | null;
+}
