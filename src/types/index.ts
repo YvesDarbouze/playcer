@@ -20,7 +20,7 @@ export type Court = {
 };
 
 export type User = {
-  uid: string;
+  id: string; // This is the UID from Firebase Auth
   twitterId: string;
   displayName: string;
   username: string;
@@ -64,7 +64,7 @@ export type Bet = {
   challengerPhotoURL: string | null;
   sportKey: string;
   eventId: string;
-  eventDate: Date; // Changed from Timestamp to Date for easier client-side handling
+  eventDate: any; // Firestore Timestamp on server, string or Date on client
   homeTeam: string;
   awayTeam: string;
   betType: 'spread' | 'moneyline' | 'total';
@@ -74,6 +74,6 @@ export type Bet = {
   stake: number;
   status: 'open' | 'matched' | 'settled' | 'void';
   winnerId: string | null;
-  createdAt: Date; // Changed from Timestamp to Date
+  createdAt: any; // Firestore Timestamp on server, string or Date on client
   uniqueLink: string;
 };
