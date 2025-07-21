@@ -35,6 +35,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import type { Game } from "@/types";
 import { ClipboardCopy } from "lucide-react";
+import { getFirebaseApp } from "@/lib/firebase";
 
 interface BetCreationModalProps {
   isOpen: boolean;
@@ -79,7 +80,7 @@ export function BetCreationModal({ isOpen, onOpenChange, game }: BetCreationModa
     setIsLoading(true);
     setChallengeLink(null);
 
-    const functions = getFunctions();
+    const functions = getFunctions(getFirebaseApp());
     const createBet = httpsCallable(functions, 'createBet');
 
     try {
@@ -96,7 +97,7 @@ export function BetCreationModal({ isOpen, onOpenChange, game }: BetCreationModa
       const result: any = await createBet(betPayload);
 
       if (result.data.success) {
-        setChallengeLink(result.data.uniqueLink);
+        setChallengeLink(`${window.location.origin}/bet/${result.data.betId}`);
         toast({
           title: "Bet Created Successfully!",
           description: "Your challenge link is ready to be shared.",
