@@ -1,0 +1,75 @@
+import type { Court } from '@/types';
+
+export const courts: Court[] = [
+  {
+    id: '1',
+    name: 'Victory Park Pickleball',
+    address: '123 Victory Lane, Los Angeles, CA',
+    rating: 4.8,
+    busyness: 4,
+    imageUrl: 'https://placehold.co/600x400',
+    features: ['Lights', 'Restrooms', 'Water Fountain', '6 Courts'],
+    reviews: [
+      { author: 'John D.', rating: 5, comment: 'Great courts, well maintained. Always a good game here.' },
+      { author: 'Jane S.', rating: 4, comment: 'Can get very crowded on weekends, but worth the wait.' },
+      { author: 'Mike T.', rating: 5, comment: 'Love the community here. Lights are a huge plus for evening play.' },
+    ],
+    coordinates: { lat: 34.0522, lng: -118.2437 },
+  },
+  {
+    id: '2',
+    name: 'Downtown Courts',
+    address: '456 Main Street, Los Angeles, CA',
+    rating: 4.2,
+    busyness: 5,
+    imageUrl: 'https://placehold.co/600x400',
+    features: ['4 Courts', 'Restrooms'],
+    reviews: [
+      { author: 'Sarah P.', rating: 4, comment: 'Prime location, but it is always packed. Be prepared to wait.' },
+      { author: 'Tom H.', rating: 4, comment: 'Decent courts, but no lights for night play.' },
+    ],
+    coordinates: { lat: 34.056, lng: -118.249 },
+  },
+  {
+    id: '3',
+    name: 'Ocean View Pickleball',
+    address: '789 Beachfront Ave, Santa Monica, CA',
+    rating: 4.9,
+    busyness: 3,
+    imageUrl: 'https://placehold.co/600x400',
+    features: ['Lights', 'Ocean View', '2 Courts', 'Cafe Nearby'],
+    reviews: [
+      { author: 'Emily R.', rating: 5, comment: 'Cannot beat the view! The sea breeze is amazing.' },
+      { author: 'Chris B.', rating: 5, comment: 'Less crowded than other spots. A real hidden gem.' },
+    ],
+    coordinates: { lat: 34.0195, lng: -118.4912 },
+  },
+  {
+    id: '4',
+    name: 'Suburban Sports Complex',
+    address: '101 Park Ave, Pasadena, CA',
+    rating: 4.5,
+    busyness: 2,
+    imageUrl: 'https://placehold.co/600x400',
+    features: ['Lights', 'Restrooms', 'Water Fountain', '8 Courts', 'Pro Shop'],
+    reviews: [
+      { author: 'Linda G.', rating: 5, comment: 'So many courts! Never have to wait long. Staff is friendly.' },
+      { author: 'David C.', rating: 4, comment: 'A bit of a drive, but the facilities are top-notch.' },
+    ],
+    coordinates: { lat: 34.1478, lng: -118.1445 },
+  },
+  {
+    id: '5',
+    name: 'Eastside Pickleball Hub',
+    address: '222 Industrial Way, East LA, CA',
+    rating: 3.9,
+    busyness: 3,
+    imageUrl: 'https://placehold.co/600x400',
+    features: ['Lights', '4 Courts'],
+    reviews: [
+      { author: 'Carlos M.', rating: 4, comment: 'Good place for a quick game after work. Surface is a bit worn.' },
+      { author: 'Maria F.', rating: 4, comment: 'Not too crowded on weekdays. Solid local spot.' },
+    ],
+    coordinates: { lat: 34.0381, lng: -118.1668 },
+  },
+];
