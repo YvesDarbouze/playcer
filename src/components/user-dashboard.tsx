@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UserBetsTable } from "./user-bets-table";
-import { Banknote, Trophy, ShieldHalf, Swords, Hourglass, LifeBuoy, ShieldCheck, PlusCircle } from "lucide-react";
+import { Banknote, Trophy, ShieldHalf, Swords, Hourglass, LifeBuoy, ShieldCheck, PlusCircle, Store } from "lucide-react";
 import Link from 'next/link';
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 
@@ -168,19 +168,25 @@ export function UserDashboard() {
                                 <p className="text-sm text-muted-foreground">Wallet</p>
                             </div>
                         </div>
-                        <div className="flex flex-col gap-2">
+                        <div className="grid grid-cols-2 gap-2">
                              <Link href="/create-bet" passHref>
                                 <Button className="w-full">
                                     <PlusCircle className="mr-2" />
-                                    Create a Bet
+                                    Create Bet
                                 </Button>
                              </Link>
-                             <Button variant="secondary">
+                              <Link href="/marketplace" passHref>
+                                <Button className="w-full">
+                                    <Store className="mr-2" />
+                                    Marketplace
+                                </Button>
+                             </Link>
+                             <Button variant="secondary" className="col-span-2">
                                 <Banknote className="mr-2" />
                                 Manage Wallet
                             </Button>
                             <Link href="/dashboard/responsible-gaming" passHref>
-                                <Button variant="outline" className="w-full">
+                                <Button variant="outline" className="col-span-2">
                                     <LifeBuoy className="mr-2" />
                                     Gaming Controls
                                 </Button>
