@@ -423,8 +423,8 @@ export const processBetOutcome = onCall(async (request) => {
                 
                 // If there's a winner, update status and process payout
                 if (winnerId) {
-                    await betDoc.ref.update({ status: 'settled', winnerId, settledAt: Timestamp.now() });
                     await processPayout({ betId, winnerId, stake: betData.stake, loserId: winnerId === betData.creatorId ? betData.challengerId : betData.creatorId });
+                    await betDoc.ref.update({ status: 'settled', winnerId, settledAt: Timestamp.now() });
                     processedCount++;
                 } else {
                     // Handle push/void cases
