@@ -1,4 +1,5 @@
 import {initializeApp} from "firebase-admin/app";
+import { getAuth } from "firebase-admin/auth";
 import {getFirestore, Timestamp, FieldValue, Transaction} from "firebase-admin/firestore";
 import {onUserCreate} from "firebase-functions/v2/auth";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
@@ -267,4 +268,25 @@ export const sendOutcomeNotification = onCall(async (request) => {
         throw new HttpsError('internal', 'An unexpected error occurred while sending notifications.');
     }
 
+});
+
+export const setAdminClaim = onCall(async (request) => {
+    // Verify the caller is an admin.
+    if (request.auth?.token.admin !== true) {
+        throw new HttpsError('permission-denied', 'You must be an admin to perform this action.');
+    }
+
+    const { uid } = request.data;
+    if (!uid) {
+        throw new HttpsError('invalid-argument', 'The `uid` must be provided.');
+    }
+
+    try {
+        await getAuth().setCustomUserClaims(uid, { admin: true });
+        logger.log(`Successfully set admin claim for user ${uid}`);
+        return { success: true, message: `Admin claim set for user ${uid}.` };
+    } catch (error) {
+        logger.error(`Error setting admin claim for user ${uid}:`, error);
+        throw new HttpsError('internal', 'An unexpected error occurred while setting the admin claim.');
+    }
 });
