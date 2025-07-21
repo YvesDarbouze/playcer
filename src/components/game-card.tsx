@@ -20,7 +20,12 @@ export function GameCard({ game }: GameCardProps) {
     const [isModalOpen, setIsModalOpen] = React.useState(false);
     const { user, loading } = useAuth();
     const { toast } = useToast();
-    const gameTime = new Date(game.commence_time);
+    const [gameTime, setGameTime] = React.useState<Date | null>(null);
+
+    React.useEffect(() => {
+        // Set the date on the client to avoid hydration mismatch
+        setGameTime(new Date(game.commence_time));
+    }, [game.commence_time]);
 
     const handleCreateBetClick = () => {
         if (!user && !loading) {
@@ -47,12 +52,21 @@ export function GameCard({ game }: GameCardProps) {
                 </CardHeader>
                 <CardContent className="flex justify-between items-center mt-auto">
                     <div>
-                        <p className="text-sm text-muted-foreground">
-                            {format(gameTime, "EEE, MMM d, yyyy")}
-                        </p>
-                        <p className="text-sm font-semibold">
-                            {format(gameTime, "h:mm a")}
-                        </p>
+                        {gameTime ? (
+                            <>
+                                <p className="text-sm text-muted-foreground">
+                                    {format(gameTime, "EEE, MMM d, yyyy")}
+                                </p>
+                                <p className="text-sm font-semibold">
+                                    {format(gameTime, "h:mm a")}
+                                </p>
+                            </>
+                        ) : (
+                            <>
+                                <div className="h-4 w-24 bg-muted rounded animate-pulse" />
+                                <div className="h-4 w-16 bg-muted rounded animate-pulse mt-1" />
+                            </>
+                        )}
                     </div>
                     <Button onClick={handleCreateBetClick} disabled={loading}>
                         <Swords className="mr-2 h-4 w-4" />
@@ -60,7 +74,7 @@ export function GameCard({ game }: GameCardProps) {
                     </Button>
                 </CardContent>
             </Card>
-            {user && (
+            {user && gameTime && (
                  <BetCreationModal
                     isOpen={isModalOpen}
                     onOpenChange={setIsModalOpen}
