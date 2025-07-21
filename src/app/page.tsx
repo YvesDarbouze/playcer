@@ -25,7 +25,7 @@ async function getGames(): Promise<Game[]> {
                 if (res.status === 401) {
                      console.warn(`Failed to fetch data for ${sport}: Unauthorized. Please check your NEXT_PUBLIC_ODDS_API_KEY.`);
                 } else {
-                    console.error(`Failed to fetch data for ${sport}: ${res.statusText}`);
+                    console.warn(`Failed to fetch data for ${sport}: ${res.statusText}`);
                 }
                 continue; // Skip to the next sport
             }
