@@ -39,10 +39,6 @@ const depositSchema = z.object({
     .number()
     .min(5, "Deposit must be at least $5.00.")
     .max(1000, "Deposit cannot exceed $1,000.00."),
-  paymentToken: z
-    .string()
-    .min(1, "A payment token is required.")
-    .default("tok_placeholder"), // Placeholder for simulation
 });
 
 type DepositFormData = z.infer<typeof depositSchema>;
@@ -55,7 +51,6 @@ export function DepositModal({ isOpen, onOpenChange }: DepositModalProps) {
     resolver: zodResolver(depositSchema),
     defaultValues: {
       amount: 25,
-      paymentToken: "tok_placeholder",
     },
   });
 
@@ -67,18 +62,20 @@ export function DepositModal({ isOpen, onOpenChange }: DepositModalProps) {
 
     try {
       const result: any = await handleDeposit({
-        amount: data.amount,
-        paymentToken: data.paymentToken,
+        depositAmount: data.amount,
       });
 
       if (result.data.success) {
         toast({
-          title: "Deposit Successful!",
-          description: `Successfully added $${data.amount.toFixed(
+          title: "Deposit Initiated",
+          description: `Please complete the payment to add $${data.amount.toFixed(
             2
           )} to your wallet.`,
         });
-        onOpenChange(false); // Close modal on success
+        // In a real application, you would now use the result.data.clientSecret
+        // with the Stripe.js SDK to confirm the payment on the client side.
+        // For this simulation, we'll just close the modal.
+        onOpenChange(false); 
       } else {
         throw new Error(result.data.message || "Failed to process deposit.");
       }
@@ -125,20 +122,6 @@ export function DepositModal({ isOpen, onOpenChange }: DepositModalProps) {
                       placeholder="Enter amount"
                       {...field}
                     />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            {/* The payment token field would be hidden and populated by a real payment SDK */}
-            <FormField
-              control={form.control}
-              name="paymentToken"
-              render={({ field }) => (
-                <FormItem className="hidden">
-                  <FormLabel>Payment Token</FormLabel>
-                  <FormControl>
-                    <Input type="hidden" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

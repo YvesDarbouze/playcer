@@ -17,10 +17,33 @@ const auth = getAuth();
 // In a real application, these would interact with external APIs.
 
 const paymentGateway = {
-    async processDeposit(userId: string, amount: number, paymentToken: string): Promise<{success: boolean, transactionId: string}> {
-        logger.log(`Processing deposit for user ${userId} of amount ${amount} with token ${paymentToken}.`);
-        // In a real app, interact with Stripe, Braintree, etc.
-        return { success: true, transactionId: `deposit_${uuidv4()}` };
+    // This function simulates creating a payment intent (e.g., with Stripe).
+    // It returns a client secret that the frontend would use to confirm the payment.
+    async createPaymentIntent(userId: string, amount: number): Promise<{success: boolean, clientSecret: string, transactionId: string}> {
+        logger.log(`Creating payment intent for user ${userId} of amount ${amount}.`);
+        // In a real app, you'd call Stripe's API here.
+        // The clientSecret would be returned from Stripe.
+        return { success: true, clientSecret: `pi_${uuidv4()}_secret_${uuidv4()}`, transactionId: `deposit_${uuidv4()}` };
+    },
+    // This would be triggered by a webhook from the payment provider (e.g., Stripe)
+    // after the user successfully completes the payment on the frontend.
+    // We are not building the webhook endpoint in this step.
+    async processSuccessfulPayment(transactionId: string, amount: number, userId: string) {
+        logger.log(`Processing successful payment for transaction ${transactionId}`);
+        const userDocRef = db.collection('users').doc(userId);
+        await db.runTransaction(async (transaction) => {
+            transaction.update(userDocRef, { walletBalance: FieldValue.increment(amount) });
+            const transactionDocRef = db.collection('transactions').doc(transactionId);
+             transaction.set(transactionDocRef, {
+                userId: userId,
+                type: 'deposit',
+                amount: amount,
+                status: 'completed',
+                gatewayTransactionId: transactionId,
+                createdAt: Timestamp.now(),
+            });
+        });
+        logger.log(`Wallet balance updated for user ${userId}.`);
     }
 };
 
@@ -128,10 +151,10 @@ export const handleDeposit = onCall(async (request) => {
         throw new HttpsError('unauthenticated', 'You must be logged in to make a deposit.');
     }
     const { uid } = request.auth;
-    const { amount, paymentToken } = request.data;
+    const { depositAmount } = request.data;
 
-    if (typeof amount !== 'number' || amount <= 0 || !paymentToken) {
-        throw new HttpsError('invalid-argument', 'A valid amount and payment token are required.');
+    if (typeof depositAmount !== 'number' || depositAmount <= 0) {
+        throw new HttpsError('invalid-argument', 'A valid deposit amount is required.');
     }
     
     const userDocRef = db.collection('users').doc(uid);
@@ -173,13 +196,13 @@ export const handleDeposit = onCall(async (request) => {
             if (txDate >= startOfDay) dailyTotal += tx.amount;
         });
 
-        if (dailyLimit > 0 && (dailyTotal + amount) > dailyLimit) {
+        if (dailyLimit > 0 && (dailyTotal + depositAmount) > dailyLimit) {
             throw new HttpsError('failed-precondition', `Deposit would exceed your daily limit of $${dailyLimit}.`);
         }
-        if (weeklyLimit > 0 && (weeklyTotal + amount) > weeklyLimit) {
+        if (weeklyLimit > 0 && (weeklyTotal + depositAmount) > weeklyLimit) {
             throw new HttpsError('failed-precondition', `Deposit would exceed your weekly limit of $${weeklyLimit}.`);
         }
-        if (monthlyLimit > 0 && (monthlyTotal + amount) > monthlyLimit) {
+        if (monthlyLimit > 0 && (monthlyTotal + depositAmount) > monthlyLimit) {
             throw new HttpsError('failed-precondition', `Deposit would exceed your monthly limit of $${monthlyLimit}.`);
         }
     }
@@ -187,27 +210,28 @@ export const handleDeposit = onCall(async (request) => {
 
 
     try {
-        const depositResult = await paymentGateway.processDeposit(uid, amount, paymentToken);
-        if (!depositResult.success) {
-            throw new HttpsError('aborted', 'Payment processing failed.');
+        // Step 1: Create a payment intent with the payment gateway
+        const intentResult = await paymentGateway.createPaymentIntent(uid, depositAmount);
+        if (!intentResult.success) {
+            throw new HttpsError('aborted', 'Payment intent creation failed.');
         }
 
-        await db.runTransaction(async (transaction) => {
-            transaction.update(userDocRef, { walletBalance: FieldValue.increment(amount) });
-
-            const transactionDocRef = db.collection('transactions').doc(depositResult.transactionId);
-            transaction.set(transactionDocRef, {
-                userId: uid,
-                type: 'deposit',
-                amount: amount,
-                status: 'completed',
-                gatewayTransactionId: depositResult.transactionId,
-                createdAt: Timestamp.now(),
-            });
+        // Step 2: Log the pending transaction in our system.
+        // The balance is NOT updated here. It will be updated by a webhook later.
+        const transactionDocRef = db.collection('transactions').doc(intentResult.transactionId);
+        await transactionDocRef.set({
+            userId: uid,
+            type: 'deposit',
+            amount: depositAmount,
+            status: 'pending', // Status is pending until webhook confirms payment
+            gatewayTransactionId: intentResult.transactionId,
+            createdAt: Timestamp.now(),
         });
 
-        logger.log(`Successfully processed deposit for user ${uid}.`);
-        return { success: true, message: 'Deposit successful.' };
+        logger.log(`Successfully created payment intent for user ${uid}.`);
+        
+        // Step 3: Return the client secret to the frontend.
+        return { success: true, clientSecret: intentResult.clientSecret };
 
     } catch (error) {
         logger.error(`Error handling deposit for user ${uid}:`, error);
