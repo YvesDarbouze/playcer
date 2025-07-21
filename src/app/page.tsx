@@ -5,11 +5,9 @@ import type { Game } from '@/types';
 // This is a server component, so we can fetch data here.
 async function getGames(): Promise<Game[]> {
     // In a real application, you should handle errors and loading states.
-    // For this example, we'll fetch from a static file if the API key is missing.
-    if (!process.env.NEXT_PUBLIC_ODDS_API_KEY) {
+    // For this example, we'll return an empty array if the API key is missing to avoid errors.
+    if (!process.env.NEXT_PUBLIC_ODDS_API_KEY || process.env.NEXT_PUBLIC_ODDS_API_KEY === 'YOUR_ODDS_API_KEY') {
         console.warn("NEXT_PUBLIC_ODDS_API_KEY is not set. Using mock data.");
-        // In a real scenario you might want to return an empty array or handle the error.
-        // For now, we'll return an empty array to avoid breaking the UI.
         return [];
     }
 
