@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, Swords, DollarSign } from "lucide-react";
+import { UserManagementTable } from "@/components/admin/user-management-table";
 
 export default function AdminDashboardPage() {
   const { user, claims, loading } = useAuth();
@@ -55,7 +56,7 @@ export default function AdminDashboardPage() {
                 <p className="text-muted-foreground">Welcome, {user?.displayName || 'Admin'}.</p>
             </header>
             
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-3 mb-8">
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Total Users</CardTitle>
@@ -85,17 +86,7 @@ export default function AdminDashboardPage() {
                 </Card>
             </div>
 
-            {/* Future admin components will go here */}
-            <div className="mt-8">
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Recent Activity</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <p className="text-muted-foreground">Activity feed will be displayed here.</p>
-                    </CardContent>
-                </Card>
-            </div>
+            <UserManagementTable />
         </div>
     </main>
   );

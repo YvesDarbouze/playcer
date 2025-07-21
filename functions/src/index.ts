@@ -9,6 +9,7 @@ import { v4 as uuidv4 } from "uuid";
 // Initialize Firebase Admin SDK
 initializeApp();
 const db = getFirestore();
+const auth = getAuth();
 
 // --- PLACEHOLDER PAYMENT GATEWAY ---
 // In a real application, this would interact with a service like Stripe.
@@ -24,6 +25,11 @@ const paymentGateway = {
         // For this MVP, we'll just log the action and assume success.
         logger.log(`Placing auth hold for user ${userId} for amount ${amount}.`);
         return { success: true, transactionId: `hold_${uuidv4()}`};
+    },
+    async issueRefund(userId: string, betId: string, amount: number): Promise<{success: boolean, transactionId?: string}> {
+        logger.log(`Issuing refund of $${amount} for bet ${betId} to user ${userId}`);
+        // In a real app, this would void the auth hold or issue a credit.
+        return { success: true, transactionId: `refund_${uuidv4()}` };
     }
 }
 
@@ -270,11 +276,16 @@ export const sendOutcomeNotification = onCall(async (request) => {
 
 });
 
-export const setAdminClaim = onCall(async (request) => {
-    // Verify the caller is an admin.
-    if (request.auth?.token.admin !== true) {
+// --- Admin Functions ---
+
+const ensureAdmin = (context: any) => {
+    if (context.auth?.token.admin !== true) {
         throw new HttpsError('permission-denied', 'You must be an admin to perform this action.');
     }
+};
+
+export const setAdminClaim = onCall(async (request) => {
+    ensureAdmin(request);
 
     const { uid } = request.data;
     if (!uid) {
@@ -288,5 +299,103 @@ export const setAdminClaim = onCall(async (request) => {
     } catch (error) {
         logger.error(`Error setting admin claim for user ${uid}:`, error);
         throw new HttpsError('internal', 'An unexpected error occurred while setting the admin claim.');
+    }
+});
+
+export const listAllUsers = onCall(async (request) => {
+    ensureAdmin(request);
+    
+    try {
+        const listUsersResult = await auth.listUsers();
+        const users = listUsersResult.users.map(userRecord => {
+             const customClaims = (userRecord.customClaims || {}) as { admin?: boolean };
+            return {
+                uid: userRecord.uid,
+                email: userRecord.email,
+                displayName: userRecord.displayName,
+                photoURL: userRecord.photoURL,
+                disabled: userRecord.disabled,
+                creationTime: userRecord.metadata.creationTime,
+                lastSignInTime: userRecord.metadata.lastSignInTime,
+                isAdmin: customClaims.admin === true,
+            }
+        });
+        return { success: true, users };
+    } catch(error) {
+        logger.error('Error listing users:', error);
+        throw new HttpsError('internal', 'Failed to list users.');
+    }
+});
+
+
+export const suspendUser = onCall(async (request) => {
+    ensureAdmin(request);
+    const { uid, suspend } = request.data;
+    if (!uid) {
+        throw new HttpsError('invalid-argument', 'A `uid` must be provided.');
+    }
+    
+    try {
+        await auth.updateUser(uid, { disabled: suspend });
+        logger.log(`Successfully ${suspend ? 'suspended' : 'unsuspended'} user ${uid}`);
+        return { success: true, message: `User ${suspend ? 'suspended' : 'unsuspended'}.` };
+    } catch (error) {
+        logger.error(`Error updating user ${uid}:`, error);
+        throw new HttpsError('internal', 'Could not update user suspension status.');
+    }
+});
+
+export const deleteUser = onCall(async (request) => {
+    ensureAdmin(request);
+    const { uid } = request.data;
+    if (!uid) {
+        throw new HttpsError('invalid-argument', 'A `uid` must be provided.');
+    }
+    
+    try {
+        await auth.deleteUser(uid);
+        await db.collection('users').doc(uid).delete();
+        logger.log(`Successfully deleted user ${uid} from Auth and Firestore.`);
+        return { success: true, message: 'User deleted successfully.' };
+    } catch (error) {
+        logger.error(`Error deleting user ${uid}:`, error);
+        throw new HttpsError('internal', 'Could not delete user.');
+    }
+});
+
+export const issueManualRefund = onCall(async (request) => {
+    ensureAdmin(request);
+    const { betId, userId } = request.data;
+    if (!betId || !userId) {
+        throw new HttpsError('invalid-argument', '`betId` and `userId` must be provided.');
+    }
+
+    try {
+        const betDocRef = db.collection('bets').doc(betId);
+        const betDoc = await betDocRef.get();
+        if (!betDoc.exists) {
+            throw new HttpsError('not-found', 'Bet not found.');
+        }
+
+        const betData = betDoc.data()!;
+        const stake = betData.stake;
+
+        // Use the placeholder payment gateway to issue the refund
+        const refundResult = await paymentGateway.issueRefund(userId, betId, stake);
+        if (!refundResult.success) {
+            throw new HttpsError('aborted', 'Payment gateway failed to issue refund.');
+        }
+
+        // Update the bet status to 'void' to prevent double-payouts
+        await betDocRef.update({ status: 'void', winnerId: null });
+
+        logger.log(`Admin issued manual refund for bet ${betId} to user ${userId}. Status set to void.`);
+        return { success: true, message: 'Manual refund processed successfully.' };
+    } catch (error) {
+        logger.error(`Error issuing manual refund for bet ${betId}:`, error);
+        if (error instanceof HttpsError) {
+            throw error;
+        }
+        throw new HttpsError('internal', 'Could not process manual refund.');
     }
 });
