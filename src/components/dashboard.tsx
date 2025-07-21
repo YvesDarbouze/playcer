@@ -37,6 +37,7 @@ import { CourtDetails } from "@/components/court-details";
 import { Slider } from "./ui/slider";
 import { Checkbox } from "./ui/checkbox";
 import { Label } from "./ui/label";
+import { LoginButton } from "./login-button";
 
 export function Dashboard({ courts: initialCourts }: { courts: Court[] }) {
   const [courts, setCourts] = React.useState<Court[]>(initialCourts);
@@ -109,9 +110,7 @@ export function Dashboard({ courts: initialCourts }: { courts: Court[] }) {
             <h2 className="text-xl font-headline font-black">
               Find Your Court
             </h2>
-            <Button asChild variant="outline">
-              <Link href="/signin">Sign In</Link>
-            </Button>
+            <LoginButton />
           </header>
           <div className="flex-1 grid md:grid-cols-12 overflow-hidden">
             <div className="md:col-span-4 lg:col-span-3 xl:col-span-3 border-r flex flex-col">
