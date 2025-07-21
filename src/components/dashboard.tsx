@@ -9,6 +9,7 @@ import {
   Map,
   Swords,
   User,
+  PanelLeft,
 } from "lucide-react";
 import type { Court } from "@/types";
 import {
@@ -21,6 +22,7 @@ import {
   SidebarMenuButton,
   SidebarFooter,
   SidebarInset,
+  SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,6 +57,10 @@ export function Dashboard({ courts: initialCourts }: { courts: Court[] }) {
     if (filtered.length > 0) {
       setSelectedCourt(filtered[0]);
     } else {
+      // If no courts match, you might want to clear the selection
+      // or keep the last valid one. For now, we clear it.
+      // setSelectedCourt(null); 
+      // Or select the first from the initial list as a fallback
       setSelectedCourt(initialCourts[0]);
     }
   }, [ratingFilter, busynessFilter, initialCourts]);
@@ -73,16 +79,18 @@ export function Dashboard({ courts: initialCourts }: { courts: Court[] }) {
         </SidebarHeader>
         <SidebarContent>
           <SidebarMenu>
+             <SidebarMenuItem>
+                <Link href="/" legacyBehavior passHref>
+                    <SidebarMenuButton tooltip="Games">
+                        <Swords />
+                        Games
+                    </SidebarMenuButton>
+                </Link>
+            </SidebarMenuItem>
             <SidebarMenuItem>
               <SidebarMenuButton tooltip="Map" isActive>
                 <Map />
                 Map
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <SidebarMenuButton tooltip="Courts">
-                <Swords />
-                Courts
               </SidebarMenuButton>
             </SidebarMenuItem>
             <SidebarMenuItem>
@@ -107,9 +115,12 @@ export function Dashboard({ courts: initialCourts }: { courts: Court[] }) {
       <SidebarInset>
         <div className="flex flex-col h-screen">
           <header className="p-4 border-b flex justify-between items-center">
-            <h2 className="text-xl font-headline font-black">
-              Find Your Court
-            </h2>
+             <div className="flex items-center gap-4">
+                <SidebarTrigger className="md:hidden" />
+                <h2 className="text-xl font-headline font-black">
+                Find Your Court
+                </h2>
+            </div>
             <LoginButton />
           </header>
           <div className="flex-1 grid md:grid-cols-12 overflow-hidden">
@@ -123,7 +134,7 @@ export function Dashboard({ courts: initialCourts }: { courts: Court[] }) {
                     List
                   </TabsTrigger>
                   <TabsTrigger value="filter" className="w-full">
-                    <Filter className="mr-2" />
+                    <Filter className="mr-2 h-4 w-4" />
                     Filter
                   </TabsTrigger>
                 </TabsList>
@@ -146,7 +157,7 @@ export function Dashboard({ courts: initialCourts }: { courts: Court[] }) {
                     <div>
                       <Label>Minimum Rating: {ratingFilter[0].toFixed(1)}</Label>
                       <Slider
-                        defaultValue={[0]}
+                        value={ratingFilter}
                         max={5}
                         step={0.1}
                         onValueChange={setRatingFilter}
@@ -155,10 +166,11 @@ export function Dashboard({ courts: initialCourts }: { courts: Court[] }) {
                      <div>
                       <Label>Maximum Busyness: {busynessFilter[0]}</Label>
                       <Slider
-                        defaultValue={[5]}
+                        value={busynessFilter}
                         max={5}
                         step={1}
                         onValueChange={setBusynessFilter}
+                        inverted
                       />
                     </div>
                     <div>
