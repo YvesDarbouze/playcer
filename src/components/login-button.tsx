@@ -16,11 +16,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { LogOut, User } from "lucide-react";
+import { LogOut, User, Shield } from "lucide-react";
 
 
 export function LoginButton() {
-  const { user, loading } = useAuth();
+  const { user, loading, claims } = useAuth();
   const router = useRouter();
 
   const handleSignOut = async () => {
@@ -64,6 +64,12 @@ export function LoginButton() {
             <User className="mr-2"/>
             Dashboard
         </DropdownMenuItem>
+        {claims?.admin === true && (
+          <DropdownMenuItem onClick={() => router.push('/admin')}>
+              <Shield className="mr-2"/>
+              Admin
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleSignOut}>
             <LogOut className="mr-2" />

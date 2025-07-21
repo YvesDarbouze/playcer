@@ -25,6 +25,7 @@ export function SignInForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
 
@@ -33,11 +34,11 @@ export function SignInForm() {
     setIsLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      router.push("/dashboard");
+      router.push("/");
     } catch (error: any) {
       toast({
         title: "Sign-in Failed",
-        description: error.message || "An unexpected error occurred.",
+        description: "Please check your email and password and try again.",
         variant: "destructive",
       });
     } finally {
@@ -46,18 +47,18 @@ export function SignInForm() {
   };
 
   const handleGoogleSignIn = async () => {
-    setIsLoading(true);
+    setIsGoogleLoading(true);
     try {
       await signInWithPopup(auth, googleProvider);
-      router.push("/dashboard");
+      router.push("/");
     } catch (error: any) {
        toast({
         title: "Sign-in Failed",
-        description: error.message || "An unexpected error occurred.",
+        description: "Could not sign in with Google. Please try again.",
         variant: "destructive",
       });
     } finally {
-      setIsLoading(false);
+      setIsGoogleLoading(false);
     }
   };
 
@@ -83,7 +84,7 @@ export function SignInForm() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              disabled={isLoading}
+              disabled={isLoading || isGoogleLoading}
             />
           </div>
           <div className="grid gap-2">
@@ -94,17 +95,23 @@ export function SignInForm() {
                 required 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                disabled={isLoading}
+                disabled={isLoading || isGoogleLoading}
             />
           </div>
-          <Button type="submit" className="w-full" disabled={isLoading}>
+          <Button type="submit" className="w-full" disabled={isLoading || isGoogleLoading}>
             {isLoading ? "Signing In..." : "Sign In"}
           </Button>
         </form>
         <Separator className="my-4" />
-        <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={isLoading}>
-          <Chrome className="mr-2" />
-          Sign in with Google
+        <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={isLoading || isGoogleLoading}>
+          {isGoogleLoading ? (
+            "Signing in..."
+          ) : (
+            <>
+              <Chrome className="mr-2" />
+              Sign in with Google
+            </>
+          )}
         </Button>
         <div className="mt-4 text-center text-sm">
           Don&apos;t have an account?{" "}
