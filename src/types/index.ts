@@ -96,6 +96,7 @@ export type Bet = {
   status: "open" | "matched" | "settled" | "void" | "disputed";
   isPublic: boolean;
   winnerId: string | null;
+  escrowId: string | null;
   createdAt: Date;
   matchedAt: Date | null;
   settledAt: Date | null;

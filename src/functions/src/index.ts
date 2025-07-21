@@ -297,6 +297,7 @@ export const createBet = onCall(async (request) => {
             status: 'open',
             isPublic,
             winnerId: null,
+            escrowId: null,
             createdAt: Timestamp.now(),
             matchedAt: null,
             settledAt: null,
@@ -331,6 +332,8 @@ export const matchBet = onCall(async (request) => {
     const betDocRef = db.collection('bets').doc(betId);
     const challengerDocRef = db.collection('users').doc(challengerId);
     
+    // --- Firestore Transaction ---
+    // This block ensures all database reads and writes are atomic.
     await db.runTransaction(async (transaction) => {
         const betDoc = await transaction.get(betDocRef);
         const challengerDoc = await transaction.get(challengerDocRef);
@@ -382,15 +385,35 @@ export const matchBet = onCall(async (request) => {
             userId: challengerId, type: 'bet_stake', amount: -stake, status: 'completed', relatedBetId: betId, createdAt: Timestamp.now()
         });
     });
+    // --- End of Transaction ---
 
-    // 5. Lock funds in escrow (outside of Firestore transaction)
-    const betData = (await betDocRef.get()).data()!;
-    const totalPot = betData.stake * 2;
-    await escrowService.lockFunds(betId, totalPot);
-    // In a real app, you'd save the escrowId to the bet document.
+    // --- Escrow Integration (Post-Transaction) ---
+    // This happens only if the transaction above was successful.
+    try {
+        const betData = (await betDocRef.get()).data()!;
+        const totalPot = betData.stake * 2;
+        
+        const escrowResult = await escrowService.lockFunds(betId, totalPot);
+        if (!escrowResult.success) {
+            // CRITICAL: If escrow fails, we need to revert the state.
+            // This would involve a complex compensation transaction (e.g., refunding users).
+            // For this simulation, we'll log a critical error.
+            logger.error(`CRITICAL: Escrow failed for bet ${betId} after transaction committed. Manual intervention required.`);
+            throw new HttpsError('aborted', 'Failed to secure funds in escrow. Please contact support.');
+        }
 
-    logger.log(`Bet ${betId} successfully matched by ${challengerId}.`);
-    return { success: true, message: "Bet accepted and matched!" };
+        // Save the escrow ID to the bet document.
+        await betDocRef.update({ escrowId: escrowResult.escrowId });
+
+        logger.log(`Bet ${betId} successfully matched by ${challengerId} and funds locked in escrow ${escrowResult.escrowId}.`);
+        return { success: true, message: "Bet accepted and matched!" };
+
+    } catch(error) {
+        logger.error(`Error during post-transaction escrow for bet ${betId}:`, error);
+        // If the error is an HttpsError, rethrow it. Otherwise, wrap it.
+        if (error instanceof HttpsError) throw error;
+        throw new HttpsError('internal', 'An error occurred during the escrow process.');
+    }
 });
 
 export const processBetOutcome = onCall(async (request) => {
@@ -436,7 +459,13 @@ export const processBetOutcome = onCall(async (request) => {
                 
                 // If there's a winner, update status and process payout
                 if (winnerId) {
-                    await processPayout({ betId, winnerId, stake: betData.stake, loserId: winnerId === betData.creatorId ? betData.challengerId : betData.creatorId });
+                    await processPayout({ 
+                        betId, 
+                        winnerId, 
+                        stake: betData.stake, 
+                        loserId: winnerId === betData.creatorId ? betData.challengerId : betData.creatorId,
+                        escrowId: betData.escrowId
+                    });
                     await betDoc.ref.update({ status: 'settled', winnerId, settledAt: Timestamp.now() });
                     processedCount++;
                 } else {
@@ -456,8 +485,8 @@ export const processBetOutcome = onCall(async (request) => {
 });
 
 // This is not a callable function, but a helper for processBetOutcome
-async function processPayout(data: { betId: string, winnerId: string, loserId: string | null, stake: number }) {
-    const { betId, winnerId, loserId, stake } = data;
+async function processPayout(data: { betId: string, winnerId: string, loserId: string | null, stake: number, escrowId: string | null }) {
+    const { betId, winnerId, loserId, stake, escrowId } = data;
     const PLATFORM_COMMISSION_RATE = 0.05; // 5%
     
     const winnerDocRef = db.collection('users').doc(winnerId);
@@ -502,8 +531,11 @@ async function processPayout(data: { betId: string, winnerId: string, loserId: s
         });
     });
 
-    // In a real app, you would release funds from the real escrow service.
-    await escrowService.releaseFunds(`escrow_${betId}`, winnerId);
+    if (escrowId) {
+        await escrowService.releaseFunds(escrowId, winnerId);
+    } else {
+        logger.warn(`Payout for bet ${betId} processed, but no escrowId was found.`);
+    }
 
     logger.log(`Payout for bet ${betId} processed for winner ${winnerId}.`);
 }
@@ -592,5 +624,3 @@ export const issueManualRefund = onCall(async (request) => {
     logger.log(`Admin initiated manual refund for user ${userId} concerning bet ${betId}.`);
     return { success: true, message: `Refund process initiated for bet ${betId}.` };
 });
-
-    
