@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UserBetsTable } from "./user-bets-table";
-import { Banknote, Trophy, ShieldHalf, Swords, Hourglass, LifeBuoy, ShieldCheck } from "lucide-react";
+import { Banknote, Trophy, ShieldHalf, Swords, Hourglass, LifeBuoy, ShieldCheck, PlusCircle } from "lucide-react";
 import Link from 'next/link';
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 
@@ -169,7 +169,13 @@ export function UserDashboard() {
                             </div>
                         </div>
                         <div className="flex flex-col gap-2">
-                             <Button>
+                             <Link href="/create-bet" passHref>
+                                <Button className="w-full">
+                                    <PlusCircle className="mr-2" />
+                                    Create a Bet
+                                </Button>
+                             </Link>
+                             <Button variant="secondary">
                                 <Banknote className="mr-2" />
                                 Manage Wallet
                             </Button>

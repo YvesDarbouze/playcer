@@ -239,7 +239,7 @@ export const createBet = onCall(async (request) => {
         isPublic = true,
     } = request.data;
     
-    if (!sportKey || !eventId || !eventDate || !homeTeam || !awayTeam || !betType || !teamSelection || stake === undefined) {
+    if (!sportKey || !eventId || !eventDate || !homeTeam || !awayTeam || !betType || !teamSelection || stake === undefined || !marketDescription || !outcomeDescription) {
         throw new HttpsError('invalid-argument', 'Missing required bet information.');
     }
     
@@ -255,6 +255,9 @@ export const createBet = onCall(async (request) => {
         if (!userDoc.exists) throw new HttpsError('not-found', 'User profile not found.');
         
         const userData = userDoc.data()!;
+        if (userData.kycStatus !== 'verified') {
+            throw new HttpsError('failed-precondition', 'You must verify your identity to create a bet.');
+        }
         if (userData.walletBalance < stake) {
             throw new HttpsError('failed-precondition', 'Insufficient wallet balance to create this bet.');
         }
@@ -272,8 +275,8 @@ export const createBet = onCall(async (request) => {
             homeTeam,
             awayTeam,
             betType,
-            marketDescription: marketDescription || "N/A",
-            outcomeDescription: outcomeDescription || "N/A",
+            marketDescription: marketDescription,
+            outcomeDescription: outcomeDescription,
             line: line ?? null,
             odds,
             teamSelection,

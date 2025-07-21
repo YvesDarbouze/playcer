@@ -56,9 +56,8 @@ export type Game = {
     sport_title: string;
     commence_time: string;
     home_team: string;
-
     away_team: string;
-    bookmakers: {
+    bookmakers?: {
         key: string;
         title: string;
         last_update: string;
