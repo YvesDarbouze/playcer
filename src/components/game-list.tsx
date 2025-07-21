@@ -55,7 +55,7 @@ export function GameList({ initialGames }: GameListProps) {
                 </div>
             </header>
 
-            <h2 className="text-3xl font-headline font-black mb-6">Upcoming Matches</h2>
+            <h2 className="text-3xl font-headline font-black mb-6">Upcoming Games</h2>
             
             {filteredGames.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
