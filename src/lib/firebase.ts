@@ -11,13 +11,19 @@ const firebaseConfig: FirebaseOptions = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-// Initialize Firebase
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+
+// A single Firebase app instance is created and reused.
+function getFirebaseApp() {
+    if (!getApps().length) {
+        return initializeApp(firebaseConfig);
+    }
+    return getApp();
+}
+
+const app = getFirebaseApp();
 const auth = getAuth(app);
 const firestore = getFirestore(app);
 const twitterProvider = new TwitterAuthProvider();
 
-export const getFirebaseApp = () => app;
-export const getFirebaseAuth = () => auth;
-export const getFirestoreInstance = () => firestore;
-export const getTwitterProvider = () => twitterProvider;
+
+export { getFirebaseApp, auth as getFirebaseAuth, firestore as getFirestoreInstance, twitterProvider as getTwitterProvider };

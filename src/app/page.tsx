@@ -21,7 +21,12 @@ async function getGames(): Promise<Game[]> {
             );
 
             if (!res.ok) {
-                console.error(`Failed to fetch data for ${sport}: ${res.statusText}`);
+                // Don't treat a missing API key as an error, just warn the user.
+                if (res.status === 401) {
+                     console.warn(`Failed to fetch data for ${sport}: Unauthorized. Please check your NEXT_PUBLIC_ODDS_API_KEY.`);
+                } else {
+                    console.error(`Failed to fetch data for ${sport}: ${res.statusText}`);
+                }
                 continue; // Skip to the next sport
             }
             
