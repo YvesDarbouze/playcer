@@ -144,6 +144,7 @@ export function BetCreationModal({ isOpen, onOpenChange, game }: BetCreationModa
         {challengeLink ? (
           <div className="space-y-4 py-4">
              <h3 className="font-headline font-black text-lg text-center">Share Your Challenge!</h3>
+             <p className="text-sm text-center text-muted-foreground">Copy the link below and send it to a friend.</p>
              <div className="flex items-center space-x-2">
                 <Input value={challengeLink} readOnly />
                 <Button onClick={handleCopyToClipboard} size="icon">

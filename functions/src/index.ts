@@ -1,5 +1,5 @@
 import {initializeApp} from "firebase-admin/app";
-import {getFirestore, Timestamp} from "firebase-admin/firestore";
+import {getFirestore, Timestamp, FieldValue} from "firebase-admin/firestore";
 import {onUserCreate} from "firebase-functions/v2/auth";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import {logger} from "firebase-functions";
@@ -83,7 +83,8 @@ export const createBet = onCall(async (request) => {
         const userData = userDoc.data()!;
 
         const betId = uuidv4();
-        const uniqueLink = `/bet/${betId}`;
+        const baseUrl = 'https://playcer-mvp.web.app'; // Replace with your actual domain
+        const uniqueLink = `${baseUrl}/bet/${betId}`;
 
         const newBet = {
             creatorId: uid,
@@ -120,5 +121,63 @@ export const createBet = onCall(async (request) => {
             throw error;
         }
         throw new HttpsError('internal', 'An unexpected error occurred while creating the bet.');
+    }
+});
+
+
+export const acceptBet = onCall(async (request) => {
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'You must be logged in to accept a bet.');
+    }
+
+    const { uid: challengerId } = request.auth;
+    const { betId } = request.data;
+
+    if (!betId) {
+        throw new HttpsError('invalid-argument', 'The `betId` must be provided.');
+    }
+
+    try {
+        const betDocRef = db.collection('bets').doc(betId);
+        const challengerDocRef = db.collection('users').doc(challengerId);
+
+        const [betDoc, challengerDoc] = await Promise.all([betDocRef.get(), challengerDocRef.get()]);
+
+        if (!betDoc.exists) {
+            throw new HttpsError('not-found', 'Bet not found.');
+        }
+
+        if (!challengerDoc.exists) {
+            throw new HttpsError('not-found', 'Challenger profile not found.');
+        }
+        
+        const betData = betDoc.data()!;
+        const challengerData = challengerDoc.data()!;
+
+        if (betData.creatorId === challengerId) {
+            throw new HttpsError('failed-precondition', 'You cannot accept your own bet.');
+        }
+
+        if (betData.status !== 'open') {
+            throw new HttpsError('failed-precondition', 'This bet is no longer open.');
+        }
+
+        await betDocRef.update({
+            challengerId: challengerId,
+            challengerUsername: challengerData.username,
+            challengerPhotoURL: challengerData.photoURL,
+            status: 'matched'
+        });
+
+        logger.log(`Bet ${betId} accepted by user ${challengerId}`);
+
+        return { success: true, message: 'Bet accepted successfully!' };
+
+    } catch (error) {
+        logger.error(`Error accepting bet ${betId}:`, error);
+        if (error instanceof HttpsError) {
+            throw error;
+        }
+        throw new HttpsError('internal', 'An unexpected error occurred while accepting the bet.');
     }
 });
