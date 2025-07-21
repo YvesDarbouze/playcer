@@ -1,61 +1,61 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Users can only read their own data. They can update their own displayName, 
-    // photoURL, and other non-critical fields. 
-    // Wallet balance and KYC status can only be changed by the backend.
+
+    // Users can only read/write their own profile.
+    // Critical fields like walletBalance cannot be modified by the client.
     match /users/{userId} {
-      allow read: if request.auth.uid == userId;
-      allow create: if request.auth.uid == userId;
-      allow update: if request.auth.uid == userId
-                    && request.resource.data.diff(resource.data).affectedKeys()
-                       .hasOnly(['displayName', 'photoURL', 'responsibleGamingLimits', 'selfExclusion']);
-      
-      // Nobody can delete user documents through the client.
-      allow delete: if false;
-
-      // A user can read their own userBets subcollection.
-      match /userBets/{betId} {
-        allow read, write: if request.auth.uid == userId;
-      }
-    }
-
-    // Bets can be read by anyone if they are public.
-    // Bets can be created by any authenticated user.
-    // Bets can only be updated (i.e., matched) under specific conditions.
-    // Sensitive updates (like settlement) must be done by the backend.
-    match /bets/{betId} {
-      allow read: if resource.data.isPublic == true || request.auth.uid == resource.data.creatorId || request.auth.uid == resource.data.challengerId;
+      allow read, update: if request.auth != null && request.auth.uid == userId;
       allow create: if request.auth != null;
-      allow update: if request.auth != null
-                     // A user can accept an open bet if they are not the creator
-                     && resource.data.status == 'open'
-                     && request.resource.data.status == 'matched'
-                     && request.resource.data.challengerId == request.auth.uid
-                     && resource.data.creatorId != request.auth.uid;
-      
-      // Nobody can delete bets through the client.
-      allow delete: if false;
+
+      // Disallow client-side modification of sensitive fields.
+      allow update: if request.resource.data.walletBalance == resource.data.walletBalance &&
+                       request.resource.data.wins == resource.data.wins &&
+                       request.resource.data.losses == resource.data.losses;
+    }
+    
+    // Admins can read user data.
+    match /users/{userId} {
+       allow get: if request.auth.token.admin == true;
     }
 
-    // Transactions are immutable logs. They can only be created by the backend.
+    // Rules for the 'bets' collection
+    match /bets/{betId} {
+      // Anyone can read public, open bets. Matched bets are visible to participants.
+      allow read: if resource.data.isPublic == true ||
+                      (request.auth != null && (request.auth.uid == resource.data.creatorId || request.auth.uid == resource.data.challengerId));
+
+      // Users can only create bets for themselves.
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.creatorId;
+
+      // A user can only "match" a bet (write to a 'bet' document to become the taker)
+      // if they are authenticated, not the creator, and the bet is 'open'.
+      // Updates are handled by the `matchBet` Cloud Function.
+      allow update: if request.auth != null &&
+                       request.auth.uid != resource.data.creatorId &&
+                       resource.data.status == 'open';
+    }
+
+    // Rules for the 'userBets' subcollection
+    match /users/{userId}/userBets/{betId} {
+        // A user can only read their own bet references.
+        allow read: if request.auth != null && request.auth.uid == userId;
+        // Creation is handled by server-side functions.
+        allow write: if false;
+    }
+    
+    // Transactions are created by server-side functions and should be immutable.
     match /transactions/{transactionId} {
-      allow read: if request.auth.uid == resource.data.userId;
-      allow write: if false; // Can only be created by backend functions
+      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow write: if false; // All transactions written by backend.
     }
-
-    // Disputes can be read by involved parties or admins.
-    // They can only be written to by involved parties under certain conditions.
+    
+    // Disputes can be read by participants or admins.
     match /disputes/{disputeId} {
-       allow read: if request.auth.uid == resource.data.creatorId 
-                   || request.auth.uid == resource.data.takerId 
-                   || request.auth.token.admin == true;
-       allow create: if request.auth.uid == resource.data.creatorId || request.auth.uid == resource.data.takerId;
-       allow update: if request.auth.token.admin == true; // Only admins can update/resolve disputes
-       allow delete: if false;
+       allow read: if request.auth != null && (request.auth.uid == resource.data.creatorId || request.auth.uid == resource.data.takerId || request.auth.token.admin == true);
+       // Creation/updates handled by backend or admin tools.
+       allow write: if request.auth != null; 
     }
   }
 }

@@ -1,7 +1,7 @@
 
 import {initializeApp} from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
-import {getFirestore, Timestamp, FieldValue, Transaction, DocumentReference} from "firebase-admin/firestore";
+import {getFirestore, Timestamp, FieldValue} from "firebase-admin/firestore";
 import {onUserCreate} from "firebase-functions/v2/auth";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import {logger} from "firebase-functions";
@@ -329,7 +329,7 @@ export const processBetOutcome = onCall(async (request) => {
                 // If there's a winner, update status and process payout
                 if (winnerId) {
                     await betDoc.ref.update({ status: 'settled', winnerId, settledAt: Timestamp.now() });
-                    await processPayout({ betId, winnerId, stake: betData.stake });
+                    await processPayout({ betId, winnerId, stake: betData.stake, loserId: winnerId === betData.creatorId ? betData.challengerId : betData.creatorId });
                     processedCount++;
                 } else {
                     // Handle push/void cases
@@ -348,8 +348,8 @@ export const processBetOutcome = onCall(async (request) => {
 });
 
 // This is not a callable function, but a helper for processBetOutcome
-async function processPayout(data: { betId: string, winnerId: string, stake: number }) {
-    const { betId, winnerId, stake } = data;
+async function processPayout(data: { betId: string, winnerId: string, loserId: string | null, stake: number }) {
+    const { betId, winnerId, loserId, stake } = data;
     const PLATFORM_COMMISSION_RATE = 0.05; // 5%
     
     const winnerDocRef = db.collection('users').doc(winnerId);
@@ -359,13 +359,19 @@ async function processPayout(data: { betId: string, winnerId: string, stake: num
     const payoutAmount = stake + (winnings - commission); // stake back + winnings - commission
 
     await db.runTransaction(async (transaction) => {
-        // 1. Credit winner's wallet
+        // 1. Credit winner's wallet and increment win count
         transaction.update(winnerDocRef, { 
             walletBalance: FieldValue.increment(payoutAmount),
             wins: FieldValue.increment(1)
         });
 
-        // 2. Log payout transaction
+        // 2. Increment loser's loss count
+        if (loserId) {
+            const loserDocRef = db.collection('users').doc(loserId);
+            transaction.update(loserDocRef, { losses: FieldValue.increment(1) });
+        }
+
+        // 3. Log payout transaction
         const payoutTxId = db.collection('transactions').doc().id;
         transaction.set(db.collection('transactions').doc(payoutTxId), {
             userId: winnerId,
@@ -376,7 +382,7 @@ async function processPayout(data: { betId: string, winnerId: string, stake: num
             createdAt: Timestamp.now()
         });
 
-        // 3. Log commission transaction
+        // 4. Log commission transaction
         const commissionTxId = db.collection('transactions').doc().id;
         transaction.set(db.collection('transactions').doc(commissionTxId), {
             userId: winnerId, // Attributed to the winner's transaction
@@ -388,12 +394,93 @@ async function processPayout(data: { betId: string, winnerId: string, stake: num
         });
     });
 
-    // In a real app, you would also trigger a function to update the loser's stats
-    // and release funds from the real escrow service.
+    // In a real app, you would release funds from the real escrow service.
     await escrowService.releaseFunds(`escrow_${betId}`, winnerId);
 
     logger.log(`Payout for bet ${betId} processed for winner ${winnerId}.`);
-    // Here you would also trigger the sendNotification function
 }
 
+
+// --- ADMIN FUNCTIONS ---
+
+const ensureIsAdmin = (context: any) => {
+    if (!context.auth) {
+        throw new HttpsError('unauthenticated', 'You must be logged in.');
+    }
+    if (context.auth.token.admin !== true) {
+        throw new HttpsError('permission-denied', 'You must be an admin to perform this action.');
+    }
+};
+
+export const listAllUsers = onCall(async (request) => {
+    ensureIsAdmin(request);
     
+    try {
+        const listUsersResult = await auth.listUsers(1000); // paginate if more needed
+        const users = listUsersResult.users.map((userRecord) => {
+            const customClaims = (userRecord.customClaims || {}) as { admin?: boolean };
+            return {
+                uid: userRecord.uid,
+                email: userRecord.email,
+                displayName: userRecord.displayName,
+                photoURL: userRecord.photoURL,
+                disabled: userRecord.disabled,
+                creationTime: userRecord.metadata.creationTime,
+                lastSignInTime: userRecord.metadata.lastSignInTime,
+                isAdmin: customClaims.admin === true,
+            };
+        });
+        return { success: true, users };
+    } catch (error) {
+        logger.error('Error listing users:', error);
+        throw new HttpsError('internal', 'Unable to list users.');
+    }
+});
+
+export const suspendUser = onCall(async (request) => {
+    ensureIsAdmin(request);
+    const { uid, suspend } = request.data;
+    if (!uid) {
+        throw new HttpsError('invalid-argument', 'A UID must be provided.');
+    }
+
+    try {
+        await auth.updateUser(uid, { disabled: suspend });
+        const message = `User ${uid} has been ${suspend ? 'suspended' : 'unsuspended'}.`;
+        logger.log(message);
+        return { success: true, message };
+    } catch (error) {
+        logger.error(`Error updating user ${uid}:`, error);
+        throw new HttpsError('internal', `Failed to update user status.`);
+    }
+});
+
+export const deleteUser = onCall(async (request) => {
+    ensureIsAdmin(request);
+    const { uid } = request.data;
+    if (!uid) {
+        throw new HttpsError('invalid-argument', 'A UID must be provided.');
+    }
+
+    try {
+        await auth.deleteUser(uid);
+        // Optionally, also delete their Firestore data
+        await db.collection('users').doc(uid).delete();
+        const message = `User ${uid} has been permanently deleted.`;
+        logger.log(message);
+        return { success: true, message };
+    } catch (error) {
+        logger.error(`Error deleting user ${uid}:`, error);
+        throw new HttpsError('internal', `Failed to delete user.`);
+    }
+});
+
+export const issueManualRefund = onCall(async (request) => {
+    ensureIsAdmin(request);
+    const { userId, betId } = request.data;
+    // In a real app, this would involve complex logic to verify the bet,
+    // fetch the stake, and credit the user's wallet.
+    // This is a simplified placeholder.
+    logger.log(`Admin initiated manual refund for user ${userId} concerning bet ${betId}.`);
+    return { success: true, message: `Refund process initiated for bet ${betId}.` };
+});

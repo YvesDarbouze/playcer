@@ -66,10 +66,10 @@ export default function BetChallengePage() {
     setIsAccepting(true);
 
     const functions = getFunctions(getFirebaseApp());
-    const acceptBetAndAuthPayment = httpsCallable(functions, "acceptBetAndAuthPayment");
+    const matchBetFn = httpsCallable(functions, "matchBet");
 
     try {
-      const result: any = await acceptBetAndAuthPayment({ betId: bet.id });
+      const result: any = await matchBetFn({ betId: bet.id });
       if (result.data.success) {
         toast({
           title: "Bet Accepted!",

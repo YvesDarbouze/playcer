@@ -25,7 +25,7 @@ export type User = {
   displayName: string;
   username: string;
   photoURL: string;
-  email?: string; // from new schema
+  email?: string; 
   createdAt: Timestamp;
   walletBalance: number;
   wins: number;
@@ -61,30 +61,29 @@ export type Game = {
 export type Bet = {
   id: string; 
   creatorId: string;
-  creatorUsername: string; // creatorDisplayName in new schema
+  creatorUsername: string;
   creatorPhotoURL: string;
-  challengerId: string | null; // takerId in new schema
-  challengerUsername: string | null; // takerDisplayName in new schema
-  challengerPhotoURL: string | null; // takerPhotoURL in new schema
+  challengerId: string | null;
+  challengerUsername: string | null;
+  challengerPhotoURL: string | null;
   sportKey: string;
   eventId: string;
   eventDate: Timestamp;
   homeTeam: string;
   awayTeam: string;
   betType: 'spread' | 'moneyline' | 'total';
-  marketDescription: string; // from new schema
-  outcomeDescription: string; // from new schema
+  marketDescription: string;
+  outcomeDescription: string;
   line: number | null;
   odds: number;
   teamSelection: string;
   stake: number;
   status: 'open' | 'matched' | 'settled' | 'void' | 'disputed';
-  isPublic: boolean; // from new schema
+  isPublic: boolean;
   winnerId: string | null;
   createdAt: Timestamp; 
-  matchedAt: Timestamp | null; // from new schema
-  settledAt: Timestamp | null; // from new schema
-  uniqueLink: string;
+  matchedAt: Timestamp | null;
+  settledAt: Timestamp | null;
 };
 
 // From new schema
