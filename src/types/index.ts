@@ -21,7 +21,6 @@ export type Court = {
 
 export type User = {
   id: string; // This is the UID from Firebase Auth
-  twitterId: string;
   displayName: string;
   username: string;
   photoURL: string;
