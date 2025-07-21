@@ -89,19 +89,13 @@ export const onusercreate = onUserCreate(async (event) => {
   const user = event.data;
   const {uid, displayName, photoURL, email} = user;
 
-  const twitterProvider = user.providerData.find(
-    (provider) => provider.providerId === "twitter.com"
-  );
-
-  const username = twitterProvider?.screenName || `user_${uid.substring(0, 5)}`;
-  const twitterId = twitterProvider?.uid || "";
+  const username = displayName?.replace(/\s+/g, '_').toLowerCase() || `user_${uid.substring(0, 5)}`;
 
   const userDocRef = db.collection("users").doc(uid);
 
   try {
     await userDocRef.set({
-      twitterId: twitterId,
-      displayName: displayName || username,
+      displayName: displayName || `User ${uid.substring(0, 5)}`,
       username: username,
       photoURL: photoURL || "",
       email: email || "",
