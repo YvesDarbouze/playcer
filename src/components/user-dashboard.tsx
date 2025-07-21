@@ -14,6 +14,8 @@ import { UserBetsTable } from "./user-bets-table";
 import { Banknote, Trophy, ShieldHalf, Swords, Hourglass, LifeBuoy, ShieldCheck, PlusCircle, Store } from "lucide-react";
 import Link from 'next/link';
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
 
 const convertToBet = (doc: any): Bet => {
     const data = doc.data();
@@ -22,6 +24,8 @@ const convertToBet = (doc: any): Bet => {
         ...data,
         eventDate: (data.eventDate as Timestamp).toDate(),
         createdAt: (data.createdAt as Timestamp).toDate(),
+        matchedAt: data.matchedAt ? (data.matchedAt as Timestamp).toDate() : null,
+        settledAt: data.settledAt ? (data.settledAt as Timestamp).toDate() : null,
     } as Bet;
 };
 
@@ -29,8 +33,7 @@ const convertToBet = (doc: any): Bet => {
 export function UserDashboard() {
     const { user: authUser } = useAuth();
     const [userProfile, setUserProfile] = React.useState<User | null>(null);
-    const [pendingBets, setPendingBets] = React.useState<Bet[]>([]);
-    const [otherBets, setOtherBets] = React.useState<Bet[]>([]);
+    const [bets, setBets] = React.useState<Bet[]>([]);
     const [loading, setLoading] = React.useState(true);
     
     React.useEffect(() => {
@@ -46,29 +49,15 @@ export function UserDashboard() {
             if (userDocSnap.exists()) {
                 setUserProfile({ id: userDocSnap.id, ...userDocSnap.data() } as User);
             }
-
-            // Fetch Pending Bets (created by user, status 'open')
-            const pendingQuery = query(
-                collection(db, "bets"),
-                where("creatorId", "==", authUser.uid),
-                where("status", "==", "open"),
-                orderBy("createdAt", "desc")
-            );
-            const pendingSnap = await getDocs(pendingQuery);
-            const pending = pendingSnap.docs.map(convertToBet);
-            setPendingBets(pending);
-
-
-            // Fetch Matched & Settled Bets involving the user
+            
+            // Fetch all bets where user is creator or challenger
             const asCreatorQuery = query(
                 collection(db, "bets"),
-                where("creatorId", "==", authUser.uid),
-                where("status", "in", ["matched", "settled", "void"])
+                where("creatorId", "==", authUser.uid)
             );
             const asChallengerQuery = query(
                 collection(db, "bets"),
-                where("challengerId", "==", authUser.uid),
-                 where("status", "in", ["matched", "settled", "void"])
+                where("challengerId", "==", authUser.uid)
             );
             
             const [creatorSnap, challengerSnap] = await Promise.all([
@@ -86,14 +75,18 @@ export function UserDashboard() {
             
             // Sort by creation date descending
             uniqueBets.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-
-            setOtherBets(uniqueBets);
-
+            
+            setBets(uniqueBets);
             setLoading(false);
         };
 
         fetchData();
     }, [authUser]);
+    
+    const openBets = bets.filter(b => b.status === 'open');
+    const matchedBets = bets.filter(b => b.status === 'matched');
+    const historyBets = bets.filter(b => b.status === 'settled' || b.status === 'void');
+
 
     const KYCAlert = () => {
         if (!userProfile) return null;
@@ -198,19 +191,25 @@ export function UserDashboard() {
                 </Card>
             </header>
 
-            <div className="grid grid-cols-1 gap-8">
-                {pendingBets.length > 0 && (
-                     <section>
-                         <h2 className="text-2xl font-headline font-black mb-4 flex items-center gap-2"><Hourglass className="text-primary"/>Pending Challenges</h2>
-                        <UserBetsTable bets={pendingBets} currentUserId={authUser!.uid} type="pending" />
-                    </section>
-                )}
-               
-                <section>
-                    <h2 className="text-2xl font-headline font-black mb-4 flex items-center gap-2"><Swords className="text-primary"/>Bet History</h2>
-                    <UserBetsTable bets={otherBets} currentUserId={authUser!.uid} type="history" />
-                </section>
-            </div>
+            <section>
+                <h2 className="text-2xl font-headline font-black mb-4">My Bets</h2>
+                <Tabs defaultValue="open">
+                    <TabsList>
+                        <TabsTrigger value="open">Open</TabsTrigger>
+                        <TabsTrigger value="matched">Matched</TabsTrigger>
+                        <TabsTrigger value="history">History</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="open">
+                         <UserBetsTable bets={openBets} currentUserId={authUser!.uid} />
+                    </TabsContent>
+                    <TabsContent value="matched">
+                         <UserBetsTable bets={matchedBets} currentUserId={authUser!.uid} />
+                    </TabsContent>
+                    <TabsContent value="history">
+                         <UserBetsTable bets={historyBets} currentUserId={authUser!.uid} />
+                    </TabsContent>
+                </Tabs>
+            </section>
         </div>
     );
 }

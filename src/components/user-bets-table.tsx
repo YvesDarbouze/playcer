@@ -23,7 +23,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 interface UserBetsTableProps {
   bets: Bet[];
   currentUserId: string;
-  type: "pending" | "history";
 }
 
 const OpponentDisplay = ({ bet, currentUserId }: { bet: Bet, currentUserId: string }) => {
@@ -64,7 +63,7 @@ const OutcomeBadge = ({ bet, currentUserId }: { bet: Bet, currentUserId: string 
     return null;
 }
 
-export function UserBetsTable({ bets, currentUserId, type }: UserBetsTableProps) {
+export function UserBetsTable({ bets, currentUserId }: UserBetsTableProps) {
   const { toast } = useToast();
 
   const handleCopyLink = (link: string) => {
@@ -76,7 +75,7 @@ export function UserBetsTable({ bets, currentUserId, type }: UserBetsTableProps)
     return (
         <Card>
             <CardContent className="p-6 text-center text-muted-foreground">
-                {type === 'pending' ? 'No pending challenges.' : 'No active or past bets found.'}
+                No bets found in this category.
             </CardContent>
         </Card>
     )
@@ -94,7 +93,7 @@ export function UserBetsTable({ bets, currentUserId, type }: UserBetsTableProps)
               <TableHead className="text-right">Stake</TableHead>
               <TableHead className="text-center">Status</TableHead>
               <TableHead className="text-center">Outcome</TableHead>
-              {type === 'pending' && <TableHead className="text-right">Actions</TableHead>}
+              <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -121,18 +120,18 @@ export function UserBetsTable({ bets, currentUserId, type }: UserBetsTableProps)
                 <TableCell className="text-center">
                     <OutcomeBadge bet={bet} currentUserId={currentUserId} />
                 </TableCell>
-                 {type === 'pending' && (
-                    <TableCell className="text-right">
+                 <TableCell className="text-right space-x-1">
+                    {bet.status === 'open' && (
                         <Button variant="ghost" size="sm" onClick={() => handleCopyLink(`${window.location.origin}/bet/${bet.id}`)}>
-                            <Copy className="mr-2 h-4 w-4" /> Copy Link
+                            <Copy className="mr-2 h-4 w-4" /> Copy
                         </Button>
-                        <Link href={`/bet/${bet.id}`} passHref>
-                            <Button variant="outline" size="sm">
-                                View <ArrowUpRight className="ml-2 h-4 w-4" />
-                            </Button>
-                        </Link>
-                    </TableCell>
-                 )}
+                    )}
+                    <Link href={`/bet/${bet.id}`} passHref>
+                        <Button variant="outline" size="sm">
+                            View <ArrowUpRight className="ml-2 h-4 w-4" />
+                        </Button>
+                    </Link>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
