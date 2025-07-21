@@ -2,57 +2,55 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Helper functions to keep rules DRY
-    function isAuthenticated() {
-      return request.auth != null;
-    }
-
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-
-    function isCreatingOwnDocument(userId) {
-      return isOwner(userId) && !exists(/databases/$(database)/documents/users/$(userId));
-    }
     
-    function isReadingOwnDocument(userId) {
-        return isOwner(userId);
-    }
-
-    function isUpdatingOwnDocument(userId) {
-      // User can only update their own document.
-      // They cannot modify walletBalance, wins, or losses.
-      let cannotUpdateProtectedFields = !('walletBalance' in request.resource.data)
-                                      && !('wins' in request.resource.data)
-                                      && !('losses' in request.resource.data);
-                                      
-      return isOwner(userId) && cannotUpdateProtectedFields;
-    }
-    
-    function canReadPublicProfile() {
-      // Allows any authenticated user to read specific public fields.
-      // This rule is structured to allow a `get` but not a `list`.
-      // The client must be trusted to only request/display these fields.
-      return isAuthenticated();
-    }
-    
+    // User data rules
     match /users/{userId} {
-      // CREATE: User can create their own document only if it doesn't exist.
-      allow create: if isCreatingOwnDocument(userId);
+      // CREATE: A user can only create their own document, and only if one doesn't already exist.
+      allow create: if request.auth.uid == userId && !exists(/databases/$(database)/documents/users/$(userId));
 
-      // READ: 
-      // 1. A user can read their own entire document.
-      // 2. Any authenticated user can read public profile data of others.
-      // Note: Firestore rules cannot restrict which fields are returned.
-      // The client application is responsible for fetching only the public fields.
-      allow get: if isReadingOwnDocument(userId) || canReadPublicProfile();
-      allow list: if false; // Disallow querying the entire collection for security.
+      // READ: An authenticated user can read their own full document.
+      allow get: if request.auth.uid == userId;
 
-      // UPDATE: User can only update their own document, and cannot change protected fields.
-      allow update: if isUpdatingOwnDocument(userId);
+      // READ (Public): Any authenticated user can read specific public fields of any other user.
+      allow list, get: if request.auth != null && 
+                       request.query.keys.hasOnly(['displayName', 'username', 'photoURL', 'wins', 'losses']);
 
-      // DELETE: No one can delete a user document.
+      // UPDATE: An authenticated user can only update their own document, and cannot modify protected fields.
+      allow update: if request.auth.uid == userId &&
+                     !('walletBalance' in request.resource.data) &&
+                     !('wins' in request.resource.data) &&
+                     !('losses' in request.resource.data);
+
+      // DELETE: Not allowed for any user.
+      allow delete: if false;
+    }
+
+    // Bet data rules
+    match /bets/{betId} {
+      // READ: Any user can read any bet.
+      allow read: if true;
+
+      // CREATE: An authenticated user can create a bet.
+      // The bet must have the correct creatorId, an 'open' status, and null challenger/winner fields.
+      allow create: if request.auth != null &&
+                     request.resource.data.creatorId == request.auth.uid &&
+                     request.resource.data.status == 'open' &&
+                     request.resource.data.challengerId == null &&
+                     request.resource.ddata.winnerId == null;
+
+      // UPDATE: Handles accepting a bet challenge.
+      // A user can only accept if they are authenticated, the bet is 'open', and they are not the creator.
+      // They can only modify the challenger fields and the status to 'matched'.
+      allow update: if request.auth != null &&
+                     resource.data.status == 'open' &&
+                     request.resource.data.status == 'matched' &&
+                     request.resource.data.challengerId == request.auth.uid &&
+                     request.auth.uid != resource.data.creatorId &&
+                     request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                       'challengerId', 'challengerUsername', 'challengerPhotoURL', 'status'
+                     ]);
+      
+      // DELETE: Not allowed.
       allow delete: if false;
     }
   }
