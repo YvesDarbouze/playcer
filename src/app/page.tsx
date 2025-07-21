@@ -1,35 +1,69 @@
-import { Button } from "@/components/ui/button";
+import { GameList } from "@/components/game-list";
+import { Game } from "@/types";
 
-export default function Home() {
+// In a real app, this would fetch from a live sports data API.
+// We are using a mock function to simulate this.
+const getUpcomingGames = async (): Promise<Game[]> => {
+  return [
+    {
+      id: "nba_1",
+      sport_key: "basketball_nba",
+      sport_title: "NBA",
+      commence_time: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
+      home_team: "Los Angeles Lakers",
+      away_team: "Los Angeles Clippers",
+    },
+    {
+      id: "nba_2",
+      sport_key: "basketball_nba",
+      sport_title: "NBA",
+      commence_time: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(),
+      home_team: "Golden State Warriors",
+      away_team: "Boston Celtics",
+    },
+    {
+      id: "nfl_1",
+      sport_key: "americanfootball_nfl",
+      sport_title: "NFL",
+      commence_time: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      home_team: "Kansas City Chiefs",
+      away_team: "Philadelphia Eagles",
+    },
+    {
+      id: "nfl_2",
+      sport_key: "americanfootball_nfl",
+      sport_title: "NFL",
+      commence_time: new Date(Date.now() + 26 * 60 * 60 * 1000).toISOString(),
+      home_team: "San Francisco 49ers",
+      away_team: "Los Angeles Rams",
+    },
+     {
+      id: "mlb_1",
+      sport_key: "baseball_mlb",
+      sport_title: "MLB",
+      commence_time: new Date(Date.now() + 28 * 60 * 60 * 1000).toISOString(),
+      home_team: "New York Yankees",
+      away_team: "Boston Red Sox",
+    },
+     {
+      id: "mlb_2",
+      sport_key: "baseball_mlb",
+      sport_title: "MLB",
+      commence_time: new Date(Date.now() + 30 * 60 * 60 * 1000).toISOString(),
+      home_team: "Los Angeles Dodgers",
+      away_team: "San Diego Padres",
+    },
+  ];
+};
+
+export default async function Home() {
+  const games = await getUpcomingGames();
+
   return (
-    <div className="flex flex-col min-h-screen bg-background text-foreground">
-      <main className="flex-1">
-        {/* Hero Section */}
-        <section className="bg-primary text-primary-foreground py-20 px-4 flex flex-col items-center justify-center text-center min-h-[50vh] relative">
-          <nav className="absolute top-4 right-4">
-            <Button variant="destructive">Login with Twitter</Button>
-          </nav>
-          
-          <div className="max-w-4xl mx-auto">
-            <h1 className="font-headline text-4xl md:text-6xl uppercase font-bold tracking-tight">
-              I don&apos;t just want to Bet, I Want To Bet That M0+#%
-            </h1>
-            <p className="mt-4 text-lg md:text-xl text-primary-foreground/80">
-              Peer to Peer Betting that makes sports betting personal
-            </p>
-          </div>
-        </section>
-
-        {/* Content Section */}
-        <section className="py-16 px-4">
-          <div className="container mx-auto">
-            <h2 className="text-3xl font-bold text-center mb-8">Upcoming Games</h2>
-            <div className="p-12 border-2 border-dashed rounded-lg text-center text-muted-foreground">
-              <p>Game listings will appear here.</p>
-            </div>
-          </div>
-        </section>
-      </main>
-    </div>
+    <main className="bg-background min-h-screen">
+       <div className="container mx-auto p-4 md:p-8">
+            <GameList initialGames={games} />
+       </div>
+    </main>
   );
 }
