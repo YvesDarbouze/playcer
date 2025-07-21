@@ -2,15 +2,13 @@
 
 import * as React from "react";
 import Image from "next/image";
+import Link from "next/link";
 import {
   Activity,
   Filter,
   Map,
-  MapPin,
-  Star,
   Swords,
   User,
-  Users,
 } from "lucide-react";
 import type { Court } from "@/types";
 import {
@@ -27,7 +25,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import {
   Tabs,
   TabsContent,
@@ -108,10 +105,13 @@ export function Dashboard({ courts: initialCourts }: { courts: Court[] }) {
       </Sidebar>
       <SidebarInset>
         <div className="flex flex-col h-screen">
-          <header className="p-4 border-b">
+          <header className="p-4 border-b flex justify-between items-center">
             <h2 className="text-xl font-headline font-black">
               Find Your Court
             </h2>
+            <Button asChild variant="outline">
+              <Link href="/signin">Sign In</Link>
+            </Button>
           </header>
           <div className="flex-1 grid md:grid-cols-12 overflow-hidden">
             <div className="md:col-span-4 lg:col-span-3 xl:col-span-3 border-r flex flex-col">
