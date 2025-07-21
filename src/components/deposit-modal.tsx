@@ -67,14 +67,11 @@ export function DepositModal({ isOpen, onOpenChange }: DepositModalProps) {
 
       if (result.data.success) {
         toast({
-          title: "Deposit Initiated",
-          description: `Please complete the payment to add $${data.amount.toFixed(
+          title: "Deposit Successful",
+          description: `$${data.amount.toFixed(
             2
-          )} to your wallet.`,
+          )} has been added to your wallet.`,
         });
-        // In a real application, you would now use the result.data.clientSecret
-        // with the Stripe.js SDK to confirm the payment on the client side.
-        // For this simulation, we'll just close the modal.
         onOpenChange(false); 
       } else {
         throw new Error(result.data.message || "Failed to process deposit.");

@@ -27,7 +27,7 @@ const paymentGateway = {
     },
     // This would be triggered by a webhook from the payment provider (e.g., Stripe)
     // after the user successfully completes the payment on the frontend.
-    // We are not building the webhook endpoint in this step.
+    // We are not building the webhook endpoint in this step, but simulating its effect.
     async processSuccessfulPayment(transactionId: string, amount: number, userId: string) {
         logger.log(`Processing successful payment for transaction ${transactionId}`);
         const userDocRef = db.collection('users').doc(userId);
@@ -208,30 +208,19 @@ export const handleDeposit = onCall(async (request) => {
     }
     // --- End RG Check ---
 
-
     try {
-        // Step 1: Create a payment intent with the payment gateway
         const intentResult = await paymentGateway.createPaymentIntent(uid, depositAmount);
         if (!intentResult.success) {
             throw new HttpsError('aborted', 'Payment intent creation failed.');
         }
 
-        // Step 2: Log the pending transaction in our system.
-        // The balance is NOT updated here. It will be updated by a webhook later.
-        const transactionDocRef = db.collection('transactions').doc(intentResult.transactionId);
-        await transactionDocRef.set({
-            userId: uid,
-            type: 'deposit',
-            amount: depositAmount,
-            status: 'pending', // Status is pending until webhook confirms payment
-            gatewayTransactionId: intentResult.transactionId,
-            createdAt: Timestamp.now(),
-        });
+        // SIMULATION: In a real app, a webhook would trigger the following function.
+        // For this demo, we'll call it directly to complete the flow.
+        await paymentGateway.processSuccessfulPayment(intentResult.transactionId, depositAmount, uid);
 
-        logger.log(`Successfully created payment intent for user ${uid}.`);
+        logger.log(`Successfully processed deposit simulation for user ${uid}.`);
         
-        // Step 3: Return the client secret to the frontend.
-        return { success: true, clientSecret: intentResult.clientSecret };
+        return { success: true, message: 'Deposit successful.' };
 
     } catch (error) {
         logger.error(`Error handling deposit for user ${uid}:`, error);
