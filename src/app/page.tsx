@@ -1,47 +1,22 @@
-import { GameList } from "@/components/game-list";
-import type { Game } from '@/types';
+import { Logo } from "@/components/icons";
 
-async function getGames(): Promise<Game[]> {
-    const apiKey = process.env.ODDS_API_KEY;
-    if (!apiKey || apiKey === 'YOUR_ODDS_API_KEY') {
-        console.warn("ODDS_API_KEY is not set. Using mock data.");
-        // Returning empty array for mock data, as per original logic.
-        // A more robust mock could be added here if needed.
-        return [];
-    }
-
-    const sports = ['americanfootball_nfl', 'basketball_nba', 'baseball_mlb'];
-    const allGames: Game[] = [];
-
-    try {
-        for (const sport of sports) {
-            const url = `https://api.the-odds-api.com/v4/sports/${sport}/odds/?regions=us&markets=h2h,spreads&oddsFormat=american&apiKey=${apiKey}`;
-            const res = await fetch(url, { next: { revalidate: 3600 } }); // Revalidate every hour
-
-            if (!res.ok) {
-                console.error(`Failed to fetch data for ${sport}: ${res.statusText}`);
-                continue; 
-            }
-            
-            const games: Game[] = await res.json();
-            allGames.push(...games);
-        }
-        return allGames;
-    } catch (error) {
-        console.error("Error fetching game data:", error);
-        return []; // Return empty array on error
-    }
-}
-
-
-export default async function Home() {
-    const games = await getGames();
-
-    return (
-        <main className="bg-background text-foreground">
-            <div className="container mx-auto px-4 py-8">
-                <GameList initialGames={games} />
-            </div>
-        </main>
-    );
+export default function Home() {
+  return (
+    <div className="flex flex-col min-h-screen">
+      <header className="p-4 border-b">
+        <div className="container mx-auto flex items-center gap-2">
+           <Logo className="size-8 text-primary" />
+           <h1 className="text-xl font-bold">Playcer</h1>
+        </div>
+      </header>
+      <main className="flex-1">
+        <div className="container mx-auto py-8">
+          <h2 className="text-2xl font-bold mb-4">Upcoming Games</h2>
+          <div className="p-8 border-2 border-dashed rounded-lg text-center text-muted-foreground">
+              <p>Game listings will appear here.</p>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
 }
