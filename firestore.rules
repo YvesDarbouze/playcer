@@ -1,56 +1,53 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // User data rules
+
+    // --- Users Collection Rules ---
     match /users/{userId} {
-      // CREATE: A user can only create their own document, and only if one doesn't already exist.
+      
+      // CREATE: A user can only create their own document, and only if it doesn't already exist.
       allow create: if request.auth.uid == userId && !exists(/databases/$(database)/documents/users/$(userId));
 
       // READ: An authenticated user can read their own full document.
       allow get: if request.auth.uid == userId;
 
-      // READ (Public): Any authenticated user can read specific public fields of any other user.
-      allow list, get: if request.auth != null && 
-                       request.query.keys.hasOnly(['displayName', 'username', 'photoURL', 'wins', 'losses']);
+      // READ (Public Fields): Any authenticated user can read public profile data of any other user.
+      allow list: if request.auth != null;
+      
+      // UPDATE: A user can only update their own document.
+      // They are forbidden from updating walletBalance, wins, and losses.
+      allow update: if request.auth.uid == userId
+                    && !("walletBalance" in request.resource.data)
+                    && !("wins" in request.resource.data)
+                    && !("losses" in request.resource.data);
 
-      // UPDATE: An authenticated user can only update their own document, and cannot modify protected fields.
-      allow update: if request.auth.uid == userId &&
-                     !('walletBalance' in request.resource.data) &&
-                     !('wins' in request.resource.data) &&
-                     !('losses' in request.resource.data);
-
-      // DELETE: Not allowed for any user.
+      // DELETE: Deletion is not allowed from the client.
       allow delete: if false;
     }
 
-    // Bet data rules
+    // --- Bets Collection Rules ---
     match /bets/{betId} {
-      // READ: Any user can read any bet.
-      allow read: if true;
 
-      // CREATE: An authenticated user can create a bet.
-      // The bet must have the correct creatorId, an 'open' status, and null challenger/winner fields.
-      allow create: if request.auth != null &&
-                     request.resource.data.creatorId == request.auth.uid &&
-                     request.resource.data.status == 'open' &&
-                     request.resource.data.challengerId == null &&
-                     request.resource.ddata.winnerId == null;
+      // READ: Any user can read any bet document.
+      allow get, list: if true;
 
-      // UPDATE: Handles accepting a bet challenge.
-      // A user can only accept if they are authenticated, the bet is 'open', and they are not the creator.
-      // They can only modify the challenger fields and the status to 'matched'.
-      allow update: if request.auth != null &&
-                     resource.data.status == 'open' &&
-                     request.resource.data.status == 'matched' &&
-                     request.resource.data.challengerId == request.auth.uid &&
-                     request.auth.uid != resource.data.creatorId &&
-                     request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-                       'challengerId', 'challengerUsername', 'challengerPhotoURL', 'status'
-                     ]);
-      
-      // DELETE: Not allowed.
+      // CREATE: A user can create a bet if they are authenticated.
+      allow create: if request.auth != null && request.resource.data.creatorId == request.auth.uid;
+
+      // UPDATE: 
+      // Rule 1: A user can accept a challenge if the bet is 'open' and they are not the creator.
+      // Rule 2: No client can modify a bet once it is 'matched' or 'settled' or 'void'.
+      // Rule 3: Only server-side functions can update the status or winnerId.
+      allow update: if request.auth != null
+                    && resource.data.status == 'open'
+                    && request.resource.data.challengerId == request.auth.uid
+                    && request.resource.data.creatorId != request.auth.uid
+                    && !("status" in request.resource.data)
+                    && !("winnerId" in request.resource.data);
+
+      // DELETE: Deletion is not allowed from the client.
       allow delete: if false;
     }
   }

@@ -55,7 +55,7 @@ export type Game = {
 };
 
 export type Bet = {
-  id: string; // Auto-generated
+  id: string; 
   creatorId: string;
   creatorUsername: string;
   creatorPhotoURL: string;
@@ -64,7 +64,7 @@ export type Bet = {
   challengerPhotoURL: string | null;
   sportKey: string;
   eventId: string;
-  eventDate: any; // Firestore Timestamp on server, string or Date on client
+  eventDate: Timestamp;
   homeTeam: string;
   awayTeam: string;
   betType: 'spread' | 'moneyline' | 'total';
@@ -74,6 +74,6 @@ export type Bet = {
   stake: number;
   status: 'open' | 'matched' | 'settled' | 'void';
   winnerId: string | null;
-  createdAt: any; // Firestore Timestamp on server, string or Date on client
+  createdAt: Timestamp; 
   uniqueLink: string;
 };

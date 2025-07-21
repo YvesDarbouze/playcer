@@ -45,7 +45,8 @@ export function LoginButton() {
     <Button
       onClick={handleSignIn}
       disabled={isLoading}
-      style={{ backgroundColor: '#00c3ff' }}
+      style={{ backgroundColor: '#00c3ff', color: 'white' }}
+      className="hover:opacity-90"
     >
       <Twitter className="mr-2 h-4 w-4" />
       {isLoading ? "Redirecting..." : "Login with Twitter"}

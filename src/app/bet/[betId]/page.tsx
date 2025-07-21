@@ -12,6 +12,18 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { BetChallengeCard } from "@/components/bet-challenge-card";
 
+// Helper function to convert Firestore data to Bet type
+const convertToBet = (docSnap: any): Bet => {
+  const data = docSnap.data();
+  return {
+    id: docSnap.id,
+    ...data,
+    eventDate: (data.eventDate as Timestamp).toDate(),
+    createdAt: (data.createdAt as Timestamp).toDate(),
+  } as Bet;
+}
+
+
 export default function BetChallengePage() {
   const params = useParams();
   const { betId } = params;
@@ -23,10 +35,8 @@ export default function BetChallengePage() {
   const [error, setError] = React.useState<string | null>(null);
   const [isAccepting, setIsAccepting] = React.useState(false);
 
-  React.useEffect(() => {
-    if (typeof betId !== "string") return;
-
-    const fetchBet = async () => {
+  const fetchBet = React.useCallback(async () => {
+      if (typeof betId !== "string") return;
       setLoading(true);
       setError(null);
       try {
@@ -35,15 +45,7 @@ export default function BetChallengePage() {
         const betSnap = await getDoc(betRef);
 
         if (betSnap.exists()) {
-          // Manually convert Firestore Timestamp to Date for Bet type compatibility
-          const data = betSnap.data();
-          const betData: Bet = {
-            id: betSnap.id,
-            ...data,
-            eventDate: (data.eventDate as Timestamp).toDate(),
-            createdAt: (data.createdAt as Timestamp).toDate(),
-          } as Bet;
-          setBet(betData);
+          setBet(convertToBet(betSnap));
         } else {
           setError("Bet not found.");
         }
@@ -53,10 +55,11 @@ export default function BetChallengePage() {
       } finally {
         setLoading(false);
       }
-    };
+    }, [betId]);
 
+  React.useEffect(() => {
     fetchBet();
-  }, [betId]);
+  }, [fetchBet]);
 
   const handleAcceptBet = async () => {
     if (!user || !bet) return;
@@ -72,20 +75,8 @@ export default function BetChallengePage() {
           title: "Bet Accepted!",
           description: "The challenge has been matched. Good luck!",
         });
-        // Refresh bet data
-        const db = getFirestore(getFirebaseApp());
-        const betRef = doc(db, "bets", bet.id);
-        const betSnap = await getDoc(betRef);
-        if (betSnap.exists()) {
-           const data = betSnap.data();
-           const betData: Bet = {
-             id: betSnap.id,
-             ...data,
-             eventDate: (data.eventDate as Timestamp).toDate(),
-             createdAt: (data.createdAt as Timestamp).toDate(),
-           } as Bet;
-           setBet(betData);
-        }
+        // Refresh bet data to show the new 'matched' status and challenger info
+        await fetchBet();
       } else {
         throw new Error(result.data.message || "Failed to accept bet.");
       }

@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { getFirestore, doc, getDoc, collection, query, where, getDocs, orderBy } from "firebase/firestore";
+import { getFirestore, doc, getDoc, collection, query, where, getDocs, orderBy, Timestamp } from "firebase/firestore";
 import { useAuth } from "@/hooks/use-auth";
 import { getFirebaseApp } from "@/lib/firebase";
 import type { User, Bet } from "@/types";
@@ -12,6 +12,17 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UserBetsTable } from "./user-bets-table";
 import { Banknote, Trophy, ShieldHalf, Swords, Hourglass } from "lucide-react";
+
+const convertToBet = (doc: any): Bet => {
+    const data = doc.data();
+    return {
+        id: doc.id,
+        ...data,
+        eventDate: (data.eventDate as Timestamp).toDate(),
+        createdAt: (data.createdAt as Timestamp).toDate(),
+    } as Bet;
+};
+
 
 export function UserDashboard() {
     const { user: authUser } = useAuth();
@@ -42,7 +53,7 @@ export function UserDashboard() {
                 orderBy("createdAt", "desc")
             );
             const pendingSnap = await getDocs(pendingQuery);
-            const pending = pendingSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Bet));
+            const pending = pendingSnap.docs.map(convertToBet);
             setPendingBets(pending);
 
 
@@ -64,8 +75,8 @@ export function UserDashboard() {
             ]);
 
             const combinedBets = [
-                ...creatorSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Bet)),
-                ...challengerSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Bet)),
+                ...creatorSnap.docs.map(convertToBet),
+                ...challengerSnap.docs.map(convertToBet),
             ];
             
             // Simple deduplication
