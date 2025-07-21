@@ -400,6 +400,12 @@ export const processBetOutcome = onCall(async (request) => {
     for (const betDoc of matchedBetsSnap.docs) {
         const betId = betDoc.id;
         const betData = betDoc.data();
+
+        // Skip disputed bets from automatic settlement
+        if (betData.status === 'disputed') {
+            logger.log(`Skipping disputed bet ${betId}.`);
+            continue;
+        }
         
         try {
             const result = await sportsDataAPI.getEventResult(betData.sportKey, betData.eventId);
