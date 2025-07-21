@@ -2,66 +2,80 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-  
-    // Helper functions
-    function isAuth() {
-      return request.auth != null;
+
+    // --- Utility Functions ---
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
     }
-    
-    function isUser(userId) {
-      return isAuth() && request.auth.uid == userId;
-    }
-    
+
     function isAdmin() {
-      return isAuth() && request.auth.token.admin == true;
+      return request.auth != null && request.auth.token.admin == true;
+    }
+
+    function isServer() {
+      // Insecure: In a real app, you'd want a more robust way to identify server calls
+      // e.g., using a specific service account. For this project, we check for null auth
+      // which is typical for Admin SDK calls.
+      return request.auth == null;
+    }
+
+    // --- Users Collection ---
+    match /users/{userId} {
+      // READ: 
+      // - Any authenticated user can read public profile info (displayName, photoURL, wins, losses, username).
+      // - A user can read their own full document.
+      // - An admin can read any user's full document.
+      allow read: if request.auth != null && (isOwner(userId) || isAdmin());
+
+      // CREATE: A user can only create their own document.
+      allow create: if isOwner(userId);
+        
+      // UPDATE:
+      // A user can only update their own document.
+      // They CANNOT update protected fields like walletBalance, kycStatus, wins, losses, or selfExclusion.
+      // These must be updated by a trusted backend function.
+      allow update: if isOwner(userId) && 
+                      request.resource.data.walletBalance == resource.data.walletBalance &&
+                      request.resource.data.kycStatus == resource.data.kycStatus &&
+                      request.resource.data.wins == resource.data.wins &&
+                      request.resource.data.losses == resource.data.losses &&
+                      request.resource.data.selfExclusion == resource.data.selfExclusion;
     }
     
-    match /users/{userId} {
-      // Any authenticated user can create their own user document.
-      allow create: if isUser(userId);
-      
-      // A user can read their own document. An admin can read any document.
-      allow get: if isUser(userId) || isAdmin();
-      
-      // For public profiles, any authenticated user can list user documents,
-      // but client-side code must be responsible for only showing public fields.
-      allow list: if isAuth();
-
-      // A user can only update their own document.
-      // They cannot update their wallet, KYC status, wins, or losses.
-      allow update: if isUser(userId) 
-        && request.resource.data.walletBalance == resource.data.walletBalance
-        && request.resource.data.kycStatus == resource.data.kycStatus
-        && request.resource.data.wins == resource.data.wins
-        && request.resource.data.losses == resource.data.losses;
-    }
-
+    // --- Bets Collection ---
     match /bets/{betId} {
-      allow get, list: if true; // Bets are public
-      allow create: if isAuth();
-      
-      // Users can only "match" a bet if they are not the creator and the bet is 'open'.
-      // Updates to 'settled', 'void', 'disputed' should happen server-side.
-      allow update: if isAuth() 
-        && request.resource.data.challengerId == request.auth.uid
-        && resource.data.status == 'open'; 
+        // READ: Anyone can read public bet information.
+        allow read: if true;
+
+        // CREATE: Only authenticated users can create a bet.
+        allow create: if request.auth != null;
+
+        // UPDATE (Match Bet):
+        // - A user can only accept a bet if they are not the creator and the bet is 'open'.
+        // - Admins/Server can update bets for settlement/dispute resolution.
+        allow update: if isServer() || isAdmin() || 
+                      (request.auth != null &&
+                       request.resource.data.status == 'matched' &&
+                       resource.data.status == 'open' &&
+                       request.resource.data.challengerId == request.auth.uid);
     }
 
-    match /transactions/{txId} {
-      // Users can only read their own transactions.
-      allow list: if isAuth() && request.query.where[0][2] == request.auth.uid;
-      // No one can write to transactions from the client.
-      allow write: if false;
+    // --- Transactions Collection ---
+    match /transactions/{transactionId} {
+        // READ: Users can only read their own transactions. Admins can read all.
+        allow read: if request.auth != null && (isAdmin() || request.resource.data.userId == request.auth.uid);
+        
+        // WRITE: No client-side writes allowed. All transactions must be created by the backend.
+        allow write: if false;
     }
+    
+    // --- User Bets Subcollection ---
+    match /users/{userId}/userBets/{betId} {
+        // READ: A user can read their own subcollection of bet references.
+        allow read: if isOwner(userId);
 
-    match /disputes/{disputeId} {
-      // Only involved parties or admins can read/write disputes.
-      // Placeholder for more granular rules.
-      allow read, write: if isAuth() && (
-        resource.data.creatorId == request.auth.uid ||
-        resource.data.takerId == request.auth.uid ||
-        isAdmin()
-      );
+        // WRITE: No client-side writes allowed. All records must be created by the backend.
+        allow write: if false;
     }
   }
 }

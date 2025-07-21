@@ -29,7 +29,7 @@ export type User = {
   walletBalance: number;
   wins: number;
   losses: number;
-  kycStatus: 'pending' | 'verified' | 'rejected';
+  kycStatus: 'pending' | 'verified' | 'rejected' | 'in_review';
   responsibleGamingLimits: {
       deposit: {
           daily: number;
@@ -55,6 +55,7 @@ export type Game = {
     sport_title: string;
     commence_time: string;
     home_team: string;
+
     away_team: string;
     bookmakers: {
         key: string;

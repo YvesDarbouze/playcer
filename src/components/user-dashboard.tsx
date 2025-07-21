@@ -11,8 +11,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UserBetsTable } from "./user-bets-table";
-import { Banknote, Trophy, ShieldHalf, Swords, Hourglass, LifeBuoy } from "lucide-react";
+import { Banknote, Trophy, ShieldHalf, Swords, Hourglass, LifeBuoy, ShieldCheck } from "lucide-react";
 import Link from 'next/link';
+import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 
 const convertToBet = (doc: any): Bet => {
     const data = doc.data();
@@ -94,6 +95,38 @@ export function UserDashboard() {
         fetchData();
     }, [authUser]);
 
+    const KYCAlert = () => {
+        if (!userProfile) return null;
+
+        switch (userProfile.kycStatus) {
+            case 'pending':
+                return (
+                    <Alert>
+                         <ShieldCheck className="h-4 w-4" />
+                        <AlertTitle>Identity Verification Required</AlertTitle>
+                        <AlertDescription className="flex justify-between items-center">
+                            <p>Please verify your identity to enable all features, including withdrawals.</p>
+                            <Link href="/verify-identity">
+                                <Button>Verify Now</Button>
+                            </Link>
+                        </AlertDescription>
+                    </Alert>
+                );
+            case 'in_review':
+                 return (
+                    <Alert variant="default" className="bg-yellow-50 border-yellow-200 text-yellow-800">
+                         <Hourglass className="h-4 w-4" />
+                        <AlertTitle>Verification Under Review</AlertTitle>
+                        <AlertDescription>
+                            Your documents have been submitted and are being reviewed. This usually takes a few minutes.
+                        </AlertDescription>
+                    </Alert>
+                );
+            default:
+                return null;
+        }
+    }
+
     if (loading) {
         return (
              <div className="container mx-auto p-4 md:p-8 space-y-8">
@@ -109,7 +142,8 @@ export function UserDashboard() {
 
     return (
         <div className="container mx-auto p-4 md:p-8">
-            <header className="mb-8">
+            <header className="mb-8 space-y-4">
+                <KYCAlert />
                 <Card className="shadow-lg">
                     <CardContent className="p-6 flex flex-col md:flex-row items-center gap-6">
                         <Avatar className="h-24 w-24 border-4 border-primary">
