@@ -5,8 +5,8 @@ import { GameList } from "@/components/game-list";
 async function getGames() {
     // In a real application, you should handle errors and loading states.
     // For this example, we'll fetch from a static file if the API key is missing.
-    if (!process.env.ODDS_API_KEY) {
-        console.warn("ODDS_API_KEY is not set. Using mock data.");
+    if (!process.env.NEXT_PUBLIC_ODDS_API_KEY) {
+        console.warn("NEXT_PUBLIC_ODDS_API_KEY is not set. Using mock data.");
         // In a real scenario you might want to return an empty array or handle the error.
         // For now, we'll return an empty array to avoid breaking the UI.
         return [];
@@ -18,7 +18,7 @@ async function getGames() {
     try {
         for (const sport of sports) {
             const res = await fetch(
-                `https://api.the-odds-api.com/v4/sports/${sport}/odds/?regions=us&markets=h2h,spreads&oddsFormat=american&apiKey=${process.env.ODDS_API_KEY}`
+                `https://api.the-odds-api.com/v4/sports/${sport}/odds/?regions=us&markets=h2h,spreads&oddsFormat=american&apiKey=${process.env.NEXT_PUBLIC_ODDS_API_KEY}`
             );
 
             if (!res.ok) {
