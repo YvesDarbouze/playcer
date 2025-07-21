@@ -592,3 +592,5 @@ export const issueManualRefund = onCall(async (request) => {
     logger.log(`Admin initiated manual refund for user ${userId} concerning bet ${betId}.`);
     return { success: true, message: `Refund process initiated for bet ${betId}.` };
 });
+
+    
