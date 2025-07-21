@@ -20,6 +20,8 @@ const convertToBet = (docSnap: any): Bet => {
     ...data,
     eventDate: (data.eventDate as Timestamp).toDate(),
     createdAt: (data.createdAt as Timestamp).toDate(),
+    matchedAt: data.matchedAt ? (data.matchedAt as Timestamp).toDate() : null,
+    settledAt: data.settledAt ? (data.settledAt as Timestamp).toDate() : null,
   } as Bet;
 }
 
@@ -92,31 +94,6 @@ export default function BetChallengePage() {
     }
   };
 
-  const handleShareBet = async () => {
-    if (!bet) return;
-    const shareData = {
-      title: 'Playcer Bet Challenge',
-      text: `I've challenged someone to a bet on ${bet.awayTeam} vs ${bet.homeTeam}. Do you have what it takes to accept?`,
-      url: window.location.href,
-    };
-    try {
-      if (navigator.share) {
-        await navigator.share(shareData);
-        toast({ title: 'Challenge shared!' });
-      } else {
-         navigator.clipboard.writeText(window.location.href);
-         toast({ title: "Link Copied!", description: "Challenge link copied to clipboard." });
-      }
-    } catch (error) {
-      console.error('Error sharing bet:', error);
-      toast({
-        title: 'Sharing failed',
-        description: 'Could not share the challenge at this time.',
-        variant: 'destructive',
-      });
-    }
-  };
-
   const renderContent = () => {
     if (loading || authLoading) {
       return (
@@ -136,7 +113,6 @@ export default function BetChallengePage() {
           bet={bet}
           currentUser={user}
           onAccept={handleAcceptBet}
-          onShare={handleShareBet}
           isAccepting={isAccepting}
         />
       );

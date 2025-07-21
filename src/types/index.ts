@@ -83,7 +83,7 @@ export type Bet = {
   challengerPhotoURL: string | null;
   sportKey: string;
   eventId: string;
-  eventDate: Timestamp;
+  eventDate: Date;
   homeTeam: string;
   awayTeam: string;
   betType: 'spread' | 'moneyline' | 'total';
@@ -96,19 +96,17 @@ export type Bet = {
   status: 'open' | 'matched' | 'settled' | 'void' | 'disputed';
   isPublic: boolean;
   winnerId: string | null;
-  createdAt: Timestamp; 
-  matchedAt: Timestamp | null;
-  settledAt: Timestamp | null;
+  createdAt: Date; 
+  matchedAt: Date | null;
+  settledAt: Date | null;
 };
 
-// From new schema
 export type UserBet = {
-  betRef: string; // Using string to represent reference path
+  betRef: string; 
   role: 'creator' | 'taker';
   createdAt: Timestamp;
 }
 
-// From new schema
 export type Transaction = {
   id: string;
   userId: string;
@@ -120,7 +118,6 @@ export type Transaction = {
   createdAt: Timestamp;
 }
 
-// From new schema
 export type Dispute = {
   id: string;
   betId: string;

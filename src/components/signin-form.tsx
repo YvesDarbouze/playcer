@@ -22,7 +22,7 @@ export function SignInForm() {
         </div>
         <CardTitle className="text-2xl font-headline font-black">Welcome to Playcer</CardTitle>
         <CardDescription>
-          Sign in to find and review pickleball courts.
+          The social betting platform. Sign in to get started.
         </CardDescription>
       </CardHeader>
       <CardContent>

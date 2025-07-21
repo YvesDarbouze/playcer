@@ -20,12 +20,12 @@ import { Handshake, Share2, Swords } from "lucide-react";
 import type { Bet } from "@/types";
 import { cn } from "@/lib/utils";
 import { LoginButton } from "./login-button";
+import { useToast } from "@/hooks/use-toast";
 
 interface BetChallengeCardProps {
   bet: Bet;
   currentUser: FirebaseUser | null;
   onAccept: () => void;
-  onShare: () => void;
   isAccepting: boolean;
 }
 
@@ -80,12 +80,37 @@ export function BetChallengeCard({
   bet,
   currentUser,
   onAccept,
-  onShare,
   isAccepting,
 }: BetChallengeCardProps) {
 
+  const { toast } = useToast();
   const canAccept = currentUser && currentUser.uid !== bet.creatorId && bet.status === 'open';
   const isCreator = currentUser && currentUser.uid === bet.creatorId;
+
+  const handleShareBet = async () => {
+    const shareData = {
+      title: 'Playcer Bet Challenge',
+      text: `I've challenged someone to a bet on ${bet.awayTeam} vs ${bet.homeTeam}. Do you have what it takes to accept?`,
+      url: window.location.href,
+    };
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+        toast({ title: 'Challenge shared!' });
+      } else {
+         navigator.clipboard.writeText(window.location.href);
+         toast({ title: "Link Copied!", description: "Challenge link copied to clipboard." });
+      }
+    } catch (error) {
+      console.error('Error sharing bet:', error);
+      toast({
+        title: 'Sharing failed',
+        description: 'Could not share the challenge at this time.',
+        variant: 'destructive',
+      });
+    }
+  };
+
 
   const renderActionButton = () => {
     if (!currentUser) {
@@ -102,9 +127,9 @@ export function BetChallengeCard({
         </Button>
       );
     }
-    if (isCreator) {
+    if (isCreator && bet.status === 'open') {
       return (
-        <Button onClick={onShare} className="w-full" size="lg" variant="secondary">
+        <Button onClick={handleShareBet} className="w-full" size="lg" variant="secondary">
           <Share2 className="mr-2" />
           Share Challenge
         </Button>
@@ -154,7 +179,7 @@ export function BetChallengeCard({
             {bet.line ? <BetDetail label="Line" value={bet.line} /> : null}
             <BetDetail label="Wager" value={`$${bet.stake.toFixed(2)}`} />
         </div>
-      </Content>
+      </CardContent>
       <CardFooter className="p-4 bg-muted/30">
         {renderActionButton()}
       </CardFooter>
