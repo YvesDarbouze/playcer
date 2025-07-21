@@ -48,7 +48,11 @@ const OpponentDisplay = ({ bet, currentUserId }: { bet: Bet, currentUserId: stri
 }
 
 const OutcomeBadge = ({ bet, currentUserId }: { bet: Bet, currentUserId: string }) => {
-    if (bet.status !== 'settled') return null;
+    if (bet.status !== 'settled' && bet.status !== 'void') return null;
+
+    if(bet.status === 'void'){
+        return <Badge variant="secondary">Push</Badge>;
+    }
 
     if (bet.winnerId === currentUserId) {
         return <Badge variant="default" className="bg-green-500 hover:bg-green-600">Win</Badge>
@@ -57,7 +61,7 @@ const OutcomeBadge = ({ bet, currentUserId }: { bet: Bet, currentUserId: string 
         return <Badge variant="destructive">Loss</Badge>
     }
 
-    return <Badge variant="secondary">Push</Badge>
+    return null;
 }
 
 export function UserBetsTable({ bets, currentUserId, type }: UserBetsTableProps) {

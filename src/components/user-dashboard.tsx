@@ -85,7 +85,7 @@ export function UserDashboard() {
             const uniqueBets = Array.from(new Map(combinedBets.map(bet => [bet.id, bet])).values());
             
             // Sort by creation date descending
-            uniqueBets.sort((a, b) => b.createdAt.seconds - a.createdAt.seconds);
+            uniqueBets.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
             setOtherBets(uniqueBets);
 
@@ -181,10 +181,12 @@ export function UserDashboard() {
                                     Marketplace
                                 </Button>
                              </Link>
-                             <Button variant="secondary" className="col-span-2">
-                                <Banknote className="mr-2" />
-                                Manage Wallet
-                            </Button>
+                            <Link href="/wallet" passHref>
+                                <Button variant="secondary" className="col-span-2">
+                                    <Banknote className="mr-2" />
+                                    Manage Wallet
+                                </Button>
+                            </Link>
                             <Link href="/dashboard/responsible-gaming" passHref>
                                 <Button variant="outline" className="col-span-2">
                                     <LifeBuoy className="mr-2" />
