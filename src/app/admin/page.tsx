@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, Swords, DollarSign } from "lucide-react";
 import { UserManagementTable } from "@/components/admin/user-management-table";
+import { AdminLayout } from "@/components/admin/admin-layout";
 
 export default function AdminDashboardPage() {
   const { user, claims, loading } = useAuth();
@@ -17,13 +18,10 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     if (!loading) {
       if (!user) {
-        // If not logged in, redirect to sign-in page
         router.push("/signin");
       } else if (claims && claims.admin === true) {
-        // If logged in and is an admin, allow access
         setIsAdmin(true);
       } else {
-        // If logged in but not an admin, redirect to user dashboard
         router.push("/dashboard");
       }
     }
@@ -41,7 +39,6 @@ export default function AdminDashboardPage() {
     );
   }
 
-  // Placeholder stats
   const stats = {
       totalUsers: 1482,
       totalBetsMatched: 731,
@@ -49,45 +46,43 @@ export default function AdminDashboardPage() {
   };
 
   return (
-    <main className="bg-muted/40 min-h-screen p-4 md:p-8">
-        <div className="container mx-auto">
-            <header className="mb-8">
-                <h1 className="text-4xl font-headline font-black">Admin Dashboard</h1>
-                <p className="text-muted-foreground">Welcome, {user?.displayName || 'Admin'}.</p>
-            </header>
-            
-            <div className="grid gap-4 md:grid-cols-3 mb-8">
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Total Users</CardTitle>
-                        <Users className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{stats.totalUsers.toLocaleString()}</div>
-                    </CardContent>
-                </Card>
-                 <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Bets Matched</CardTitle>
-                        <Swords className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{stats.totalBetsMatched.toLocaleString()}</div>
-                    </CardContent>
-                </Card>
-                 <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Platform Revenue</CardTitle>
-                        <DollarSign className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">${stats.platformRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                    </CardContent>
-                </Card>
-            </div>
-
-            <UserManagementTable />
+    <AdminLayout>
+        <header className="mb-8">
+            <h1 className="text-4xl font-headline font-black">Admin Dashboard</h1>
+            <p className="text-muted-foreground">Welcome, {user?.displayName || 'Admin'}.</p>
+        </header>
+        
+        <div className="grid gap-4 md:grid-cols-3 mb-8">
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Total Users</CardTitle>
+                    <Users className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">{stats.totalUsers.toLocaleString()}</div>
+                </CardContent>
+            </Card>
+             <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Bets Matched</CardTitle>
+                    <Swords className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">{stats.totalBetsMatched.toLocaleString()}</div>
+                </CardContent>
+            </Card>
+             <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Platform Revenue</CardTitle>
+                    <DollarSign className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">${stats.platformRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                </CardContent>
+            </Card>
         </div>
-    </main>
+
+        <UserManagementTable />
+    </AdminLayout>
   );
 }
