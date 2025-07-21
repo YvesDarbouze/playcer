@@ -1,0 +1,59 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions to keep rules DRY
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    function isCreatingOwnDocument(userId) {
+      return isOwner(userId) && !exists(/databases/$(database)/documents/users/$(userId));
+    }
+    
+    function isReadingOwnDocument(userId) {
+        return isOwner(userId);
+    }
+
+    function isUpdatingOwnDocument(userId) {
+      // User can only update their own document.
+      // They cannot modify walletBalance, wins, or losses.
+      let cannotUpdateProtectedFields = !('walletBalance' in request.resource.data)
+                                      && !('wins' in request.resource.data)
+                                      && !('losses' in request.resource.data);
+                                      
+      return isOwner(userId) && cannotUpdateProtectedFields;
+    }
+    
+    function canReadPublicProfile() {
+      // Allows any authenticated user to read specific public fields.
+      // This rule is structured to allow a `get` but not a `list`.
+      // The client must be trusted to only request/display these fields.
+      return isAuthenticated();
+    }
+    
+    match /users/{userId} {
+      // CREATE: User can create their own document only if it doesn't exist.
+      allow create: if isCreatingOwnDocument(userId);
+
+      // READ: 
+      // 1. A user can read their own entire document.
+      // 2. Any authenticated user can read public profile data of others.
+      // Note: Firestore rules cannot restrict which fields are returned.
+      // The client application is responsible for fetching only the public fields.
+      allow get: if isReadingOwnDocument(userId) || canReadPublicProfile();
+      allow list: if false; // Disallow querying the entire collection for security.
+
+      // UPDATE: User can only update their own document, and cannot change protected fields.
+      allow update: if isUpdatingOwnDocument(userId);
+
+      // DELETE: No one can delete a user document.
+      allow delete: if false;
+    }
+  }
+}
