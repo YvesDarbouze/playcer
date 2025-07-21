@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useMemo } from 'react';
+import Link from 'next/link';
 import { Input } from "@/components/ui/input";
 import { GameCard } from "./game-card";
-import { Search } from 'lucide-react';
+import { LayoutDashboard, Search } from 'lucide-react';
 import { LoginButton } from './login-button';
 import { Logo } from './icons';
+import { Button } from './ui/button';
 
 interface GameListProps {
     initialGames: any[];
@@ -48,6 +50,12 @@ export function GameList({ initialGames }: GameListProps) {
                                 className="pl-10"
                             />
                         </div>
+                         <Link href="/dashboard" passHref>
+                           <Button variant="outline">
+                             <LayoutDashboard className="mr-2 h-4 w-4" />
+                             Dashboard
+                           </Button>
+                         </Link>
                          <LoginButton />
                      </div>
                  </div>

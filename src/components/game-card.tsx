@@ -2,6 +2,7 @@ import { format } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from './ui/button';
 import { Swords } from 'lucide-react';
+import Link from 'next/link';
 
 interface GameCardProps {
     game: {
@@ -31,10 +32,14 @@ export function GameCard({ game }: GameCardProps) {
                         {format(gameTime, "h:mm a")}
                     </p>
                 </div>
-                <Button>
-                    <Swords className="mr-2 h-4 w-4" />
-                    Create Bet
-                </Button>
+                <Link href="/dashboard" passHref>
+                  <Button asChild>
+                    <a>
+                      <Swords className="mr-2 h-4 w-4" />
+                      Create Bet
+                    </a>
+                  </Button>
+                </Link>
             </CardContent>
         </Card>
     );
