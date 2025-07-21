@@ -1,61 +1,96 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Users can only read/write their own profile.
-    // Critical fields like walletBalance cannot be modified by the client.
-    match /users/{userId} {
-      allow read, update: if request.auth != null && request.auth.uid == userId;
-      allow create: if request.auth != null;
-
-      // Disallow client-side modification of sensitive fields.
-      allow update: if request.resource.data.walletBalance == resource.data.walletBalance &&
-                       request.resource.data.wins == resource.data.wins &&
-                       request.resource.data.losses == resource.data.losses;
+    // --- Helper Functions ---
+    function isAuthenticated() {
+      return request.auth != null;
     }
     
-    // Admins can read user data.
-    match /users/{userId} {
-       allow get: if request.auth.token.admin == true;
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
     }
 
-    // Rules for the 'bets' collection
+    function isAdmin() {
+      return isAuthenticated() && request.auth.token.admin == true;
+    }
+    
+    function isFromServer() {
+        // This is a simplified check. In a production environment, you might
+        // use more specific checks if you have multiple types of server clients.
+        // For callable functions, request.auth will be populated.
+        // For admin SDK usage from a backend server, request.auth is null.
+        // This rule is primarily to distinguish client SDK vs Admin SDK.
+        // A more robust way for callable functions is to pass a parameter.
+        // For this project, we assume non-authenticated writes are from the server.
+        return request.auth == null;
+    }
+    
+    // --- Collections ---
+
+    // USERS Collection: Stores user profile data.
+    match /users/{userId} {
+      // A user can create their own profile document.
+      allow create: if isOwner(userId);
+      
+      // A user can read their own data, or an admin can read any user's data.
+      allow read: if isOwner(userId) || isAdmin();
+      
+      // A user can update their own profile, but cannot change protected fields.
+      // All sensitive fields MUST be updated by trusted Cloud Functions.
+      allow update: if isOwner(userId)
+                    && !('walletBalance' in request.resource.data)
+                    && !('wins' in request.resource.data)
+                    && !('losses' in request.resource.data)
+                    && !('kycStatus' in request.resource.data);
+                    
+       // Only admins can delete user documents.
+      allow delete: if isAdmin();
+      
+      // USERBETS Subcollection: Lightweight reference to user's bets.
+      match /userBets/{betId} {
+        // Users can read and write to their own bets subcollection.
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+    // BETS Collection: Stores all bets.
     match /bets/{betId} {
-      // Anyone can read public, open bets. Matched bets are visible to participants.
-      allow read: if resource.data.isPublic == true ||
-                      (request.auth != null && (request.auth.uid == resource.data.creatorId || request.auth.uid == resource.data.challengerId));
+      // Anyone can read any bet. This allows for public marketplace browsing.
+      allow read: if true;
+      
+      // Only authenticated users can create a bet.
+      allow create: if isAuthenticated();
+      
+      // Updates are complex and mostly handled by Cloud Functions.
+      // A user can only 'update' a bet if they are accepting an 'open' one.
+      // The Cloud Function will perform the actual state change.
+      allow update: if isAuthenticated() && resource.data.status == 'open';
 
-      // Users can only create bets for themselves.
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.creatorId;
-
-      // A user can only "match" a bet (write to a 'bet' document to become the taker)
-      // if they are authenticated, not the creator, and the bet is 'open'.
-      // Updates are handled by the `matchBet` Cloud Function.
-      allow update: if request.auth != null &&
-                       request.auth.uid != resource.data.creatorId &&
-                       resource.data.status == 'open';
+      // Only admins can delete bets directly from the database.
+      allow delete: if isAdmin();
     }
 
-    // Rules for the 'userBets' subcollection
-    match /users/{userId}/userBets/{betId} {
-        // A user can only read their own bet references.
-        allow read: if request.auth != null && request.auth.uid == userId;
-        // Creation is handled by server-side functions.
-        allow write: if false;
-    }
-    
-    // Transactions are created by server-side functions and should be immutable.
+    // TRANSACTIONS Collection: Immutable ledger of all financial movements.
     match /transactions/{transactionId} {
-      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
-      allow write: if false; // All transactions written by backend.
+      // Writes are ONLY allowed from the backend (Cloud Functions).
+      allow write: if false; // Deny all client-side writes.
+      
+      // Admins can read all transactions for auditing.
+      // Users can only read their own transactions.
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
     }
     
-    // Disputes can be read by participants or admins.
+    // DISPUTES Collection: Manages bet disputes.
     match /disputes/{disputeId} {
-       allow read: if request.auth != null && (request.auth.uid == resource.data.creatorId || request.auth.uid == resource.data.takerId || request.auth.token.admin == true);
-       // Creation/updates handled by backend or admin tools.
-       allow write: if request.auth != null; 
+        // Only involved parties or admins can read a dispute.
+        allow read: if isAdmin() || (isAuthenticated() && (resource.data.creatorId == request.auth.uid || resource.data.takerId == request.auth.uid));
+        
+        // Only involved parties can create a dispute.
+        allow create: if isAuthenticated() && (request.resource.data.creatorId == request.auth.uid || request.resource.data.takerId == request.auth.uid);
+        
+        // Only admins can update (resolve) a dispute.
+        allow update: if isAdmin();
     }
   }
 }
