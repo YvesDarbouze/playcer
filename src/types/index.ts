@@ -1,3 +1,4 @@
+
 import { Timestamp } from "firebase/firestore";
 
 export type Court = {
@@ -102,7 +103,7 @@ export type Bet = {
 };
 
 export type UserBet = {
-  betRef: string; 
+  betRef: string; // In Firestore, this is a DocumentReference, but we use its path string in the app
   role: 'creator' | 'taker';
   createdAt: Timestamp;
 }

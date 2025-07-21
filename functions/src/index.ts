@@ -289,9 +289,10 @@ export const createBet = onCall(async (request) => {
         const betDocRef = db.collection('bets').doc(betId);
         transaction.set(betDocRef, newBet);
         
+        // Create the userBet subcollection entry for the creator
         const userBetDocRef = userDocRef.collection('userBets').doc(betId);
         transaction.set(userBetDocRef, {
-            betRef: betDocRef,
+            betRef: betDocRef.path,
             role: 'creator',
             createdAt: Timestamp.now()
         });
@@ -351,7 +352,7 @@ export const matchBet = onCall(async (request) => {
 
         // 3. Create userBet for challenger
         const userBetDocRef = challengerDocRef.collection('userBets').doc(betId);
-        transaction.set(userBetDocRef, { betRef: betDocRef, role: 'taker', createdAt: Timestamp.now() });
+        transaction.set(userBetDocRef, { betRef: betDocRef.path, role: 'taker', createdAt: Timestamp.now() });
 
         // 4. Create transaction logs for stake debits
         const creatorTxId = db.collection('transactions').doc().id;
