@@ -8,9 +8,10 @@ import { LayoutDashboard, Search } from 'lucide-react';
 import { LoginButton } from './login-button';
 import { Logo } from './icons';
 import { Button } from './ui/button';
+import type { Game } from '@/types';
 
 interface GameListProps {
-    initialGames: any[];
+    initialGames: Game[];
 }
 
 export function GameList({ initialGames }: GameListProps) {
