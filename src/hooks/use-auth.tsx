@@ -3,18 +3,20 @@
 
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import type { User as FirebaseUser } from 'firebase/auth';
-import { auth, signOut, getFirebaseApp } from '@/lib/firebase';
-import { onAuthStateChanged, getIdTokenResult } from 'firebase/auth';
-import { doc, getDoc, getFirestore, Timestamp } from 'firebase/firestore';
+import { auth, signOut, getFirebaseApp, storage } from '@/lib/firebase';
+import { onAuthStateChanged, getIdTokenResult, updateProfile } from 'firebase/auth';
+import { doc, getDoc, getFirestore, Timestamp, updateDoc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { useToast } from './use-toast';
 
 interface AuthContextType {
   user: FirebaseUser | null;
   loading: boolean;
   claims: { [key: string]: any } | null;
+  updateUserProfileImage: (file: File) => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType>({ user: null, loading: true, claims: null });
+const AuthContext = createContext<AuthContextType>({ user: null, loading: true, claims: null, updateUserProfileImage: async () => {} });
 
 // Helper to check self-exclusion status
 const checkSelfExclusion = async (uid: string): Promise<boolean> => {
@@ -77,8 +79,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => unsubscribe();
   }, [toast]);
 
+  const updateUserProfileImage = async (file: File) => {
+    if (!user) {
+        toast({ title: 'Error', description: 'You must be logged in to upload an image.', variant: 'destructive'});
+        return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) { // 5MB limit
+      toast({ title: 'Error', description: 'File size cannot exceed 5MB.', variant: 'destructive'});
+      return;
+    }
+    
+    const storageRef = ref(storage, `profile_pictures/${user.uid}/${file.name}`);
+
+    try {
+        toast({ title: 'Uploading...', description: 'Your new profile picture is being uploaded.' });
+        const snapshot = await uploadBytes(storageRef, file);
+        const downloadURL = await getDownloadURL(snapshot.ref);
+
+        // Update Firebase Auth user profile
+        await updateProfile(user, { photoURL: downloadURL });
+
+        // Update Firestore user document
+        const db = getFirestore(getFirebaseApp());
+        const userDocRef = doc(db, 'users', user.uid);
+        await updateDoc(userDocRef, { photoURL: downloadURL });
+        
+        // Force refresh of the user object to reflect changes
+        const refreshedUser = { ...user, photoURL: downloadURL };
+        setUser(refreshedUser);
+
+        toast({ title: 'Success!', description: 'Your profile picture has been updated.' });
+
+    } catch (error) {
+        console.error("Error uploading profile picture:", error);
+        toast({ title: 'Upload Failed', description: 'There was an error updating your picture. Please try again.', variant: 'destructive'});
+    }
+  }
+
   return (
-    <AuthContext.Provider value={{ user, loading, claims }}>
+    <AuthContext.Provider value={{ user, loading, claims, updateUserProfileImage }}>
       {children}
     </AuthContext.Provider>
   );

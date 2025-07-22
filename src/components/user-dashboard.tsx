@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UserBetsTable } from "./user-bets-table";
-import { Banknote, Trophy, ShieldHalf, Swords, Hourglass, LifeBuoy, ShieldCheck, PlusCircle, Store } from "lucide-react";
+import { Banknote, Trophy, ShieldHalf, Swords, Hourglass, LifeBuoy, ShieldCheck, PlusCircle, Store, Upload } from "lucide-react";
 import Link from 'next/link';
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -31,10 +31,11 @@ const convertToBet = (doc: any): Bet => {
 
 
 export function UserDashboard() {
-    const { user: authUser } = useAuth();
+    const { user: authUser, updateUserProfileImage } = useAuth();
     const [userProfile, setUserProfile] = React.useState<User | null>(null);
     const [bets, setBets] = React.useState<Bet[]>([]);
     const [loading, setLoading] = React.useState(true);
+    const fileInputRef = React.useRef<HTMLInputElement>(null);
     
     React.useEffect(() => {
         if (!authUser) return;
@@ -82,10 +83,28 @@ export function UserDashboard() {
 
         fetchData();
     }, [authUser]);
+
+    // This effect ensures the local userProfile state updates when the photoURL in the auth context changes.
+    React.useEffect(() => {
+        if (authUser && userProfile && authUser.photoURL !== userProfile.photoURL) {
+            setUserProfile(prev => prev ? { ...prev, photoURL: authUser.photoURL! } : null);
+        }
+    }, [authUser, userProfile]);
     
     const openBets = bets.filter(b => b.status === 'open');
     const matchedBets = bets.filter(b => b.status === 'matched');
     const historyBets = bets.filter(b => b.status === 'settled' || b.status === 'void');
+
+    const handleAvatarClick = () => {
+        fileInputRef.current?.click();
+    };
+
+    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (file) {
+            updateUserProfileImage(file);
+        }
+    };
 
 
     const KYCAlert = () => {
@@ -139,10 +158,29 @@ export function UserDashboard() {
                 <KYCAlert />
                 <Card className="shadow-lg">
                     <CardContent className="p-6 flex flex-col md:flex-row items-center gap-6">
-                        <Avatar className="h-24 w-24 border-4 border-primary">
-                            <AvatarImage src={userProfile.photoURL} alt={userProfile.displayName} />
-                            <AvatarFallback>{userProfile.username.charAt(0)}</AvatarFallback>
-                        </Avatar>
+                        <div className="relative group">
+                            <Avatar className="h-24 w-24 border-4 border-primary">
+                                <AvatarImage src={userProfile.photoURL} alt={userProfile.displayName} />
+                                <AvatarFallback>{userProfile.username.charAt(0)}</AvatarFallback>
+                            </Avatar>
+                            <Button
+                                onClick={handleAvatarClick}
+                                variant="secondary"
+                                size="icon"
+                                className="absolute bottom-0 right-0 rounded-full h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                                aria-label="Upload profile picture"
+                            >
+                                <Upload className="h-4 w-4" />
+                            </Button>
+                            <input
+                                type="file"
+                                ref={fileInputRef}
+                                onChange={handleFileChange}
+                                className="hidden"
+                                accept="image/png, image/jpeg"
+                            />
+                        </div>
+
                         <div className="flex-1 text-center md:text-left">
                             <h1 className="text-3xl font-headline font-black">{userProfile.displayName}</h1>
                             <p className="text-muted-foreground text-lg">@{userProfile.username}</p>
