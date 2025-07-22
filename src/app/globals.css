@@ -5,79 +5,79 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --background: 280 33% 97%; /* #EEE5E9 */
+    --foreground: 202 81% 20%; /* #08415C */
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card: 280 33% 97%;
+    --card-foreground: 202 81% 20%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover: 280 33% 97%;
+    --popover-foreground: 202 81% 20%;
 
-    --primary: 195 100% 50%; /* #00C3FF */
-    --primary-foreground: 210 40% 98%;
+    --primary: 355 65% 48%; /* #CC2936 */
+    --primary-foreground: 280 33% 97%;
 
-    --secondary: 205 86% 8%; /* #061826 */
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 202 12% 48%; /* #6B818C */
+    --secondary-foreground: 280 33% 97%;
     
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 202 12% 78%;
+    --muted-foreground: 202 12% 38%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 30 76% 77%; /* #F1BF98 */
+    --accent-foreground: 202 81% 20%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 355 65% 48%; /* #CC2936 */
+    --destructive-foreground: 280 33% 97%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 195 100% 50%;
+    --border: 202 12% 88%;
+    --input: 202 12% 88%;
+    --ring: 355 65% 48%;
 
     --radius: 0.5rem;
 
-    /* Sidebar specific colors */
-    --sidebar-color-bg: 205 86% 8%;
-    --sidebar-color-fg: 0 0% 100%;
-    --sidebar-color-accent: 195 100% 50%;
-    --sidebar-color-accent-fg: 205 86% 8%;
-    --sidebar-color-border: 205 86% 12%;
+    /* Custom Palette */
+    --primary-dark-blue: 202 81% 20%;
+    --primary-red: 355 65% 48%;
+    --neutral-grey: 202 12% 48%;
+    --accent-peach: 30 76% 77%;
+    --background-offwhite: 280 33% 97%;
   }
 
   .dark {
-    --background: 205 86% 8%; /* #061826 */
-    --foreground: 0 0% 100%;
+    --background: 202 81% 20%; /* #08415C */
+    --foreground: 280 33% 97%; /* #EEE5E9 */
 
-    --card: 205 86% 12%;
-    --card-foreground: 0 0% 100%;
+    --card: 202 81% 25%;
+    --card-foreground: 280 33% 97%;
 
-    --popover: 205 86% 8%;
-    --popover-foreground: 0 0% 100%;
+    --popover: 202 81% 20%;
+    --popover-foreground: 280 33% 97%;
 
-    --primary: 195 100% 50%; /* #00C3FF */
-    --primary-foreground: 205 86% 8%;
+    --primary: 30 76% 77%; /* #F1BF98 */
+    --primary-foreground: 202 81% 20%;
 
-    --secondary: 0 0% 100%;
-    --secondary-foreground: 205 86% 8%;
+    --secondary: 202 12% 48%; /* #6B818C */
+    --secondary-foreground: 280 33% 97%;
 
-    --muted: 205 86% 12%;
-    --muted-foreground: 215.4 16.3% 56.9%;
+    --muted: 202 81% 25%;
+    --muted-foreground: 202 12% 58%;
 
-    --accent: 205 86% 12%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 30 76% 77%;
+    --accent-foreground: 202 81% 20%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 100%;
+    --destructive: 355 65% 48%; /* #CC2936 */
+    --destructive-foreground: 280 33% 97%;
 
-    --border: 205 86% 12%;
-    --input: 205 86% 12%;
-    --ring: 195 100% 50%;
+    --border: 202 81% 25%;
+    --input: 202 81% 25%;
+    --ring: 30 76% 77%;
 
-    /* Sidebar specific colors */
-    --sidebar-color-bg: 205 86% 8%;
-    --sidebar-color-fg: 0 0% 100%;
-    --sidebar-color-accent: 195 100% 50%;
-    --sidebar-color-accent-fg: 205 86% 8%;
-    --sidebar-color-border: 205 86% 12%;
+     /* Custom Palette */
+    --primary-dark-blue: 202 81% 20%;
+    --primary-red: 355 65% 48%;
+    --neutral-grey: 202 12% 48%;
+    --accent-peach: 30 76% 77%;
+    --background-offwhite: 280 33% 97%;
   }
 }
 
@@ -89,25 +89,4 @@
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
-}
-
-@layer components {
-    .sidebar-bg {
-        background-color: hsl(var(--sidebar-color-bg));
-    }
-    .sidebar-fg {
-        color: hsl(var(--sidebar-color-fg));
-    }
-    .sidebar-accent {
-        background-color: hsl(var(--sidebar-color-accent));
-    }
-    .sidebar-accent-fg {
-        color: hsl(var(--sidebar-color-accent-fg));
-    }
-    .sidebar-border {
-        border-color: hsl(var(--sidebar-color-border));
-    }
-    .sidebar-ring {
-        --ring: var(--sidebar-color-accent);
-    }
 }
