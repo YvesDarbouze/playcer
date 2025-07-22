@@ -43,11 +43,11 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-14 max-w-screen-2xl items-center">
-        <div className="mr-4 hidden md:flex">
+        <div className="mr-4 flex items-center">
           <Link href="/" className="mr-6 flex items-center space-x-2">
             <Logo className="h-6 w-6" />
           </Link>
-          <nav className="flex items-center gap-6 text-sm">
+          <nav className="hidden items-center gap-6 text-sm md:flex">
             <Link
               href="/marketplace"
               className="transition-colors hover:text-foreground/80 text-foreground/60"
@@ -57,54 +57,53 @@ export function SiteHeader() {
           </nav>
         </div>
         
-        {/* Mobile Nav */}
-        <Sheet>
-          <SheetTrigger asChild>
-            <Button
-              variant="ghost"
-              className="inline-flex items-center justify-center whitespace-nowrap rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground h-9 w-9 px-0 text-base md:hidden"
-            >
-              <Menu className="h-5 w-5" />
-              <span className="sr-only">Toggle Menu</span>
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="left">
-            <Link href="/" className="flex items-center">
-                <Logo className="h-6 w-6" />
-            </Link>
-            <div className="flex flex-col gap-4 mt-8">
-                 <Link href="/marketplace" className="text-lg font-medium">
-                    Marketplace
-                </Link>
-                 <Link href="/dashboard" className="text-lg font-medium">
-                    Dashboard
-                </Link>
-
-                <Separator className="my-2" />
-
-                <h4 className="font-semibold text-muted-foreground">Sports</h4>
-                {loading ? (
-                  <p>Loading sports...</p>
-                ) : (
-                  sports.map(sport => (
-                    <Link key={sport.key} href={`/sport/${sport.key}`} className="text-lg font-medium">
-                      {sport.title}
-                    </Link>
-                  ))
-                )}
-                
-                <Separator className="my-2" />
-                
-                 <Link href="/about" className="text-lg font-medium">
-                    About Us
-                </Link>
-
-            </div>
-          </SheetContent>
-        </Sheet>
-        
         <div className="flex flex-1 items-center justify-end space-x-2">
           <LoginButton />
+          {/* Mobile Nav */}
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button
+                variant="ghost"
+                className="inline-flex items-center justify-center whitespace-nowrap rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 hover:bg-accent hover:text-accent-foreground h-9 w-9 px-0 text-base md:hidden"
+              >
+                <Menu className="h-5 w-5" />
+                <span className="sr-only">Toggle Menu</span>
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right">
+              <Link href="/" className="flex items-center">
+                  <Logo className="h-6 w-6" />
+              </Link>
+              <div className="flex flex-col gap-4 mt-8">
+                   <Link href="/marketplace" className="text-lg font-medium">
+                      Marketplace
+                  </Link>
+                   <Link href="/dashboard" className="text-lg font-medium">
+                      Dashboard
+                  </Link>
+
+                  <Separator className="my-2" />
+
+                  <h4 className="font-semibold text-muted-foreground">Sports</h4>
+                  {loading ? (
+                    <p>Loading sports...</p>
+                  ) : (
+                    sports.map(sport => (
+                      <Link key={sport.key} href={`/sport/${sport.key}`} className="text-lg font-medium">
+                        {sport.title}
+                      </Link>
+                    ))
+                  )}
+                  
+                  <Separator className="my-2" />
+                  
+                   <Link href="/about" className="text-lg font-medium">
+                      About Us
+                  </Link>
+
+              </div>
+            </SheetContent>
+          </Sheet>
         </div>
       </div>
     </header>
