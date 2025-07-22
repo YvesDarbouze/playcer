@@ -38,7 +38,7 @@ export function GameList({ initialGames }: GameListProps) {
             <header className="relative bg-primary-dark-blue text-background-offwhite py-20 md:py-32 text-center overflow-hidden">
                 <div className="absolute inset-0">
                      <Image
-                        src="https://placehold.co/1920x1080"
+                        src="https://placehold.co/1920x1080.png"
                         alt="Background image of a sports stadium"
                         fill
                         className="object-cover opacity-20"
