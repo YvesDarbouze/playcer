@@ -21,6 +21,7 @@ import type { Bet } from "@/types";
 import { cn } from "@/lib/utils";
 import { LoginButton } from "./login-button";
 import { useToast } from "@/hooks/use-toast";
+import { Skeleton } from "./ui/skeleton";
 
 interface BetChallengeCardProps {
   bet: Bet;
@@ -84,6 +85,12 @@ export function BetChallengeCard({
 }: BetChallengeCardProps) {
 
   const { toast } = useToast();
+  const [eventTime, setEventTime] = React.useState<Date | null>(null);
+
+  React.useEffect(() => {
+    setEventTime(new Date(bet.eventDate));
+  }, [bet.eventDate]);
+
   const canAccept = currentUser && currentUser.uid !== bet.creatorId && bet.status === 'open';
   const isCreator = currentUser && currentUser.uid === bet.creatorId;
 
@@ -144,12 +151,16 @@ export function BetChallengeCard({
         <Badge variant={bet.status === 'open' ? 'default' : 'secondary'} className="mx-auto w-fit mb-2">
             {bet.status.charAt(0).toUpperCase() + bet.status.slice(1)}
         </Badge>
-        <CardTitle className="text-lg font-bold">
+        <CardTitle className="font-bold text-lg">
             {bet.sportKey.replace(/_/g, ' ').toUpperCase()}
         </CardTitle>
-        <CardDescription>
-            {format(new Date(bet.eventDate), "EEE, MMM d, yyyy 'at' h:mm a")}
-        </CardDescription>
+        {eventTime ? (
+            <CardDescription>
+                {format(eventTime, "EEE, MMM d, yyyy 'at' h:mm a")}
+            </CardDescription>
+        ) : (
+            <Skeleton className="h-5 w-48 mx-auto" />
+        )}
       </CardHeader>
       <CardContent className="p-6">
         <div className="grid grid-cols-3 items-center text-center mb-6">

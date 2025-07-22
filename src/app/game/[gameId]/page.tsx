@@ -28,6 +28,7 @@ export default function GameDetailsPage({ params }: { params: { gameId: string }
   const [game, setGame] = useState<Game | null>(null);
   const [odds, setOdds] = useState<BookmakerOdds[]>([]);
   const [loading, setLoading] = useState(true);
+  const [gameTime, setGameTime] = useState<Date | null>(null);
 
   useEffect(() => {
     const fetchGameDetails = async () => {
@@ -37,11 +38,13 @@ export default function GameDetailsPage({ params }: { params: { gameId: string }
 
       if (gameSnap.exists()) {
         const data = gameSnap.data();
-        setGame({
+        const gameData = {
           id: gameSnap.id,
           ...data,
           commence_time: (data.commence_time as Timestamp).toDate().toISOString(),
-        } as unknown as Game);
+        } as unknown as Game;
+        setGame(gameData);
+        setGameTime(new Date(gameData.commence_time));
       }
       setLoading(false);
     };
@@ -122,9 +125,13 @@ export default function GameDetailsPage({ params }: { params: { gameId: string }
           </Button>
         </Link>
         <h1 className="text-4xl font-headline font-black">{game.away_team} @ {game.home_team}</h1>
-        <p className="text-muted-foreground">
-          {format(new Date(game.commence_time), "EEEE, MMMM d, yyyy 'at' h:mm a")}
-        </p>
+        {gameTime ? (
+          <p className="text-muted-foreground">
+            {format(gameTime, "EEEE, MMMM d, yyyy 'at' h:mm a")}
+          </p>
+        ) : (
+          <Skeleton className="h-6 w-72 mt-1" />
+        )}
       </header>
 
       <Card>
