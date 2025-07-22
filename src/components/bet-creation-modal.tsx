@@ -34,8 +34,9 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import type { Game } from "@/types";
-import { ClipboardCopy } from "lucide-react";
+import { ClipboardCopy, Swords, Loader2 } from "lucide-react";
 import { getFirebaseApp } from "@/lib/firebase";
+import { Separator } from "./ui/separator";
 
 interface BetCreationModalProps {
   isOpen: boolean;
@@ -44,13 +45,18 @@ interface BetCreationModalProps {
 }
 
 const betSchema = z.object({
-  betType: z.enum(["moneyline", "spread", "total"]),
   teamSelection: z.string().min(1, "Please select a team."),
-  line: z.coerce.number().optional(),
-  stake: z.coerce.number().min(1, "Stake must be at least 1."),
+  stake: z.coerce.number().min(1, "Stake must be at least $1."),
 });
 
 type BetFormData = z.infer<typeof betSchema>;
+
+const TeamDisplay = ({ team, price }: { team: string, price: number }) => (
+    <div className="text-center">
+        <p className="font-bold text-lg">{team}</p>
+        <p className="font-mono text-sm text-muted-foreground">{price > 0 ? `+${price}` : price}</p>
+    </div>
+)
 
 export function BetCreationModal({ isOpen, onOpenChange, game }: BetCreationModalProps) {
   const { user } = useAuth();
@@ -61,12 +67,9 @@ export function BetCreationModal({ isOpen, onOpenChange, game }: BetCreationModa
   const form = useForm<BetFormData>({
     resolver: zodResolver(betSchema),
     defaultValues: {
-      betType: "moneyline",
       stake: 10,
     },
   });
-
-  const betType = form.watch("betType");
 
   const onSubmit = async (data: BetFormData) => {
     if (!user) {
@@ -91,9 +94,11 @@ export function BetCreationModal({ isOpen, onOpenChange, game }: BetCreationModa
         eventDate: game.commence_time,
         homeTeam: game.home_team,
         awayTeam: game.away_team,
-        odds: 100, // Placeholder
-        marketDescription: `${data.betType === 'moneyline' ? 'Winner' : data.betType === 'spread' ? `Spread (${data.line})` : `Total (${data.line})`}`,
-        outcomeDescription: `${data.teamSelection} ${data.betType !== 'moneyline' ? data.line : ''}`.trim(),
+        betType: "moneyline",
+        marketDescription: "Match Winner",
+        outcomeDescription: `${data.teamSelection} to win`,
+        odds: data.teamSelection === game.home_team ? -110 : -110, // Mock odds
+        line: null,
       };
 
       const result: any = await createBet(betPayload);
@@ -104,7 +109,6 @@ export function BetCreationModal({ isOpen, onOpenChange, game }: BetCreationModa
           title: "Bet Created Successfully!",
           description: "Your challenge link is ready to be shared.",
         });
-        form.reset();
       } else {
         throw new Error(result.data.error || "Failed to create bet.");
       }
@@ -135,19 +139,24 @@ export function BetCreationModal({ isOpen, onOpenChange, game }: BetCreationModa
     onOpenChange(open);
   }
 
+  // Mock odds for display
+  const homeOdds = -110;
+  const awayOdds = -110;
+
   return (
     <Dialog open={isOpen} onOpenChange={handleModalClose}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Set Your Terms</DialogTitle>
+          <DialogTitle>Create Your Bet</DialogTitle>
           <DialogDescription>
-            {game.away_team} @ {game.home_team}
+            Set your terms for this matchup and challenge a friend.
           </DialogDescription>
         </DialogHeader>
+
         {challengeLink ? (
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-8">
              <h3 className="font-headline font-black text-lg text-center">Share Your Challenge!</h3>
-             <p className="text-sm text-center text-muted-foreground">Copy the link below and send it to a friend.</p>
+             <p className="text-sm text-center text-muted-foreground">Copy the link below and send it to an opponent.</p>
              <div className="flex items-center space-x-2">
                 <Input value={challengeLink} readOnly />
                 <Button onClick={handleCopyToClipboard} size="icon">
@@ -157,98 +166,67 @@ export function BetCreationModal({ isOpen, onOpenChange, game }: BetCreationModa
              <Button onClick={() => handleModalClose(false)} className="w-full">Done</Button>
           </div>
         ) : (
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="betType"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Bet Type</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a bet type" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="moneyline">Straight Bet (Moneyline)</SelectItem>
-                        <SelectItem value="spread">Point Spread</SelectItem>
-                        <SelectItem value="total">Over/Under (Total)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+          <div>
+            <div className="my-4 p-4 bg-muted rounded-lg">
+                <div className="grid grid-cols-3 items-center text-center">
+                    <TeamDisplay team={game.home_team} price={homeOdds} />
+                    <div className="flex flex-col items-center text-muted-foreground">
+                        <Swords />
+                        <span className="text-xs mt-1">vs</span>
+                    </div>
+                    <TeamDisplay team={game.away_team} price={awayOdds} />
+                </div>
+            </div>
+          
+            <Separator className="my-6" />
 
-              <FormField
-                control={form.control}
-                name="teamSelection"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Your Pick</FormLabel>
-                     <Select onValueChange={field.onChange} defaultValue={field.value}>
-                       <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select your team/pick" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {betType === 'total' ? (
-                            <>
-                                <SelectItem value="over">Over</SelectItem>
-                                <SelectItem value="under">Under</SelectItem>
-                            </>
-                        ) : (
-                            <>
+            <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                        control={form.control}
+                        name="teamSelection"
+                        render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Your Pick</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                                <SelectTrigger>
+                                <SelectValue placeholder="Select your team" />
+                                </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
                                 <SelectItem value={game.home_team}>{game.home_team}</SelectItem>
                                 <SelectItem value={game.away_team}>{game.away_team}</SelectItem>
-                            </>
+                            </SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
                         )}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                    />
 
-              {(betType === "spread" || betType === "total") && (
-                <FormField
-                  control={form.control}
-                  name="line"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{betType === 'spread' ? 'Point Spread' : 'Total'}</FormLabel>
-                      <FormControl>
-                        <Input type="number" step="0.5" placeholder="Enter the line" {...field} className="font-headline font-black text-2xl h-12" />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
-
-              <FormField
-                control={form.control}
-                name="stake"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Wager Amount ($)</FormLabel>
-                    <FormControl>
-                      <Input type="number" placeholder="Enter your stake" {...field} className="font-headline font-black text-2xl h-12" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <DialogFooter>
-                <Button type="submit" disabled={isLoading} className="w-full bg-destructive hover:bg-destructive/90" size="lg">
-                  {isLoading ? "Creating Bet..." : "Create Bet & Get Link"}
-                </Button>
-              </DialogFooter>
-            </form>
-          </Form>
+                    <FormField
+                        control={form.control}
+                        name="stake"
+                        render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Wager ($)</FormLabel>
+                            <FormControl>
+                            <Input type="number" placeholder="10.00" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                        )}
+                    />
+                </div>
+                <DialogFooter className="pt-4">
+                    <Button type="submit" disabled={isLoading} className="w-full" size="lg">
+                    {isLoading ? <Loader2 className="animate-spin" /> : "Create Bet & Get Link"}
+                    </Button>
+                </DialogFooter>
+                </form>
+            </Form>
+          </div>
         )}
       </DialogContent>
     </Dialog>
