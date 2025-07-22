@@ -1,70 +1,68 @@
 
-import { GameList } from "@/components/game-list";
-import { Game } from "@/types";
+import { collection, getDocs, query, orderBy } from "firebase/firestore";
+import { firestore } from "@/lib/firebase-admin";
+import Link from "next/link";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ArrowRight } from "lucide-react";
 
-// In a real app, this would fetch from a live sports data API.
-// We are using a mock function to simulate this.
-const getUpcomingGames = async (): Promise<Game[]> => {
-  return [
-    {
-      id: "nba_1",
-      sport_key: "basketball_nba",
-      sport_title: "NBA",
-      commence_time: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
-      home_team: "Los Angeles Lakers",
-      away_team: "Los Angeles Clippers",
-    },
-    {
-      id: "nba_2",
-      sport_key: "basketball_nba",
-      sport_title: "NBA",
-      commence_time: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(),
-      home_team: "Golden State Warriors",
-      away_team: "Boston Celtics",
-    },
-    {
-      id: "nfl_1",
-      sport_key: "americanfootball_nfl",
-      sport_title: "NFL",
-      commence_time: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-      home_team: "Kansas City Chiefs",
-      away_team: "Philadelphia Eagles",
-    },
-    {
-      id: "nfl_2",
-      sport_key: "americanfootball_nfl",
-      sport_title: "NFL",
-      commence_time: new Date(Date.now() + 26 * 60 * 60 * 1000).toISOString(),
-      home_team: "San Francisco 49ers",
-      away_team: "Los Angeles Rams",
-    },
-     {
-      id: "mlb_1",
-      sport_key: "baseball_mlb",
-      sport_title: "MLB",
-      commence_time: new Date(Date.now() + 28 * 60 * 60 * 1000).toISOString(),
-      home_team: "New York Yankees",
-      away_team: "Boston Red Sox",
-    },
-     {
-      id: "mlb_2",
-      sport_key: "baseball_mlb",
-      sport_title: "MLB",
-      commence_time: new Date(Date.now() + 30 * 60 * 60 * 1000).toISOString(),
-      home_team: "Los Angeles Dodgers",
-      away_team: "San Diego Padres",
-    },
-  ];
+type Sport = {
+  key: string;
+  group: string;
+  title: string;
+  description: string;
+  active: boolean;
 };
 
-export default async function Home() {
-  const games = await getUpcomingGames();
+async function getSports() {
+  // In a real app, this might come from a 'sports' collection.
+  // For now, we return a hardcoded list that matches what our functions support.
+  return [
+    { key: 'americanfootball_nfl', group: 'US Sports', title: 'NFL', description: 'National Football League', active: true },
+    { key: 'basketball_nba', group: 'US Sports', title: 'NBA', description: 'National Basketball Association', active: true },
+    { key: 'baseball_mlb', group: 'US Sports', title: 'MLB', description: 'Major League Baseball', active: true },
+  ];
+}
+
+export default async function SportsHomePage() {
+  const sports = await getSports();
+
+  const sportsByGroup = sports.reduce((acc, sport) => {
+    const group = sport.group;
+    if (!acc[group]) {
+      acc[group] = [];
+    }
+    acc[group].push(sport);
+    return acc;
+  }, {} as Record<string, Sport[]>);
 
   return (
-    <main className="bg-background min-h-screen">
-       <div className="container mx-auto p-4 md:p-8">
-            <GameList initialGames={games} />
-       </div>
+    <main className="container mx-auto p-4 md:p-8">
+      <header className="mb-8">
+        <h1 className="text-4xl font-headline font-black">Browse Sports</h1>
+        <p className="text-muted-foreground">Select a sport to see upcoming games and odds.</p>
+      </header>
+      <div className="space-y-8">
+        {Object.entries(sportsByGroup).map(([group, sportsInGroup]) => (
+          <section key={group}>
+            <h2 className="text-2xl font-headline font-black mb-4">{group}</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {sportsInGroup.map((sport) => (
+                <Link href={`/sport/${sport.key}`} key={sport.key} passHref>
+                  <Card className="hover:border-primary hover:shadow-lg transition-all h-full flex flex-col">
+                    <CardHeader>
+                      <CardTitle>{sport.title}</CardTitle>
+                    </CardHeader>
+                    <CardContent className="flex-grow flex justify-between items-end">
+                      <p className="text-muted-foreground">{sport.description}</p>
+                      <ArrowRight className="text-primary" />
+                    </CardContent>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
     </main>
   );
 }
