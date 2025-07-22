@@ -1,68 +1,50 @@
 
-import { collection, getDocs, query, orderBy } from "firebase/firestore";
+import { collection, getDocs, query, orderBy, where } from "firebase/firestore";
 import { firestore } from "@/lib/firebase-admin";
-import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowRight } from "lucide-react";
+import type { Game } from "@/types";
+import { GameList } from "@/components/game-list";
 
-type Sport = {
-  key: string;
-  group: string;
-  title: string;
-  description: string;
-  active: boolean;
-};
 
-async function getSports() {
-  // In a real app, this might come from a 'sports' collection.
-  // For now, we return a hardcoded list that matches what our functions support.
-  return [
-    { key: 'americanfootball_nfl', group: 'US Sports', title: 'NFL', description: 'National Football League', active: true },
-    { key: 'basketball_nba', group: 'US Sports', title: 'NBA', description: 'National Basketball Association', active: true },
-    { key: 'baseball_mlb', group: 'US Sports', title: 'MLB', description: 'Major League Baseball', active: true },
-  ];
+async function getUpcomingGames(): Promise<Game[]> {
+  try {
+    const gamesRef = collection(firestore, "games");
+    const q = query(
+      gamesRef,
+      where('is_complete', '!=', true),
+      orderBy("is_complete"),
+      orderBy("commence_time", "asc")
+    );
+    const querySnapshot = await getDocs(q);
+
+    if (querySnapshot.empty) {
+      // For demo, return mock data if nothing in DB
+      return [
+        { id: 'nfl_1', commence_time: new Date().toISOString(), home_team: 'Rams', away_team: '49ers', sport_key: 'americanfootball_nfl', sport_title: "NFL", is_complete: false } as Game,
+        { id: 'nfl_2', commence_time: new Date(Date.now() + 86400000).toISOString(), home_team: 'Chiefs', away_team: 'Eagles', sport_key: 'americanfootball_nfl', sport_title: "NFL", is_complete: false } as Game,
+        { id: 'nba_1', commence_time: new Date().toISOString(), home_team: 'Lakers', away_team: 'Clippers', sport_key: 'basketball_nba', sport_title: "NBA" } as Game,
+        { id: 'nba_2', commence_time: new Date(Date.now() + 2 * 86400000).toISOString(), home_team: 'Celtics', away_team: 'Warriors', sport_key: 'basketball_nba', sport_title: "NBA" } as Game,
+      ];
+    }
+    return querySnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        commence_time: (data.commence_time as any).toDate().toISOString(),
+      } as unknown as Game;
+    });
+  } catch (error) {
+    console.error(`Error fetching upcoming games:`, error);
+    return [];
+  }
 }
 
 export default async function SportsHomePage() {
-  const sports = await getSports();
-
-  const sportsByGroup = sports.reduce((acc, sport) => {
-    const group = sport.group;
-    if (!acc[group]) {
-      acc[group] = [];
-    }
-    acc[group].push(sport);
-    return acc;
-  }, {} as Record<string, Sport[]>);
+  const games = await getUpcomingGames();
 
   return (
-    <main className="container mx-auto p-4 md:p-8">
-      <header className="mb-8">
-        <h1 className="text-4xl font-headline font-black">Browse Sports</h1>
-        <p className="text-muted-foreground">Select a sport to see upcoming games and odds.</p>
-      </header>
-      <div className="space-y-8">
-        {Object.entries(sportsByGroup).map(([group, sportsInGroup]) => (
-          <section key={group}>
-            <h2 className="text-2xl font-headline font-black mb-4">{group}</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {sportsInGroup.map((sport) => (
-                <Link href={`/sport/${sport.key}`} key={sport.key} passHref>
-                  <Card className="hover:border-primary hover:shadow-lg transition-all h-full flex flex-col">
-                    <CardHeader>
-                      <CardTitle>{sport.title}</CardTitle>
-                    </CardHeader>
-                    <CardContent className="flex-grow flex justify-between items-end">
-                      <p className="text-muted-foreground">{sport.description}</p>
-                      <ArrowRight className="text-primary" />
-                    </CardContent>
-                  </Card>
-                </Link>
-              ))}
-            </div>
-          </section>
-        ))}
-      </div>
+    <main className="bg-background-offwhite">
+      <GameList initialGames={games} />
     </main>
   );
 }

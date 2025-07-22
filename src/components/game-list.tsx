@@ -13,9 +13,12 @@ import { LoginButton } from './login-button';
 
 // Placeholder icon for Twitter
 const TwitterIcon = (props: React.SVGProps<SVGSVGElement>) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M22 4s-.7 2.1-2 3.4c1.6 1.4 3.3 4.9 3.3 4.9s-5.2-.6-5.2-.6l-1.5-1.5s-2.3 2.7-4.8 2.7c-2.5 0-4.8-2.7-4.8-2.7S5 12.3 5 12.3s3.7-1.4 3.7-1.4L10 9.8s-1.8-2.2-1.8-2.2l-1.2-1.2S4.8 4 4.8 4s5.4 3.5 12.4 3.5c7 0 4.8-3.5 4.8-3.5z"/></svg>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M22 4s-.7 2.1-2 3.4c1.6 1.4 3.3 4.9 3.3 4.9s-5.2-.6-5.2-.6l-1.5-1.5s-2.3 2.7-4.8 2.7c-2.5 0-4.8-2.7-4.8-2.7S5 12.3 5 12.3s3.7-1.4 3.7-1.4L10 9.8s-1.8-2.2-1.8-2.2l-1.2-1.2S4.8 4 4.8 4s5.4 3.5 12.4 3.5c7 0 4.8-3.5 4.8-3.5z"/></svg>
 );
 
+interface GameListProps {
+    initialGames: Game[];
+}
 
 export function GameList({ initialGames }: GameListProps) {
     const [searchTerm, setSearchTerm] = useState('');
@@ -32,22 +35,57 @@ export function GameList({ initialGames }: GameListProps) {
 
     return (
         <div>
-            <h2 className="text-3xl font-headline font-black mb-6">Upcoming Games</h2>
+            <header className="relative bg-primary-dark-blue text-background-offwhite py-20 md:py-32 text-center overflow-hidden">
+                <div className="absolute inset-0">
+                     <Image
+                        src="https://placehold.co/1920x1080"
+                        alt="Background image of a sports stadium"
+                        fill
+                        className="object-cover opacity-20"
+                        data-ai-hint="stadium lights"
+                        priority
+                    />
+                    <div className="absolute inset-0 bg-primary-dark-blue/80"></div>
+                </div>
+                
+                <div className="container mx-auto relative">
+                     <div className="absolute top-4 right-4">
+                        <LoginButton />
+                    </div>
+                    <h1 className="text-4xl md:text-6xl font-headline font-black uppercase tracking-tighter">I'm not here to bet, I want to bet that big mouth guy</h1>
+                    <p className="mt-4 text-lg md:text-xl text-accent-peach">Peer to Peer Betting that makes sports betting personal</p>
+                    <div className="mt-8 max-w-2xl mx-auto">
+                        <div className="relative">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-neutral-grey" />
+                            <Input 
+                                type="search"
+                                placeholder="Search for a game or team..."
+                                className="w-full p-4 pl-12 text-lg text-primary-dark-blue"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                        </div>
+                    </div>
+                </div>
+            </header>
             
-            {filteredGames.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {filteredGames.map(game => (
-                        <GameCard key={game.id} game={game} />
-                    ))}
-                </div>
-            ) : (
-                <div className="text-center py-16">
-                    <h2 className="text-xl font-semibold">No Games Found</h2>
-                    <p className="text-muted-foreground mt-2">
-                        {initialGames.length > 0 ? "No games match your search." : "There are no upcoming games to display."}
-                    </p>
-                </div>
-            )}
+            <div className="container mx-auto py-12">
+                 <h2 className="text-3xl font-headline font-black mb-6 text-primary-dark-blue">Upcoming Games</h2>
+                {filteredGames.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {filteredGames.map(game => (
+                            <GameCard key={game.id} game={game} />
+                        ))}
+                    </div>
+                ) : (
+                    <div className="text-center py-16">
+                        <h2 className="text-xl font-semibold">No Games Found</h2>
+                        <p className="text-muted-foreground mt-2">
+                            {initialGames.length > 0 ? "No games match your search." : "There are no upcoming games to display."}
+                        </p>
+                    </div>
+                )}
+            </div>
         </div>
     );
 }
