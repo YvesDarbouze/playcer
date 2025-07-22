@@ -30,12 +30,10 @@ export default function MainAppLayout({ children }: { children: React.ReactNode 
                     <SidebarMenu>
                         {menuItems.map((item) => (
                             <SidebarMenuItem key={item.href}>
-                                <Link href={item.href} passHref legacyBehavior>
-                                    <SidebarMenuButton asChild isActive={pathname === item.href} className="sidebar-ring hover:sidebar-accent hover:sidebar-accent-fg data-[active=true]:sidebar-accent data-[active=true]:sidebar-accent-fg">
-                                        <a>
-                                            <item.icon />
-                                            <span>{item.label}</span>
-                                        </a>
+                                <Link href={item.href}>
+                                    <SidebarMenuButton isActive={pathname === item.href} className="sidebar-ring hover:sidebar-accent hover:sidebar-accent-fg data-[active=true]:sidebar-accent data-[active=true]:sidebar-accent-fg">
+                                        <item.icon />
+                                        <span>{item.label}</span>
                                     </SidebarMenuButton>
                                 </Link>
                             </SidebarMenuItem>
