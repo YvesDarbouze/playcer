@@ -49,9 +49,6 @@ export function GameList({ initialGames }: GameListProps) {
                 </div>
                 
                 <div className="container mx-auto relative">
-                     <div className="absolute top-4 right-4">
-                        <LoginButton />
-                    </div>
                     <h1 className="text-4xl md:text-6xl font-headline font-black uppercase tracking-tighter">I'm not here to bet, I want to bet that big mouth guy</h1>
                     <p className="mt-4 text-lg md:text-xl text-accent-peach">Peer to Peer Betting that makes sports betting personal</p>
                     <div className="mt-8 max-w-2xl mx-auto">

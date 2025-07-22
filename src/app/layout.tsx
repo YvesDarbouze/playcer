@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/toaster";
 import { AuthProvider } from "@/hooks/use-auth";
 import { Footer } from "@/components/footer";
+import { SiteHeader } from "@/components/site-header";
 
 const openSans = Open_Sans({ subsets: ["latin"], variable: "--font-sans", weight: ["400", "700"] });
 const montserrat = Montserrat({ subsets: ["latin"], weight: "900", variable: "--font-headline" });
@@ -24,6 +25,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={cn("min-h-screen bg-background font-sans antialiased dark flex flex-col", openSans.variable, montserrat.variable)}>
         <AuthProvider>
+          <SiteHeader />
           <div className="flex-grow">
             {children}
           </div>
