@@ -62,7 +62,7 @@ export default function GameDetailsPage({ params }: { params: { gameId: string }
                 },
                 { 
                     key: 'fanduel', title: 'FanDuel', last_update: new Date().toISOString(), 
-                    markets: [{ key: 'h2h', outcomes: [{name: 'Team A', price: -115}, {name: 'Team B', -105}]}]
+                    markets: [{ key: 'h2h', outcomes: [{name: 'Team A', price: -115}, {name: 'Team B', price: -105}]}]
                 }
             ] as BookmakerOdds[]);
         } else {
