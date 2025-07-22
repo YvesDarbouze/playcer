@@ -79,7 +79,7 @@ export function SignInForm() {
         <div className="flex justify-center mb-4">
           <Logo className="size-12 text-primary" />
         </div>
-        <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
+        <CardTitle className="font-bold">Welcome Back</CardTitle>
         <CardDescription>
           Sign in to your Playcer account to continue.
         </CardDescription>

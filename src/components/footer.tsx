@@ -7,7 +7,7 @@ export function Footer() {
     <footer className="bg-card border-t mt-auto">
       <div className="container mx-auto py-6 px-4 md:px-8 flex flex-col md:flex-row items-center justify-between">
         <div className="flex items-center gap-2">
-          <Logo className="h-6 w-6 text-primary" />
+          <Logo className="h-6 w-6" />
           <p className="text-sm text-muted-foreground">
             &copy; {new Date().getFullYear()} Playcer Inc. All rights reserved.
           </p>

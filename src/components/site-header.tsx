@@ -46,9 +46,6 @@ export function SiteHeader() {
         <div className="mr-4 hidden md:flex">
           <Link href="/" className="mr-6 flex items-center space-x-2">
             <Logo className="h-6 w-6" />
-            <span className="hidden font-bold sm:inline-block">
-              Playcer
-            </span>
           </Link>
           <nav className="flex items-center gap-6 text-sm">
             <Link
@@ -74,7 +71,6 @@ export function SiteHeader() {
           <SheetContent side="left">
             <Link href="/" className="flex items-center">
                 <Logo className="h-6 w-6" />
-                <span className="font-bold ml-2">Playcer</span>
             </Link>
             <div className="flex flex-col gap-4 mt-8">
                  <Link href="/marketplace" className="text-lg font-medium">

@@ -21,6 +21,7 @@ const config = {
        fontFamily: {
         sans: ['var(--font-sans)'],
         headline: ['var(--font-headline)'],
+        logo: ['var(--font-logo)'],
       },
       colors: {
         border: "hsl(var(--border))",
