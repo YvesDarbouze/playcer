@@ -1,4 +1,4 @@
-import { initializeApp, getApps, getApp, FirebaseOptions } from "firebase/app";
+import { initializeApp, getApps, getApp, type FirebaseApp, type FirebaseOptions } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signOut as firebaseSignOut } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
@@ -13,7 +13,13 @@ const firebaseConfig: FirebaseOptions = {
 
 
 // Initialize Firebase
-const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+let app: FirebaseApp;
+if (getApps().length === 0) {
+  app = initializeApp(firebaseConfig);
+} else {
+  app = getApp();
+}
+
 const auth = getAuth(app);
 const firestore = getFirestore(app);
 const googleProvider = new GoogleAuthProvider();
@@ -22,4 +28,6 @@ const signOut = () => {
   return firebaseSignOut(auth);
 }
 
-export { app as getFirebaseApp, auth, firestore, googleProvider, signOut };
+// Export the initialized app instance
+export const getFirebaseApp = () => app;
+export { auth, firestore, googleProvider, signOut };
