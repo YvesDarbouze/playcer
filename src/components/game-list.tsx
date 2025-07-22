@@ -48,7 +48,7 @@ export function GameList({ initialGames }: GameListProps) {
                     />
                     <div className="absolute inset-0 bg-[#08415C]/80 z-10"></div>
 
-                    <div className="relative z-20">
+                    <div className="relative z-20 container mx-auto px-4">
                         <div className="absolute top-4 right-4">
                              <Link href="/signin">
                                 <Button variant="destructive">
@@ -57,7 +57,7 @@ export function GameList({ initialGames }: GameListProps) {
                                 </Button>
                             </Link>
                         </div>
-                        <div className='container mx-auto px-4'>
+                        <div>
                             <h1 className="text-4xl md:text-6xl font-headline font-black uppercase text-background">
                                 I don&apos;t just want to Bet, I Want To Bet That M0+#*$%$*
                             </h1>
