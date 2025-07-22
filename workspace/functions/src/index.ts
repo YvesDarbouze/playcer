@@ -71,10 +71,9 @@ const sportsDataAPI = {
         const apiKey = process.env.ODDS_API_KEY;
 
         if (!apiKey || apiKey === 'YOUR_ODDS_API_KEY') {
-            logger.warn(`ODDS_API_KEY is not set. Returning mock winner for event ${eventId}.`);
-            // Return a mock result for demonstration when API key is not available
-            const mockWinner = Math.random() > 0.5 ? 'Team A' : 'Team B';
-            return { winnerTeamName: mockWinner, status: 'Final' };
+            logger.error(`CRITICAL: ODDS_API_KEY is not set. Aborting event result fetch for event ${eventId}.`);
+            // Throw an error to prevent using mock data in a live environment.
+            throw new Error('Sports data API key is not configured.');
         }
 
         try {
