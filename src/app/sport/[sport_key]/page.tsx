@@ -8,6 +8,7 @@ import type { Game } from "@/types";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 async function getGames(sportKey: string): Promise<Game[]> {
   try {
@@ -21,8 +22,8 @@ async function getGames(sportKey: string): Promise<Game[]> {
     if (querySnapshot.empty) {
       // For demo, return mock data if nothing in DB
       return [
-        { id: 'nfl_1', commence_time: new Date().toISOString(), home_team: 'Rams', away_team: '49ers', sport_key: sportKey, sport_title: "NFL" } as Game,
-        { id: 'nfl_2', commence_time: new Date(Date.now() + 86400000).toISOString(), home_team: 'Chiefs', away_team: 'Eagles', sport_key: sportKey, sport_title: "NFL" } as Game,
+        { id: 'nfl_1', commence_time: new Date().toISOString(), home_team: 'Rams', away_team: '49ers', sport_key: sportKey, sport_title: "NFL", is_complete: false } as Game,
+        { id: 'nfl_2', commence_time: new Date(Date.now() + 86400000).toISOString(), home_team: 'Chiefs', away_team: 'Eagles', sport_key: sportKey, sport_title: "NFL", is_complete: false } as Game,
       ];
     }
     return querySnapshot.docs.map(doc => {
@@ -77,15 +78,27 @@ export default async function SportPage({ params }: { params: { sport_key: strin
             <div className="space-y-4">
               {gamesOnDate.map((game) => (
                 <Link href={`/game/${game.id}`} key={game.id} passHref>
-                    <Card className="hover:border-primary transition-colors">
+                    <Card className={cn(
+                        "hover:border-primary transition-colors",
+                        game.is_complete && "bg-muted/50 hover:border-muted"
+                    )}>
                         <CardContent className="p-4 flex justify-between items-center">
                             <div>
-                                <p className="font-bold text-lg">{game.away_team} @ {game.home_team}</p>
+                                <p className={cn(
+                                    "font-bold text-lg",
+                                    game.is_complete && "text-muted-foreground"
+                                )}>
+                                  {game.away_team} {game.is_complete && <span className="font-extrabold">{game.away_score}</span>}
+                                  {' @ '} 
+                                  {game.home_team} {game.is_complete && <span className="font-extrabold">{game.home_score}</span>}
+                                </p>
                                 <p className="text-sm text-muted-foreground">
-                                    {format(new Date(game.commence_time), "h:mm a")}
+                                    {game.is_complete ? "Final" : format(new Date(game.commence_time), "h:mm a")}
                                 </p>
                             </div>
-                            <Button variant="secondary">View Odds</Button>
+                            <Button variant={game.is_complete ? "ghost" : "secondary"} disabled={game.is_complete}>
+                              {game.is_complete ? "View Results" : "View Odds"}
+                            </Button>
                         </CardContent>
                     </Card>
                 </Link>

@@ -1,7 +1,9 @@
 
-import { collection, doc, getDoc, getDocs, Timestamp } from "firebase/firestore";
-import { firestore } from "@/lib/firebase-admin";
-import { notFound } from "next/navigation";
+"use client";
+
+import { useEffect, useState } from "react";
+import { collection, doc, getDoc, onSnapshot, Timestamp } from "firebase/firestore";
+import { getFirebaseApp } from "@/lib/firebase";
 import type { Game } from "@/types";
 import { format } from "date-fns";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type BookmakerOdds = {
     key: string;
@@ -20,48 +23,81 @@ type BookmakerOdds = {
     }[];
 };
 
-async function getGameDetails(gameId: string): Promise<Game | null> {
-  const gameRef = doc(firestore, "games", gameId);
-  const gameSnap = await getDoc(gameRef);
-  if (!gameSnap.exists()) return null;
-
-  const data = gameSnap.data();
-  return {
-    id: gameSnap.id,
-    ...data,
-    commence_time: (data.commence_time as Timestamp).toDate().toISOString(),
-  } as unknown as Game;
-}
-
-async function getBookmakerOdds(gameId: string): Promise<BookmakerOdds[]> {
-  const oddsRef = collection(firestore, `games/${gameId}/bookmaker_odds`);
-  const oddsSnap = await getDocs(oddsRef);
-  
-  if (oddsSnap.empty) {
-     return [
-        { 
-            key: 'draftkings', title: 'DraftKings', last_update: new Date().toISOString(), 
-            markets: [{ key: 'h2h', outcomes: [{name: 'Team A', price: -110}, {name: 'Team B', price: -110}]}]
-        },
-        { 
-            key: 'fanduel', title: 'FanDuel', last_update: new Date().toISOString(), 
-            markets: [{ key: 'h2h', outcomes: [{name: 'Team A', price: -115}, {name: 'Team B', price: -105}]}]
-        }
-     ] as BookmakerOdds[];
-  }
-  
-  return oddsSnap.docs.map(doc => doc.data() as BookmakerOdds);
-}
-
-export default async function GameDetailsPage({ params }: { params: { gameId: string } }) {
+export default function GameDetailsPage({ params }: { params: { gameId: string } }) {
   const { gameId } = params;
-  const [game, odds] = await Promise.all([
-    getGameDetails(gameId),
-    getBookmakerOdds(gameId),
-  ]);
+  const [game, setGame] = useState<Game | null>(null);
+  const [odds, setOdds] = useState<BookmakerOdds[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchGameDetails = async () => {
+      const db = getFirebaseApp();
+      const gameRef = doc(db, "games", gameId);
+      const gameSnap = await getDoc(gameRef);
+
+      if (gameSnap.exists()) {
+        const data = gameSnap.data();
+        setGame({
+          id: gameSnap.id,
+          ...data,
+          commence_time: (data.commence_time as Timestamp).toDate().toISOString(),
+        } as unknown as Game);
+      }
+      setLoading(false);
+    };
+
+    fetchGameDetails();
+
+    const db = getFirebaseApp();
+    const oddsRef = collection(db, `games/${gameId}/bookmaker_odds`);
+    const unsubscribe = onSnapshot(oddsRef, (snapshot) => {
+        const oddsData = snapshot.docs.map(doc => doc.data() as BookmakerOdds);
+        
+        // Handle mock data case if listener returns empty
+        if (oddsData.length === 0) {
+            setOdds([
+                { 
+                    key: 'draftkings', title: 'DraftKings', last_update: new Date().toISOString(), 
+                    markets: [{ key: 'h2h', outcomes: [{name: 'Team A', price: -110}, {name: 'Team B', price: -110}]}]
+                },
+                { 
+                    key: 'fanduel', title: 'FanDuel', last_update: new Date().toISOString(), 
+                    markets: [{ key: 'h2h', outcomes: [{name: 'Team A', price: -115}, {name: 'Team B', -105}]}]
+                }
+            ] as BookmakerOdds[]);
+        } else {
+            setOdds(oddsData);
+        }
+    });
+
+    return () => unsubscribe();
+  }, [gameId]);
+  
+  if (loading) {
+     return (
+        <main className="container mx-auto p-4 md:p-8">
+             <Skeleton className="h-10 w-48 mb-4" />
+             <Skeleton className="h-12 w-96 mb-2" />
+             <Skeleton className="h-6 w-72 mb-8" />
+             <Card>
+                <CardHeader>
+                    <Skeleton className="h-8 w-1/2" />
+                    <Skeleton className="h-4 w-3/4" />
+                </CardHeader>
+                <CardContent>
+                    <div className="space-y-2">
+                        <Skeleton className="h-12 w-full" />
+                        <Skeleton className="h-12 w-full" />
+                        <Skeleton className="h-12 w-full" />
+                    </div>
+                </CardContent>
+            </Card>
+        </main>
+    );
+  }
 
   if (!game) {
-    notFound();
+    return <p className="text-center p-8">Game not found.</p>;
   }
   
   const h2hOdds = odds.map(bookmaker => {
@@ -73,7 +109,7 @@ export default async function GameDetailsPage({ params }: { params: { gameId: st
         homePrice: homeOutcome?.price,
         awayPrice: awayOutcome?.price,
     }
-  }).filter(o => o.homePrice && o.awayPrice); // Only show bookmakers with odds for both teams
+  }).filter(o => o.homePrice && o.awayPrice);
 
 
   return (
@@ -94,7 +130,7 @@ export default async function GameDetailsPage({ params }: { params: { gameId: st
       <Card>
         <CardHeader>
           <CardTitle>Head-to-Head Odds</CardTitle>
-          <CardDescription>Odds from various sportsbooks. Best odds are highlighted.</CardDescription>
+          <CardDescription>Odds from various sportsbooks. Odds update in real-time.</CardDescription>
         </CardHeader>
         <CardContent>
             {h2hOdds.length > 0 ? (

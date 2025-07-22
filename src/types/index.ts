@@ -1,4 +1,5 @@
 
+
 import type { Timestamp } from "firebase/firestore";
 
 export type Court = {
@@ -57,6 +58,9 @@ export type Game = {
   commence_time: string;
   home_team: string;
   away_team: string;
+  home_score?: number;
+  away_score?: number;
+  is_complete?: boolean;
   bookmakers?: {
     key: string;
     title: string;
