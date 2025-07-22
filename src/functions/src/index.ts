@@ -824,5 +824,3 @@ export const resolveDispute = onCall(async (request) => {
         throw new HttpsError('internal', 'An internal error occurred while resolving the dispute.');
     }
 });
-
-    
