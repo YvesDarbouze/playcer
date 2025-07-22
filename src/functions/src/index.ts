@@ -70,8 +70,8 @@ const sportsDataAPI = {
         logger.log(`Fetching result for event ${eventId} from sports data oracle.`);
         const apiKey = process.env.ODDS_API_KEY;
 
-        if (!apiKey || apiKey === 'YOUR_ODDS_API_KEY' || apiKey === '9506477182d2f2335317a695b5e875e4') {
-            logger.error(`CRITICAL: ODDS_API_KEY is not set or is using the default example key. Aborting event result fetch for event ${eventId}.`);
+        if (!apiKey || apiKey === 'YOUR_ODDS_API_KEY') {
+            logger.error(`CRITICAL: ODDS_API_KEY is not set. Aborting event result fetch for event ${eventId}.`);
             // Throw an error to prevent using mock data in a live environment.
             throw new Error('Sports data API key is not configured.');
         }
