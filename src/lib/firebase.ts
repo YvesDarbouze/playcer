@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp, type FirebaseApp, type FirebaseOptions } from "firebase/app";
-import { getAuth, GoogleAuthProvider, signOut as firebaseSignOut } from "firebase/auth";
+import { getAuth, GoogleAuthProvider, TwitterAuthProvider, signOut as firebaseSignOut } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig: FirebaseOptions = {
@@ -23,6 +23,7 @@ if (getApps().length === 0) {
 const auth = getAuth(app);
 const firestore = getFirestore(app);
 const googleProvider = new GoogleAuthProvider();
+const twitterProvider = new TwitterAuthProvider();
 
 const signOut = () => {
   return firebaseSignOut(auth);
@@ -30,4 +31,4 @@ const signOut = () => {
 
 // Export the initialized app instance
 export const getFirebaseApp = () => app;
-export { auth, firestore, googleProvider, signOut };
+export { auth, firestore, googleProvider, twitterProvider, signOut };

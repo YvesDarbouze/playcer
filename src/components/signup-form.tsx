@@ -5,7 +5,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createUserWithEmailAndPassword, updateProfile, signInWithPopup } from "firebase/auth";
-import { auth, googleProvider } from "@/lib/firebase";
+import { auth, googleProvider, twitterProvider } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 
 import { Button } from "@/components/ui/button";
@@ -34,6 +34,7 @@ export function SignUpForm() {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [isTwitterLoading, setIsTwitterLoading] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
 
@@ -67,11 +68,13 @@ export function SignUpForm() {
     }
   };
   
-  const handleSocialSignIn = async () => {
-    setIsGoogleLoading(true);
+  const handleSocialSignIn = async (provider: 'google' | 'twitter') => {
+    const socialProvider = provider === 'google' ? googleProvider : twitterProvider;
+    const setLoading = provider === 'google' ? setIsGoogleLoading : setIsTwitterLoading;
+
+    setLoading(true);
     try {
-       // Using Google provider as a placeholder for Twitter
-      await signInWithPopup(auth, googleProvider);
+      await signInWithPopup(auth, socialProvider);
       router.push("/");
     } catch (error: any) {
        toast({
@@ -80,7 +83,7 @@ export function SignUpForm() {
         variant: "destructive",
       });
     } finally {
-      setIsGoogleLoading(false);
+      setLoading(false);
     }
   };
 
@@ -97,10 +100,10 @@ export function SignUpForm() {
       </CardHeader>
       <CardContent>
          <div className="grid grid-cols-2 gap-4">
-            <Button variant="outline" onClick={handleSocialSignIn} disabled={isLoading || isGoogleLoading}>
-             {isGoogleLoading ? ( "Signing in..." ) : ( <> <TwitterIcon className="mr-2" /> Twitter </> )}
+            <Button variant="outline" onClick={() => handleSocialSignIn('twitter')} disabled={isLoading || isGoogleLoading || isTwitterLoading}>
+             {isTwitterLoading ? ( "Signing in..." ) : ( <> <TwitterIcon className="mr-2" /> Twitter </> )}
             </Button>
-            <Button variant="outline" onClick={handleSocialSignIn} disabled={isLoading || isGoogleLoading}>
+            <Button variant="outline" onClick={() => handleSocialSignIn('google')} disabled={isLoading || isGoogleLoading || isTwitterLoading}>
               {isGoogleLoading ? ( "Signing in..." ) : ( <> <Chrome className="mr-2" /> Google </> )}
             </Button>
         </div>
@@ -124,7 +127,7 @@ export function SignUpForm() {
               required
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              disabled={isLoading || isGoogleLoading}
+              disabled={isLoading || isGoogleLoading || isTwitterLoading}
             />
           </div>
           <div className="grid gap-2">
@@ -136,7 +139,7 @@ export function SignUpForm() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              disabled={isLoading || isGoogleLoading}
+              disabled={isLoading || isGoogleLoading || isTwitterLoading}
             />
           </div>
           <div className="grid gap-2">
@@ -148,10 +151,10 @@ export function SignUpForm() {
                 minLength={6}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                disabled={isLoading || isGoogleLoading}
+                disabled={isLoading || isGoogleLoading || isTwitterLoading}
             />
           </div>
-          <Button type="submit" className="w-full" disabled={isLoading || isGoogleLoading}>
+          <Button type="submit" className="w-full" disabled={isLoading || isGoogleLoading || isTwitterLoading}>
             {isLoading ? "Creating Account..." : "Sign Up with Email"}
           </Button>
         </form>
