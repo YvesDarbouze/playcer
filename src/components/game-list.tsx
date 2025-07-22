@@ -57,6 +57,9 @@ export function GameList({ initialGames }: GameListProps) {
                                 onChange={(e) => setSearchTerm(e.target.value)}
                             />
                         </div>
+                         <p className="mt-6 text-base max-w-xl mx-auto">
+                           Tired of betting against the house? Playcer is the peer-to-peer app where you bet directly against friends and other fans. You set the odds, you make the challenge. It's just mano y mano.
+                        </p>
                     </div>
                 </div>
             </header>
