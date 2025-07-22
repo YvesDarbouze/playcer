@@ -3,7 +3,7 @@ export default function TosPage() {
   return (
     <main className="container mx-auto p-4 md:p-8 max-w-4xl">
       <div className="prose prose-invert">
-        <h1>Playcer - Terms of Service</h1>
+        <h1 className="font-headline font-black">Playcer - Terms of Service</h1>
         <p className="text-muted-foreground">Last Updated: July 22, 2025</p>
 
         <p className="font-bold">
@@ -32,8 +32,8 @@ export default function TosPage() {
           SERVICE.
         </p>
 
-        <h2>1. The Playcer Service: A Peer-to-Peer Marketplace</h2>
-        <h3>1.1. Nature of the Service</h3>
+        <h2 className="font-bold">1. The Playcer Service: A Peer-to-Peer Marketplace</h2>
+        <h3 className="font-bold">1.1. Nature of the Service</h3>
         <p>
           Playcer is a technology platform that functions as a peer-to-peer
           (P2P) betting exchange. We are not a traditional bookmaker or
@@ -43,14 +43,14 @@ export default function TosPage() {
           by matching users with opposing positions; we are never a party to
           any wager. [1, 2, 3]
         </p>
-        <h3>1.2. No House Edge</h3>
+        <h3 className="font-bold">1.2. No House Edge</h3>
         <p>
           We do not set odds. The odds available on the Service are determined
           by the users themselves. Because you are betting against other users,
           not against &quot;the house,&quot; our model does not include a
           traditional &quot;vig&quot; or &quot;juice.&quot; [1, 4]
         </p>
-        <h3>1.3. Wager Matching</h3>
+        <h3 className="font-bold">1.3. Wager Matching</h3>
         <p>
           A wager is only considered active and confirmed once it has been
           fully matched by one or more other users on the platform. We do not
@@ -58,14 +58,14 @@ export default function TosPage() {
           wagers will be canceled at the start of the relevant event. [3]
         </p>
 
-        <h2>2. Eligibility and Geographic Restrictions</h2>
-        <h3>2.1. Age Requirement</h3>
+        <h2 className="font-bold">2. Eligibility and Geographic Restrictions</h2>
+        <h3 className="font-bold">2.1. Age Requirement</h3>
         <p>
           You must be at least twenty-one (21) years of age to create an
           account and use the Service. It is a criminal offense to gamble while
           underage. [5]
         </p>
-        <h3>2.2. Location Requirement</h3>
+        <h3 className="font-bold">2.2. Location Requirement</h3>
         <p>
           The Service is available only to individuals physically located in a
           U.S. state or territory where participation in peer-to-peer
@@ -75,7 +75,7 @@ export default function TosPage() {
           location-verification technologies to ensure compliance. Any attempt
           to circumvent these restrictions is a material breach of these Terms.
         </p>
-        <h3>2.3. Legal Compliance</h3>
+        <h3 className="font-bold">2.3. Legal Compliance</h3>
         <p>
           You are solely responsible for ensuring that your use of the Service
           is compliant with all laws, rules, and regulations applicable to you.
@@ -85,29 +85,29 @@ export default function TosPage() {
           prohibited by law.
         </p>
 
-        <h2>3. Account Registration and Management</h2>
-        <h3>3.1. Account Creation</h3>
+        <h2 className="font-bold">3. Account Registration and Management</h2>
+        <h3 className="font-bold">3.1. Account Creation</h3>
         <p>
           To use the Service, you must register for a personal account
           (&quot;Account&quot;). You agree to provide accurate, current, and
           complete information during the registration process and to update
           such information to keep it accurate. [9, 10]
         </p>
-        <h3>3.2. Single Account</h3>
+        <h3 className="font-bold">3.2. Single Account</h3>
         <p>
           You may establish and maintain only one Account. Should we discover
           that you have opened multiple accounts, we reserve the right to
           suspend or terminate any or all of your accounts and void any pending
           or winning wagers. [9, 10]
         </p>
-        <h3>3.3. Account Security</h3>
+        <h3 className="font-bold">3.3. Account Security</h3>
         <p>
           You are responsible for maintaining the confidentiality of your
           password and Account credentials. You are fully responsible for all
           activities that occur under your Account. You agree to notify us
           immediately of any unauthorized use of your Account. [10]
         </p>
-        <h3>3.4. Identity Verification</h3>
+        <h3 className="font-bold">3.4. Identity Verification</h3>
         <p>
           You authorize us, directly or through third parties, to make any
           inquiries we consider necessary to validate your identity and/or
@@ -116,8 +116,8 @@ export default function TosPage() {
           and confirming your information against third-party databases.
         </p>
 
-        <h2>4. Wagers, Fees, and Payments</h2>
-        <h3>4.1. Service Fee</h3>
+        <h2 className="font-bold">4. Wagers, Fees, and Payments</h2>
+        <h3 className="font-bold">4.1. Service Fee</h3>
         <p>
           Playcer charges a small commission on net winnings for a given
           market. This fee is our compensation for providing the platform that
@@ -125,14 +125,14 @@ export default function TosPage() {
           displayed before you confirm a wager. We do not charge a fee on
           losing wagers. [4]
         </p>
-        <h3>4.2. Deposits and Withdrawals</h3>
+        <h3 className="font-bold">4.2. Deposits and Withdrawals</h3>
         <p>
           You may deposit funds into your Account via the approved methods
           listed on the Service. All deposits must be from a payment source on
           which you are the named account holder. All withdrawals will be paid
           to you via the same method of deposit, where possible.
         </p>
-        <h3>4.3. Event Settlement</h3>
+        <h3 className="font-bold">4.3. Event Settlement</h3>
         <p>
           Wagers are settled based on the official results and statistics
           provided by our third-party data provider, &quot;The Odds API.&quot;
@@ -141,7 +141,7 @@ export default function TosPage() {
           (less our commission) will be credited to the winning users&apos;
           Accounts.
         </p>
-        <h3>4.4. Errors</h3>
+        <h3 className="font-bold">4.4. Errors</h3>
         <p>
           While we strive for accuracy, errors may occur. If a wager is
           accepted at clearly incorrect odds due to a technical or human error,
@@ -149,7 +149,7 @@ export default function TosPage() {
           the wager or resettle it at the correct terms. [12]
         </p>
 
-        <h2>5. User Conduct and Prohibited Activities</h2>
+        <h2 className="font-bold">5. User Conduct and Prohibited Activities</h2>
         <p>You agree not to engage in any of the following prohibited activities:</p>
         <ul>
           <li>
@@ -171,7 +171,7 @@ export default function TosPage() {
           <li>Violating any applicable law or regulation.</li>
         </ul>
 
-        <h2>6. Intellectual Property</h2>
+        <h2 className="font-bold">6. Intellectual Property</h2>
         <p>
           The Service and all of its content, features, and functionality
           (including but not limited to all software, text, graphics, logos,
@@ -182,8 +182,8 @@ export default function TosPage() {
           your personal, non-commercial use only. [13, 14]
         </p>
 
-        <h2>7. Disclaimers and Limitation of Liability</h2>
-        <h3>7.1. Disclaimer of Warranties</h3>
+        <h2 className="font-bold">7. Disclaimers and Limitation of Liability</h2>
+        <h3 className="font-bold">7.1. Disclaimer of Warranties</h3>
         <p>
           THE SERVICE IS PROVIDED &quot;AS IS&quot; AND &quot;AS
           AVAILABLE,&quot; WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESS OR
@@ -191,7 +191,7 @@ export default function TosPage() {
           SECURE, OR ERROR-FREE. YOUR USE OF THE SERVICE IS AT YOUR SOLE RISK.
           [13]
         </p>
-        <h3>7.2. Limitation of Liability</h3>
+        <h3 className="font-bold">7.2. Limitation of Liability</h3>
         <p>
           TO THE FULLEST EXTENT PERMITTED BY LAW, IN NO EVENT WILL PLAYCER, ITS
           AFFILIATES, DIRECTORS, OR EMPLOYEES BE LIABLE FOR ANY INDIRECT,
@@ -200,9 +200,9 @@ export default function TosPage() {
           CONNECTION WITH YOUR USE OF THE SERVICE.
         </p>
 
-        <h2>8. Dispute Resolution by Binding Arbitration</h2>
+        <h2 className="font-bold">8. Dispute Resolution by Binding Arbitration</h2>
         <p>PLEASE READ THIS SECTION CAREFULLY AS IT AFFECTS YOUR RIGHTS.</p>
-        <h3>8.1. Agreement to Arbitrate</h3>
+        <h3 className="font-bold">8.1. Agreement to Arbitrate</h3>
         <p>
           You and Playcer agree that any dispute, claim, or controversy arising
           out of or relating to these Terms or the Service shall be settled by
@@ -210,28 +210,28 @@ export default function TosPage() {
           injunctive or other equitable relief in a court of competent
           jurisdiction.
         </p>
-        <h3>8.2. Waiver of Class Action</h3>
+        <h3 className="font-bold">8.2. Waiver of Class Action</h3>
         <p>
           YOU AND PLAYCER AGREE THAT EACH MAY BRING CLAIMS AGAINST THE OTHER
           ONLY IN YOUR OR ITS INDIVIDUAL CAPACITY, AND NOT AS A PLAINTIFF OR
           CLASS MEMBER IN ANY PURPORTED CLASS OR REPRESENTATIVE PROCEEDING. [9]
         </p>
 
-        <h2>9. General Provisions</h2>
-        <h3>9.1. Modification</h3>
+        <h2 className="font-bold">9. General Provisions</h2>
+        <h3 className="font-bold">9.1. Modification</h3>
         <p>
           We reserve the right to modify these Terms at any time. If we make
           material changes, we will provide you with notice via email or
           through the Service. Your continued use of the Service after such
           notice constitutes your acceptance of the modified Terms. [9]
         </p>
-        <h3>9.2. Termination</h3>
+        <h3 className="font-bold">9.2. Termination</h3>
         <p>
           We may terminate or suspend your Account and access to the Service,
           at our sole discretion, at any time and without notice or liability
           to you. [13]
         </p>
-        <h3>9.3. Contact</h3>
+        <h3 className="font-bold">9.3. Contact</h3>
         <p>
           For any questions about these Terms, please contact us at
           legal@playcer.app.

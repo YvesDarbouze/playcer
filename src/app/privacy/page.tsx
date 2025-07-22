@@ -3,7 +3,7 @@ export default function PrivacyPolicyPage() {
   return (
     <main className="container mx-auto p-4 md:p-8 max-w-4xl">
       <div className="prose prose-invert">
-        <h1>Playcer - Privacy Policy</h1>
+        <h1 className="font-headline font-black">Playcer - Privacy Policy</h1>
         <p className="text-muted-foreground">Last Updated: July 22, 2025</p>
 
         <p>
@@ -19,13 +19,13 @@ export default function PrivacyPolicyPage() {
           consent to the data practices described in this policy.
         </p>
 
-        <h2>1. Information We Collect</h2>
+        <h2 className="font-bold">1. Information We Collect</h2>
         <p>
           We may collect personal information from you in a variety of ways.
           &quot;Personal Information&quot; is any information that identifies,
           relates to, or could reasonably be linked with you. [15]
         </p>
-        <h3>1.1. Information You Provide to Us:</h3>
+        <h3 className="font-bold">1.1. Information You Provide to Us:</h3>
         <ul>
           <li>
             <strong>Registration Information:</strong> When you create an
@@ -51,7 +51,7 @@ export default function PrivacyPolicyPage() {
             [17]
           </li>
         </ul>
-        <h3>1.2. Information We Collect Automatically:</h3>
+        <h3 className="font-bold">1.2. Information We Collect Automatically:</h3>
         <ul>
           <li>
             <strong>Usage Data:</strong> We collect information about your
@@ -71,14 +71,14 @@ export default function PrivacyPolicyPage() {
             and hold certain information. [17]
           </li>
         </ul>
-        <h3>1.3. Information Shared Between Users:</h3>
+        <h3 className="font-bold">1.3. Information Shared Between Users:</h3>
         <p>
           To facilitate the peer-to-peer nature of the Service, your chosen
           username will be visible to other users when you propose or accept a
           wager.
         </p>
 
-        <h2>2. How We Use Your Information</h2>
+        <h2 className="font-bold">2. How We Use Your Information</h2>
         <p>
           We use the information we collect for various purposes, including to:
         </p>
@@ -108,7 +108,7 @@ export default function PrivacyPolicyPage() {
           </li>
         </ul>
 
-        <h2>3. How We Share Your Information</h2>
+        <h2 className="font-bold">3. How We Share Your Information</h2>
         <p>
           We do not sell your personal information in the traditional sense.
           However, we may share your information in the following situations:
@@ -146,7 +146,7 @@ export default function PrivacyPolicyPage() {
           </li>
         </ul>
 
-        <h2>4. Your Privacy Rights and Choices</h2>
+        <h2 className="font-bold">4. Your Privacy Rights and Choices</h2>
         <p>
           Depending on your jurisdiction, you may have the following rights
           regarding your personal information:
@@ -179,7 +179,7 @@ export default function PrivacyPolicyPage() {
           processing your request. [22]
         </p>
 
-        <h2>5. Data Security</h2>
+        <h2 className="font-bold">5. Data Security</h2>
         <p>
           We implement reasonable administrative, technical, and physical
           security measures to protect your information from unauthorized
@@ -187,7 +187,7 @@ export default function PrivacyPolicyPage() {
           transmission is ever fully secure or error-free.
         </p>
 
-        <h2>6. Children&apos;s Privacy</h2>
+        <h2 className="font-bold">6. Children&apos;s Privacy</h2>
         <p>
           Our Service is not directed to individuals under the age of 21, and we
           do not knowingly collect personal information from children. If we
@@ -196,14 +196,14 @@ export default function PrivacyPolicyPage() {
           information.
         </p>
 
-        <h2>7. Changes to This Privacy Policy</h2>
+        <h2 className="font-bold">7. Changes to This Privacy Policy</h2>
         <p>
           We may update this Privacy Policy from time to time. We will notify
           you of any changes by posting the new Privacy Policy on this page and
           updating the &quot;Last Updated&quot; date.
         </p>
 
-        <h2>8. Contact Us</h2>
+        <h2 className="font-bold">8. Contact Us</h2>
         <p>
           If you have any questions about this Privacy Policy, please contact us
           at:

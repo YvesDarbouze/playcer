@@ -22,7 +22,7 @@ export function MarketplaceBetCard({ bet }: { bet: Bet }) {
                 <CardDescription>
                     {format(eventDate, "EEE, MMM d, yyyy 'at' h:mm a")}
                 </CardDescription>
-                <CardTitle>{bet.awayTeam} @ {bet.homeTeam}</CardTitle>
+                <CardTitle className="font-bold">{bet.awayTeam} @ {bet.homeTeam}</CardTitle>
             </CardHeader>
             <CardContent className="flex-grow space-y-3">
                 <div>
@@ -36,11 +36,11 @@ export function MarketplaceBetCard({ bet }: { bet: Bet }) {
                 <div className="flex justify-between items-baseline pt-2">
                     <div>
                         <p className="text-sm font-semibold text-muted-foreground">Wager</p>
-                        <p className="text-2xl font-headline font-black text-primary">${bet.stake.toFixed(2)}</p>
+                        <p className="text-2xl font-bold text-primary">${bet.stake.toFixed(2)}</p>
                     </div>
                      <div>
                         <p className="text-sm font-semibold text-muted-foreground text-right">Odds</p>
-                        <p className="text-2xl font-headline font-black">{bet.odds > 0 ? `+${bet.odds}` : bet.odds}</p>
+                        <p className="text-2xl font-bold">{bet.odds > 0 ? `+${bet.odds}` : bet.odds}</p>
                     </div>
                 </div>
             </CardContent>

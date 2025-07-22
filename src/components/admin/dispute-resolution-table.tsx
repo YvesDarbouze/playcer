@@ -78,7 +78,7 @@ export function DisputeResolutionTable() {
     if (loading) {
         return (
             <Card>
-                <CardHeader><CardTitle>Open Disputes</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="font-bold">Open Disputes</CardTitle></CardHeader>
                 <CardContent>
                     <div className="space-y-2">
                         {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
@@ -91,7 +91,7 @@ export function DisputeResolutionTable() {
     if (disputes.length === 0) {
         return (
             <Card>
-                <CardHeader><CardTitle>Open Disputes</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="font-bold">Open Disputes</CardTitle></CardHeader>
                 <CardContent>
                     <p className="text-center text-muted-foreground py-8">No open disputes found.</p>
                 </CardContent>
@@ -102,7 +102,7 @@ export function DisputeResolutionTable() {
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Open Disputes</CardTitle>
+                <CardTitle className="font-bold">Open Disputes</CardTitle>
             </CardHeader>
             <CardContent>
                 <Table>

@@ -42,7 +42,7 @@ const TeamDisplay = ({
       isWinner === false && "opacity-40"
     )}
   >
-    <p className="text-2xl font-headline font-black">{team}</p>
+    <p className="text-2xl font-bold">{team}</p>
   </div>
 );
 
@@ -144,7 +144,7 @@ export function BetChallengeCard({
         <Badge variant={bet.status === 'open' ? 'default' : 'secondary'} className="mx-auto w-fit mb-2">
             {bet.status.charAt(0).toUpperCase() + bet.status.slice(1)}
         </Badge>
-        <CardTitle className="text-lg">
+        <CardTitle className="text-lg font-bold">
             {bet.sportKey.replace(/_/g, ' ').toUpperCase()}
         </CardTitle>
         <CardDescription>

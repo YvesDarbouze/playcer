@@ -93,7 +93,7 @@ export function SignUpForm() {
         <div className="flex justify-center mb-4">
           <Logo className="size-12 text-primary" />
         </div>
-        <CardTitle className="text-2xl font-headline font-black">Create an Account</CardTitle>
+        <CardTitle className="text-2xl font-bold">Create an Account</CardTitle>
         <CardDescription>
           Join Playcer today to start placing bets with friends.
         </CardDescription>

@@ -109,7 +109,7 @@ export function UserManagementTable() {
     return (
         <Card>
             <CardHeader>
-                <CardTitle className="flex justify-between items-center">
+                <CardTitle className="flex justify-between items-center font-bold">
                     User Management
                     <Input 
                         placeholder="Search users..."

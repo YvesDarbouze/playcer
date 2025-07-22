@@ -193,7 +193,7 @@ export function CreateBetForm() {
         return (
             <>
                 <CardHeader>
-                    <CardTitle>Step 1: Select the Game</CardTitle>
+                    <CardTitle className="font-bold">Step 1: Select the Game</CardTitle>
                     <CardDescription>Choose the sport and the specific game you want to bet on.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -253,7 +253,7 @@ export function CreateBetForm() {
         return (
              <>
                 <CardHeader>
-                    <CardTitle>Step 2: Define the Bet</CardTitle>
+                    <CardTitle className="font-bold">Step 2: Define the Bet</CardTitle>
                     <CardDescription>Describe what you're betting on. E.g., "Winner of the match" or "Total points scored".</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -297,7 +297,7 @@ export function CreateBetForm() {
         return (
              <>
                 <CardHeader>
-                    <CardTitle>Step 3: Set the Terms</CardTitle>
+                    <CardTitle className="font-bold">Step 3: Set the Terms</CardTitle>
                     <CardDescription>Define the financial terms of your bet. The odds determine the payout for the winner.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -326,7 +326,7 @@ export function CreateBetForm() {
          return (
              <>
                 <CardHeader>
-                    <CardTitle>Challenge Created!</CardTitle>
+                    <CardTitle className="font-bold">Challenge Created!</CardTitle>
                     <CardDescription>Your bet is now live. Copy the link below and share it to find an opponent.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">

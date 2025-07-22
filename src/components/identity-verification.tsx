@@ -111,7 +111,7 @@ export function IdentityVerification({ user }: { user: User }) {
             return (
                 <>
                     <CardHeader>
-                        <CardTitle className="flex items-center gap-2"><ShieldCheck /> Verify Your Identity</CardTitle>
+                        <CardTitle className="flex items-center gap-2 font-bold"><ShieldCheck /> Verify Your Identity</CardTitle>
                         <CardDescription>
                             To comply with regulations and ensure platform security, we need to verify your identity. This is a one-time process.
                         </CardDescription>

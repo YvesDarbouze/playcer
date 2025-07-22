@@ -27,7 +27,7 @@ export function Wallet({ user, transactions }: WalletProps) {
     <>
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+          <CardTitle className="flex items-center gap-2 font-headline font-black">
             <Banknote /> My Wallet
           </CardTitle>
           <CardDescription>
@@ -38,7 +38,7 @@ export function Wallet({ user, transactions }: WalletProps) {
           <div className="p-6 rounded-lg bg-gradient-to-r from-primary/80 to-primary text-primary-foreground shadow-lg flex justify-between items-center">
             <div>
               <p className="text-sm uppercase tracking-wider">Current Balance</p>
-              <p className="text-4xl font-headline font-black">
+              <p className="text-4xl font-bold">
                 ${user.walletBalance.toFixed(2)}
               </p>
             </div>

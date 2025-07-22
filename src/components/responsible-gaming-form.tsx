@@ -148,7 +148,7 @@ export function ResponsibleGamingForm({ user }: { user: User }) {
     <div className="space-y-8">
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Banknote /> Set Your Limits</CardTitle>
+          <CardTitle className="flex items-center gap-2 font-bold"><Banknote /> Set Your Limits</CardTitle>
           <CardDescription>
             Control your spending by setting deposit and wager limits. Set a value of 0 for no limit.
           </CardDescription>
@@ -199,7 +199,7 @@ export function ResponsibleGamingForm({ user }: { user: User }) {
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Moon /> Self-Exclusion</CardTitle>
+          <CardTitle className="flex items-center gap-2 font-bold"><Moon /> Self-Exclusion</CardTitle>
           <CardDescription>
             If you need to take a break, you can self-exclude from the platform.
             This action is irreversible for the selected duration.
@@ -229,7 +229,7 @@ export function ResponsibleGamingForm({ user }: { user: User }) {
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                    <AlertDialogTitle className="font-bold">Are you absolutely sure?</AlertDialogTitle>
                     <AlertDialogDescription>
                         This action cannot be undone. You will be locked out of your account and unable to
                         place bets for the entire duration you have selected.
@@ -248,7 +248,7 @@ export function ResponsibleGamingForm({ user }: { user: User }) {
       
        <Card className="bg-blue-50 border-blue-200">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><ShieldCheck className="text-blue-600" /> Need Help?</CardTitle>
+          <CardTitle className="flex items-center gap-2 font-bold text-blue-900"><ShieldCheck className="text-blue-600" /> Need Help?</CardTitle>
           <CardDescription className="text-blue-800">
             If you or someone you know has a gambling problem, help is available. 
             Contact the National Council on Problem Gambling for confidential support.

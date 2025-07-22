@@ -115,7 +115,7 @@ export function UserDashboard() {
                 return (
                     <Alert>
                          <ShieldCheck className="h-4 w-4" />
-                        <AlertTitle>Identity Verification Required</AlertTitle>
+                        <AlertTitle className="font-bold">Identity Verification Required</AlertTitle>
                         <AlertDescription className="flex justify-between items-center">
                             <p>Please verify your identity to enable all features, including withdrawals.</p>
                             <Link href="/verify-identity">
@@ -128,7 +128,7 @@ export function UserDashboard() {
                  return (
                     <Alert variant="default" className="bg-yellow-50 border-yellow-200 text-yellow-800">
                          <Hourglass className="h-4 w-4" />
-                        <AlertTitle>Verification Under Review</AlertTitle>
+                        <AlertTitle className="font-bold">Verification Under Review</AlertTitle>
                         <AlertDescription>
                             Your documents have been submitted and are being reviewed. This usually takes a few minutes.
                         </AlertDescription>
@@ -182,20 +182,20 @@ export function UserDashboard() {
                         </div>
 
                         <div className="flex-1 text-center md:text-left">
-                            <h1 className="text-3xl font-headline font-black">{userProfile.displayName}</h1>
+                            <h1 className="text-3xl font-bold">{userProfile.displayName}</h1>
                             <p className="text-muted-foreground text-lg">@{userProfile.username}</p>
                         </div>
                         <div className="flex flex-wrap justify-center gap-4">
                             <div className="text-center">
-                                <p className="text-3xl font-headline font-black text-primary">{userProfile.wins}</p>
+                                <p className="text-3xl font-bold text-primary">{userProfile.wins}</p>
                                 <p className="text-sm text-muted-foreground">Wins</p>
                             </div>
                             <div className="text-center">
-                                 <p className="text-3xl font-headline font-black text-destructive">{userProfile.losses}</p>
+                                 <p className="text-3xl font-bold text-destructive">{userProfile.losses}</p>
                                 <p className="text-sm text-muted-foreground">Losses</p>
                             </div>
                              <div className="text-center">
-                                 <p className="text-3xl font-headline font-black">${userProfile.walletBalance.toFixed(2)}</p>
+                                 <p className="text-3xl font-bold">${userProfile.walletBalance.toFixed(2)}</p>
                                 <p className="text-sm text-muted-foreground">Wallet</p>
                             </div>
                         </div>
@@ -230,7 +230,7 @@ export function UserDashboard() {
             </header>
 
             <section>
-                <h2 className="text-2xl font-headline font-black mb-4">My Bets</h2>
+                <h2 className="text-2xl font-bold mb-4">My Bets</h2>
                 <Tabs defaultValue="open">
                     <TabsList>
                         <TabsTrigger value="open">Open</TabsTrigger>

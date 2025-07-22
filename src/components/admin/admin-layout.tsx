@@ -25,7 +25,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
                     <SidebarHeader>
                         <div className="flex items-center gap-2">
                             <Logo className="size-8 text-sidebar-primary" />
-                            <span className="text-lg font-headline font-black">Playcer Admin</span>
+                            <span className="text-lg font-bold">Playcer Admin</span>
                         </div>
                     </SidebarHeader>
                     <SidebarMenu>

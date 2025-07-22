@@ -147,7 +147,7 @@ export function BetCreationModal({ isOpen, onOpenChange, game }: BetCreationModa
     <Dialog open={isOpen} onOpenChange={handleModalClose}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Create Your Bet</DialogTitle>
+          <DialogTitle className="font-bold">Create Your Bet</DialogTitle>
           <DialogDescription>
             Set your terms for this matchup and challenge a friend.
           </DialogDescription>
@@ -155,7 +155,7 @@ export function BetCreationModal({ isOpen, onOpenChange, game }: BetCreationModa
 
         {challengeLink ? (
           <div className="space-y-4 py-8">
-             <h3 className="font-headline font-black text-lg text-center">Share Your Challenge!</h3>
+             <h3 className="font-bold text-lg text-center">Share Your Challenge!</h3>
              <p className="text-sm text-center text-muted-foreground">Copy the link below and send it to an opponent.</p>
              <div className="flex items-center space-x-2">
                 <Input value={challengeLink} readOnly />

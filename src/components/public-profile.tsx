@@ -26,11 +26,11 @@ export function PublicProfile({ user, settledBets }: PublicProfileProps) {
                     </div>
                      <div className="flex flex-wrap justify-center gap-4">
                         <div className="text-center">
-                            <p className="text-3xl font-headline font-black text-primary">{user.wins}</p>
+                            <p className="text-3xl font-bold text-primary">{user.wins}</p>
                             <p className="text-sm text-muted-foreground">Total Wins</p>
                         </div>
                         <div className="text-center">
-                            <p className="text-3xl font-headline font-black text-destructive">{user.losses}</p>
+                            <p className="text-3xl font-bold text-destructive">{user.losses}</p>
                             <p className="text-sm text-muted-foreground">Total Losses</p>
                         </div>
                     </div>
@@ -38,7 +38,7 @@ export function PublicProfile({ user, settledBets }: PublicProfileProps) {
             </Card>
 
             <section>
-                <h2 className="text-2xl font-headline font-black mb-4">Recent Bet History</h2>
+                <h2 className="text-2xl font-bold mb-4">Recent Bet History</h2>
                 {settledBets.length > 0 ? (
                     <div className="grid grid-cols-1 gap-4">
                         {settledBets.map(bet => (
