@@ -1,6 +1,6 @@
 
 import { collection, getDocs, query, where, orderBy, Timestamp } from "firebase/firestore";
-import { firestore } from "@/lib/firebase-admin";
+import { firestore as getFirestore } from "@/lib/firebase-admin";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { format } from "date-fns";
@@ -12,6 +12,11 @@ import { cn } from "@/lib/utils";
 
 async function getGames(sportKey: string): Promise<Game[]> {
   try {
+    const firestore = getFirestore();
+    if (!firestore) {
+        console.log("Firestore not initialized");
+        return [];
+    }
     const gamesRef = collection(firestore, "games");
     const q = query(
       gamesRef,

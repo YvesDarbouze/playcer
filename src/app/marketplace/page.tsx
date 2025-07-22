@@ -1,6 +1,6 @@
 
 import { collection, getDocs, query, where, orderBy, Timestamp } from "firebase/firestore";
-import { firestore } from "@/lib/firebase-admin"; // Using admin SDK for server-side fetches
+import { firestore as getFirestore } from "@/lib/firebase-admin"; // Using admin SDK for server-side fetches
 import type { Bet } from "@/types";
 import { MarketplaceFeed } from "@/components/marketplace-feed";
 import { Logo } from "@/components/icons";
@@ -11,6 +11,11 @@ import { LoginButton } from "@/components/login-button";
 
 async function getOpenBets(): Promise<Bet[]> {
   try {
+    const firestore = getFirestore();
+    if (!firestore) {
+      console.log("Firestore not initialized");
+      return [];
+    }
     const betsRef = collection(firestore, "bets");
     const q = query(
       betsRef,

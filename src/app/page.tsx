@@ -1,12 +1,17 @@
 
 import { collection, getDocs, query, orderBy, where } from "firebase/firestore";
-import { firestore } from "@/lib/firebase-admin";
+import { firestore as getFirestore } from "@/lib/firebase-admin";
 import type { Game } from "@/types";
 import { GameList } from "@/components/game-list";
 
 
 async function getUpcomingGames(): Promise<Game[]> {
   try {
+    const firestore = getFirestore();
+    if (!firestore) {
+        console.log("Firestore not initialized");
+        return [];
+    }
     const gamesRef = collection(firestore, "games");
     const q = query(
       gamesRef,

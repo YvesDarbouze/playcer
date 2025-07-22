@@ -1,19 +1,32 @@
 
 import * as admin from 'firebase-admin';
 
+let app: admin.app.App;
+
 if (!admin.apps.length) {
   try {
-    admin.initializeApp({
+    app = admin.initializeApp({
       credential: admin.credential.cert({
         projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
         clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-        privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+        privateKey: (process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
       }),
     });
-  } catch (error) {
-    console.log('Firebase admin initialization error', error);
+  } catch (error: any) {
+    console.error('Firebase admin initialization error', error.stack);
   }
+} else {
+  app = admin.app();
 }
 
-export const firestore = admin.firestore();
-export const auth = admin.auth();
+const firestore = () => {
+    if (!app) return null;
+    return admin.firestore(app);
+}
+
+const auth = () => {
+    if (!app) return null;
+    return admin.auth(app);
+}
+
+export { firestore, auth };

@@ -1,7 +1,7 @@
 
 import * as React from "react";
 import { doc, getDoc, collection, query, where, getDocs, or, and, orderBy, limit, Timestamp } from "firebase/firestore";
-import { firestore } from "@/lib/firebase-admin";
+import { firestore as getFirestore } from "@/lib/firebase-admin";
 import { PublicProfile } from "@/components/public-profile";
 import type { User, Bet } from "@/types";
 import { notFound } from "next/navigation";
@@ -11,6 +11,11 @@ import { Button } from "@/components/ui/button";
 
 async function getUserProfile(userId: string): Promise<User | null> {
     if (!userId) return null;
+    const firestore = getFirestore();
+    if (!firestore) {
+        console.log("Firestore not initialized");
+        return null;
+    }
     const userRef = doc(firestore, "users", userId);
     const userSnap = await getDoc(userRef);
 
@@ -29,6 +34,11 @@ async function getUserProfile(userId: string): Promise<User | null> {
 async function getSettledBets(userId: string): Promise<Bet[]> {
     if (!userId) return [];
     
+    const firestore = getFirestore();
+    if (!firestore) {
+        console.log("Firestore not initialized");
+        return [];
+    }
     const betsRef = collection(firestore, "bets");
     const q = query(
         betsRef,
