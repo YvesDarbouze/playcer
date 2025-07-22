@@ -1,55 +1,64 @@
 
-import { collection, getDocs, query, orderBy, where } from "firebase/firestore";
-import { firestore as getFirestore } from "@/lib/firebase-admin";
-import type { Game } from "@/types";
-import { GameList } from "@/components/game-list";
+"use client";
 
+import { useState } from 'react';
+import { CourtCard } from "@/components/court-card";
+import { CourtDetails } from "@/components/court-details";
+import { courts as allCourts } from "@/lib/data";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Input } from "@/components/ui/input";
+import { Search } from "lucide-react";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/components/ui/resizable";
+import MainAppLayout from './(main)/layout';
 
-async function getUpcomingGames(): Promise<Game[]> {
-  try {
-    const firestore = getFirestore();
-    if (!firestore) {
-        console.log("Firestore not initialized");
-        return [];
-    }
-    const gamesRef = collection(firestore, "games");
-    const q = query(
-      gamesRef,
-      where('is_complete', '!=', true),
-      orderBy("is_complete"),
-      orderBy("commence_time", "asc")
-    );
-    const querySnapshot = await getDocs(q);
+export default function HomePage() {
+  const [selectedCourt, setSelectedCourt] = useState(allCourts[0]);
+  const [searchTerm, setSearchTerm] = useState("");
 
-    if (querySnapshot.empty) {
-      // For demo, return mock data if nothing in DB
-      return [
-        { id: 'nfl_1', commence_time: new Date().toISOString(), home_team: 'Rams', away_team: '49ers', sport_key: 'americanfootball_nfl', sport_title: "NFL", is_complete: false } as Game,
-        { id: 'nfl_2', commence_time: new Date(Date.now() + 86400000).toISOString(), home_team: 'Chiefs', away_team: 'Eagles', sport_key: 'americanfootball_nfl', sport_title: "NFL", is_complete: false } as Game,
-        { id: 'nba_1', commence_time: new Date().toISOString(), home_team: 'Lakers', away_team: 'Clippers', sport_key: 'basketball_nba', sport_title: "NBA" } as Game,
-        { id: 'nba_2', commence_time: new Date(Date.now() + 2 * 86400000).toISOString(), home_team: 'Celtics', away_team: 'Warriors', sport_key: 'basketball_nba', sport_title: "NBA" } as Game,
-      ];
-    }
-    return querySnapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        ...data,
-        commence_time: (data.commence_time as any).toDate().toISOString(),
-      } as unknown as Game;
-    });
-  } catch (error) {
-    console.error(`Error fetching upcoming games:`, error);
-    return [];
-  }
-}
-
-export default async function SportsHomePage() {
-  const games = await getUpcomingGames();
+  const filteredCourts = allCourts.filter(court =>
+    court.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    court.address.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
-    <main className="bg-background-offwhite">
-      <GameList initialGames={games} />
-    </main>
+    <MainAppLayout>
+      <ResizablePanelGroup direction="horizontal" className="h-screen w-full">
+        <ResizablePanel defaultSize={30} minSize={20} maxSize={40}>
+          <div className="flex flex-col h-full">
+            <div className="p-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search courts..."
+                  className="pl-10"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+            </div>
+            <ScrollArea className="flex-1">
+              <div className="p-4 space-y-4">
+                {filteredCourts.map((court) => (
+                  <CourtCard
+                    key={court.id}
+                    court={court}
+                    isSelected={selectedCourt.id === court.id}
+                    onClick={() => setSelectedCourt(court)}
+                  />
+                ))}
+              </div>
+            </ScrollArea>
+          </div>
+        </ResizablePanel>
+        <ResizableHandle withHandle />
+        <ResizablePanel defaultSize={70}>
+          {selectedCourt && <CourtDetails court={selectedCourt} />}
+        </ResizablePanel>
+      </ResizablePanelGroup>
+    </MainAppLayout>
   );
 }

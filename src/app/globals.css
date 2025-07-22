@@ -5,58 +5,79 @@
 
 @layer base {
   :root {
-    --background: 300 13% 94%;
-    --foreground: 205 83% 20%;
-    --card: 300 13% 100%;
-    --card-foreground: 205 83% 20%;
-    --popover: 300 13% 100%;
-    --popover-foreground: 205 83% 20%;
-    --primary: 205 83% 20%;
-    --primary-foreground: 300 13% 98%;
-    --primary-dark-blue: 205 83% 20%; /* #08415C */
-    --primary-red: 355 71% 48%; /* #CC2936 */
-    --neutral-grey: 205 13% 48%; /* #6B818C */
-    --accent-peach: 25 79% 77%; /* #F1BF98 */
-    --background-offwhite: 300 13% 94%; /* #EEE5E9 */
-    --secondary: 205 13% 48%;
-    --secondary-foreground: 300 13% 98%;
-    --muted: 300 13% 86%;
-    --muted-foreground: 205 13% 30%;
-    --accent: 25 79% 77%;
-    --accent-foreground: 205 83% 10%;
-    --destructive: 355 71% 48%;
-    --destructive-foreground: 300 13% 98%;
-    --border: 300 13% 86%;
-    --input: 300 13% 86%;
-    --ring: 355 71% 48%;
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 195 100% 50%; /* #00C3FF */
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 205 86% 8%; /* #061826 */
+    --secondary-foreground: 210 40% 98%;
+    
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 195 100% 50%;
+
     --radius: 0.5rem;
+
+    /* Sidebar specific colors */
+    --sidebar-color-bg: 205 86% 8%;
+    --sidebar-color-fg: 0 0% 100%;
+    --sidebar-color-accent: 195 100% 50%;
+    --sidebar-color-accent-fg: 205 86% 8%;
+    --sidebar-color-border: 205 86% 12%;
   }
 
   .dark {
-    --background: 205 83% 5%;
-    --foreground: 300 13% 94%;
-    --card: 205 83% 8%;
-    --card-foreground: 300 13% 94%;
-    --popover: 205 83% 5%;
-    --popover-foreground: 300 13% 94%;
-    --primary: 300 13% 94%;
-    --primary-foreground: 205 83% 10%;
-    --primary-dark-blue: 205 83% 20%;
-    --primary-red: 355 71% 58%;
-    --neutral-grey: 205 13% 28%;
-    --accent-peach: 25 79% 67%;
-    --background-offwhite: 205 83% 5%;
-    --secondary: 205 13% 28%;
-    --secondary-foreground: 300 13% 98%;
-    --muted: 205 83% 15%;
-    --muted-foreground: 205 13% 60%;
-    --accent: 25 79% 77%;
-    --accent-foreground: 205 83% 10%;
-    --destructive: 355 71% 58%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 205 83% 15%;
-    --input: 205 83% 15%;
-    --ring: 355 71% 58%;
+    --background: 205 86% 8%; /* #061826 */
+    --foreground: 0 0% 100%;
+
+    --card: 205 86% 12%;
+    --card-foreground: 0 0% 100%;
+
+    --popover: 205 86% 8%;
+    --popover-foreground: 0 0% 100%;
+
+    --primary: 195 100% 50%; /* #00C3FF */
+    --primary-foreground: 205 86% 8%;
+
+    --secondary: 0 0% 100%;
+    --secondary-foreground: 205 86% 8%;
+
+    --muted: 205 86% 12%;
+    --muted-foreground: 215.4 16.3% 56.9%;
+
+    --accent: 205 86% 12%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 205 86% 12%;
+    --input: 205 86% 12%;
+    --ring: 195 100% 50%;
+
+    /* Sidebar specific colors */
+    --sidebar-color-bg: 205 86% 8%;
+    --sidebar-color-fg: 0 0% 100%;
+    --sidebar-color-accent: 195 100% 50%;
+    --sidebar-color-accent-fg: 205 86% 8%;
+    --sidebar-color-border: 205 86% 12%;
   }
 }
 
@@ -68,4 +89,25 @@
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
+}
+
+@layer components {
+    .sidebar-bg {
+        background-color: hsl(var(--sidebar-color-bg));
+    }
+    .sidebar-fg {
+        color: hsl(var(--sidebar-color-fg));
+    }
+    .sidebar-accent {
+        background-color: hsl(var(--sidebar-color-accent));
+    }
+    .sidebar-accent-fg {
+        color: hsl(var(--sidebar-color-accent-fg));
+    }
+    .sidebar-border {
+        border-color: hsl(var(--sidebar-color-border));
+    }
+    .sidebar-ring {
+        --ring: var(--sidebar-color-accent);
+    }
 }
