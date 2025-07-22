@@ -118,9 +118,18 @@ const getSportKeyForMapping = (sport_key: string) => {
     return 'default';
 }
 
+const getLeaguePath = (mappedSportKey: string): string => {
+    switch (mappedSportKey) {
+        case 'nfl': return 'nfl';
+        case 'nba': return 'nba';
+        case 'mlb': return 'mlb';
+        default: return 'nfl'; // Default path
+    }
+}
+
 export const getTeamLogoUrl = (teamName: string, sportKey: string): string => {
   const mappedSportKey = getSportKeyForMapping(sportKey);
-  const league = mappedSportKey === 'nfl' ? 'nfl' : 'mlb'; // Default to mlb for nba as well as it shares logo structure
+  const league = getLeaguePath(mappedSportKey);
   const abbreviation = teamAbbreviationMap[mappedSportKey]?.[teamName];
 
   if (abbreviation) {
