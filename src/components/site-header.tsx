@@ -2,6 +2,7 @@
 "use client";
 
 import Link from "next/link";
+import * as React from "react";
 import { Logo } from "./icons";
 import { LoginButton } from "./login-button";
 import {
@@ -10,9 +11,35 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Button } from "./ui/button";
-import { Menu } from "lucide-react";
+import { Menu, Rss } from "lucide-react";
+import type { Game } from "@/types";
+import { Separator } from "./ui/separator";
+
+// In a real app, this would be a proper API call.
+const getSports = async (): Promise<{ key: string, title: string }[]> => {
+    await new Promise(res => setTimeout(res, 500)); // Simulate network delay
+    return [
+        { key: 'americanfootball_nfl', title: 'NFL' },
+        { key: 'basketball_nba', title: 'NBA' },
+        { key: 'baseball_mlb', title: 'MLB' },
+    ];
+};
+
 
 export function SiteHeader() {
+  const [sports, setSports] = React.useState<{ key: string, title: string }[]>([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    const loadSports = async () => {
+      setLoading(true);
+      const fetchedSports = await getSports();
+      setSports(fetchedSports);
+      setLoading(false);
+    }
+    loadSports();
+  }, []);
+
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-14 max-w-screen-2xl items-center">
@@ -56,6 +83,26 @@ export function SiteHeader() {
                  <Link href="/dashboard" className="text-lg font-medium">
                     Dashboard
                 </Link>
+
+                <Separator className="my-2" />
+
+                <h4 className="font-semibold text-muted-foreground">Sports</h4>
+                {loading ? (
+                  <p>Loading sports...</p>
+                ) : (
+                  sports.map(sport => (
+                    <Link key={sport.key} href={`/sport/${sport.key}`} className="text-lg font-medium">
+                      {sport.title}
+                    </Link>
+                  ))
+                )}
+                
+                <Separator className="my-2" />
+                
+                 <Link href="/about" className="text-lg font-medium">
+                    About Us
+                </Link>
+
             </div>
           </SheetContent>
         </Sheet>
