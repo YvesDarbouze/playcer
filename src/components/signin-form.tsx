@@ -4,7 +4,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signInWithPopup } from "firebase/auth";
-import { auth, twitterProvider } from "@/lib/firebase";
+import { auth, googleProvider } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 
 import { Button } from "@/components/ui/button";
@@ -17,21 +17,25 @@ import {
 } from "@/components/ui/card";
 import { Logo } from "./icons";
 
-// Placeholder icon for Twitter
-const TwitterIcon = (props: React.SVGProps<SVGSVGElement>) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M22 4s-.7 2.1-2 3.4c1.6 1.4 3.3 4.9 3.3 4.9s-5.2-.6-5.2-.6l-1.5-1.5s-2.3 2.7-4.8 2.7c-2.5 0-4.8-2.7-4.8-2.7S5 12.3 5 12.3s3.7-1.4 3.7-1.4L10 9.8s-1.8-2.2-1.8-2.2l-1.2-1.2S4.8 4 4.8 4s5.4 3.5 12.4 3.5c7 0 4.8-3.5 4.8-3.5z"/></svg>
+// Placeholder icon for Google
+const GoogleIcon = (props: React.SVGProps<SVGSVGElement>) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+        <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/>
+        <path d="M12 15a6 6 0 0 0 6-6H6a6 6 0 0 0 6 6z"/>
+        <path d="M12 2v3M12 22v-3M4.93 4.93l2.12 2.12M16.95 16.95l2.12 2.12M2 12h3M22 12h-3M4.93 19.07l2.12-2.12M16.95 7.05l2.12-2.12"/>
+    </svg>
 );
 
 
 export function SignInForm() {
-  const [isTwitterLoading, setIsTwitterLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
 
   const handleSocialSignIn = async () => {
-    setIsTwitterLoading(true);
+    setIsLoading(true);
     try {
-      await signInWithPopup(auth, twitterProvider);
+      await signInWithPopup(auth, googleProvider);
       router.push("/");
     } catch (error: any) {
        toast({
@@ -40,7 +44,7 @@ export function SignInForm() {
         variant: "destructive",
       });
     } finally {
-      setIsTwitterLoading(false);
+      setIsLoading(false);
     }
   };
 
@@ -60,9 +64,9 @@ export function SignInForm() {
             variant="outline" 
             className="w-full"
             onClick={handleSocialSignIn} 
-            disabled={isTwitterLoading}
+            disabled={isLoading}
         >
-          {isTwitterLoading ? ( "Redirecting to Twitter..." ) : ( <> <TwitterIcon className="mr-2" /> Log in with Twitter </> )}
+          {isLoading ? ( "Redirecting to Google..." ) : ( <> <GoogleIcon className="mr-2" /> Sign in with Google </> )}
         </Button>
       </CardContent>
     </Card>
