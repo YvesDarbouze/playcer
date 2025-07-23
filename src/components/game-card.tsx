@@ -111,17 +111,15 @@ export function GameCard({ game }: GameCardProps) {
                 onClick={handleCardClick}
             >
                 <CardContent className="p-4 flex-grow flex flex-col items-center justify-center transition-all duration-300">
-                    <div className="flex flex-col items-center justify-center text-center w-full flex-grow">
-                         <div className="flex items-center gap-2 text-center justify-around w-full">
-                            <div className="flex flex-col items-center gap-2 text-center w-2/5">
-                                <Image src={awayLogo} alt={`${game.away_team} logo`} width={80} height={80} className="h-16 w-auto transition-all"/>
-                                <p className="font-bold text-sm truncate">{game.away_team}</p>
-                            </div>
-                            <div className="text-muted-foreground font-bold text-2xl">@</div>
-                            <div className="flex flex-col items-center gap-2 text-center w-2/5">
-                                <Image src={homeLogo} alt={`${game.home_team} logo`} width={80} height={80} className="h-16 w-auto transition-all"/>
-                                <p className="font-bold text-sm truncate">{game.home_team}</p>
-                            </div>
+                    <div className="flex flex-col items-center justify-center text-center w-full flex-grow space-y-2">
+                        <div className="flex flex-col items-center text-center">
+                            <Image src={awayLogo} alt={`${game.away_team} logo`} width={64} height={64} className="h-12 w-auto transition-all"/>
+                            <p className="font-bold text-sm mt-1">{game.away_team}</p>
+                        </div>
+                        <div className="text-muted-foreground font-bold text-lg">@</div>
+                        <div className="flex flex-col items-center text-center">
+                            <Image src={homeLogo} alt={`${game.home_team} logo`} width={64} height={64} className="h-12 w-auto transition-all"/>
+                            <p className="font-bold text-sm mt-1">{game.home_team}</p>
                         </div>
                     </div>
 
