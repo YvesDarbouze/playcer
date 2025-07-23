@@ -24,7 +24,7 @@ export type Court = {
 export type User = {
   id: string; // This is the UID from Firebase Auth
   displayName: string;
-  username: string;
+  username: string; // This is the Twitter handle
   photoURL: string;
   email?: string;
   createdAt: Timestamp;
@@ -79,31 +79,34 @@ export type Game = {
 
 export type Bet = {
   id: string;
-  creatorId: string;
-  creatorUsername: string;
-  creatorPhotoURL: string;
-  challengerId: string | null;
-  challengerUsername: string | null;
-  challengerPhotoURL: string | null;
-  sportKey: string;
-  eventId: string;
-  eventDate: Date;
-  homeTeam: string;
-  awayTeam: string;
-  betType: "spread" | "moneyline" | "total";
-  marketDescription: string;
-  outcomeDescription: string;
-  line: number | null;
-  odds: number;
-  teamSelection: string;
-  stake: number;
-  status: "open" | "matched" | "settled" | "void" | "disputed";
-  isPublic: boolean;
+  gameId: string;
+  gameDetails: {
+    home_team: string;
+    away_team: string;
+    commence_time: Date;
+  };
+  challengerId: string;
+  recipientId: string | null;
+  challengerTwitterHandle: string;
+  recipientTwitterHandle: string;
+  wagerAmount: number;
+  betType: "moneyline" | "spread" | "totals";
+  betValue: {
+    team?: string; // For moneyline or spread
+    points?: number; // For spread
+    over_under?: "over" | "under"; // For totals
+    total?: number; // for totals
+    odds: number;
+  };
+  status: "pending_acceptance" | "active" | "completed" | "declined" | "expired";
+  stripePaymentIntentId: string | null;
   winnerId: string | null;
-  escrowId: string | null;
   createdAt: Date;
-  matchedAt: Date | null;
   settledAt: Date | null;
+  creatorUsername?: string; // Denormalized for display
+  creatorPhotoURL?: string; // Denormalized for display
+  recipientUsername?: string; // Denormalized for display
+  recipientPhotoURL?: string; // Denormalized for display
 };
 
 export type UserBet = {

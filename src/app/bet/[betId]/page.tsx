@@ -1,8 +1,9 @@
 
+
 "use client";
 
 import * as React from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { getFirestore, doc, getDoc, Timestamp } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { useAuth } from "@/hooks/use-auth";
@@ -18,9 +19,11 @@ const convertToBet = (docSnap: any): Bet => {
   return {
     id: docSnap.id,
     ...data,
-    eventDate: (data.eventDate as Timestamp).toDate(),
+    gameDetails: {
+      ...data.gameDetails,
+      commence_time: (data.gameDetails.commence_time as Timestamp).toDate(),
+    },
     createdAt: (data.createdAt as Timestamp).toDate(),
-    matchedAt: data.matchedAt ? (data.matchedAt as Timestamp).toDate() : null,
     settledAt: data.settledAt ? (data.settledAt as Timestamp).toDate() : null,
   } as Bet;
 }
@@ -28,6 +31,7 @@ const convertToBet = (docSnap: any): Bet => {
 
 export default function BetChallengePage() {
   const params = useParams();
+  const router = useRouter();
   const { betId } = params;
   const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
@@ -74,11 +78,11 @@ export default function BetChallengePage() {
       const result: any = await matchBetFn({ betId: bet.id });
       if (result.data.success) {
         toast({
-          title: "Bet Accepted!",
-          description: "The challenge has been matched. Good luck!",
+          title: "Challenge Accepted!",
+          description: "The bet is now active. Good luck!",
         });
-        // Refresh bet data to show the new 'matched' status and challenger info
-        await fetchBet();
+        // Redirect to dashboard after accepting
+        router.push('/dashboard');
       } else {
         throw new Error(result.data.message || "Failed to accept bet.");
       }
