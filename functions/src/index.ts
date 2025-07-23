@@ -582,6 +582,70 @@ async function processPayout(data: { betId: string, winnerId: string, loserId: s
     logger.log(`Payout for bet ${betId} processed for winner ${winnerId}.`);
 }
 
+export const ingestUpcomingGames = onCall(async (request) => {
+    logger.log("Starting to ingest upcoming games from The Odds API.");
+    const apiKey = process.env.ODDS_API_KEY;
+
+    if (!apiKey) {
+        throw new HttpsError('internal', 'The an API key is not configured.');
+    }
+
+    try {
+        const url = `https://api.the-odds-api.com/v4/sports/upcoming/odds/?regions=us&markets=h2h,spreads&oddsFormat=american&apiKey=${apiKey}`;
+        const response = await fetch(url);
+        if (!response.ok) {
+            const errorText = await response.text();
+            logger.error(`Failed to fetch upcoming games: ${response.status}`, errorText);
+            throw new HttpsError('internal', 'Failed to fetch upcoming games from provider.');
+        }
+
+        const gamesData = await response.json();
+        if (!Array.isArray(gamesData)) {
+            logger.error("Unexpected data format from The Odds API:", gamesData);
+            throw new HttpsError('internal', 'Invalid data format from sports data provider.');
+        }
+
+        const batch = db.batch();
+        let gamesIngested = 0;
+
+        for (const game of gamesData) {
+            const gameRef = db.collection('games').doc(game.id);
+            const gameDoc = {
+                id: game.id,
+                sport_key: game.sport_key,
+                sport_title: game.sport_title,
+                commence_time: Timestamp.fromDate(new Date(game.commence_time)),
+                home_team: game.home_team,
+                away_team: game.away_team,
+                is_complete: false,
+                last_update: Timestamp.now()
+            };
+            batch.set(gameRef, gameDoc, { merge: true });
+
+            if (game.bookmakers && Array.isArray(game.bookmakers)) {
+                for (const bookmaker of game.bookmakers) {
+                    const oddsRef = gameRef.collection('bookmaker_odds').doc(bookmaker.key);
+                    batch.set(oddsRef, {
+                        ...bookmaker,
+                        last_update: Timestamp.now()
+                    });
+                }
+            }
+            gamesIngested++;
+        }
+
+        await batch.commit();
+        logger.log(`Successfully ingested/updated ${gamesIngested} games.`);
+        return { success: true, gamesIngested };
+
+    } catch (error) {
+        logger.error("Error ingesting upcoming games:", error);
+        if (error instanceof HttpsError) throw error;
+        throw new HttpsError('internal', 'An internal error occurred during game ingestion.');
+    }
+});
+
+
 export const updateOddsAndScores = onCall(async (request) => {
     // This function can be triggered by Cloud Scheduler.
     // Ensure the function is secured if not using Cloud Scheduler's built-in auth.
