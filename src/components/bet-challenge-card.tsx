@@ -130,7 +130,7 @@ export function BetChallengeCard({
       return (
         <Button onClick={onAccept} disabled={isAccepting} className="w-full" size="lg">
           <Handshake className="mr-2" />
-          {isAccepting ? "Accepting..." : "Accept Bet"}
+          {isAccepting ? "Accepting..." : "Accept Challenge"}
         </Button>
       );
     }

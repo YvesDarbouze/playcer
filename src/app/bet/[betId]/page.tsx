@@ -122,7 +122,7 @@ export default function BetChallengePage() {
   };
 
   return (
-    <main className="flex min-h-screen w-full flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-900">
+    <main className="flex min-h-screen w-full flex-col items-center justify-center p-4 bg-muted/40">
         {renderContent()}
     </main>
   );
