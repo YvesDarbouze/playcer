@@ -36,11 +36,41 @@ const OpponentDetails = ({ bet, profileUserId }: { bet: Bet, profileUserId: stri
 }
 
 export function SettledBetCard({ bet, profileUserId }: SettledBetCardProps) {
-    const settledDate = new Date(bet.settledAt!);
+    if (!bet.settledAt) {
+      return null;
+    }
+    const settledDate = new Date(bet.settledAt);
     const isWinner = bet.winnerId === profileUserId;
     
     const outcomeText = isWinner ? "Win" : "Loss";
     const outcomeColor = isWinner ? "bg-green-500" : "bg-destructive";
+
+    if (bet.status === 'void') {
+      return (
+         <Card>
+            <CardContent className="p-4 flex flex-col md:flex-row items-center justify-between gap-4">
+                <div className="flex-1 space-y-1 text-center md:text-left">
+                     <p className="text-sm text-muted-foreground">{bet.awayTeam} @ {bet.homeTeam}</p>
+                     <p className="font-bold">{bet.outcomeDescription}</p>
+                     <p className="text-xs text-muted-foreground">Settled on {format(settledDate, "MMM d, yyyy")}</p>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <p>vs.</p>
+                    <OpponentDetails bet={bet} profileUserId={profileUserId} />
+                </div>
+                <div className="flex items-center gap-6">
+                    <div className="text-center">
+                        <p className="text-xs text-muted-foreground">Wager</p>
+                        <p className="font-bold text-lg">${bet.stake.toFixed(2)}</p>
+                    </div>
+                     <Badge className="text-lg font-bold w-20 justify-center" variant="secondary">
+                        Push
+                    </Badge>
+                </div>
+            </CardContent>
+        </Card>
+      )
+    }
 
     return (
         <Card>

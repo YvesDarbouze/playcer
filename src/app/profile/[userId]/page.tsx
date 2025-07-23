@@ -44,7 +44,10 @@ async function getSettledBets(userId: string): Promise<Bet[]> {
         betsRef,
         and(
             where("isPublic", "==", true),
-            where("status", "==", "settled"),
+            or(
+                where("status", "==", "settled"),
+                where("status", "==", "void")
+            ),
             or(
                 where("creatorId", "==", userId),
                 where("challengerId", "==", userId)
