@@ -56,28 +56,21 @@ interface BetCreationModalProps {
   loadingOdds: boolean;
 }
 
-const betSchema = z.discriminatedUnion("betType", [
-    z.object({
-        betType: z.literal("moneyline"),
-        teamSelection: z.string().min(1, "Please select a team."),
-        stake: z.coerce.number().min(1, "Stake must be at least $1."),
-        opponentTwitter: z.string().optional(),
-    }),
-    z.object({
-        betType: z.literal("spread"),
-        teamSelection: z.string().min(1, "Please select a team."),
-        stake: z.coerce.number().min(1, "Stake must be at least $1."),
-        line: z.coerce.number({invalid_type_error: "A valid point spread is required."}),
-        opponentTwitter: z.string().optional(),
-    }),
-    z.object({
-        betType: z.literal("totals"),
-        teamSelection: z.enum(["over", "under"], {errorMap: () => ({message: "Please select Over or Under."})}),
-        stake: z.coerce.number().min(1, "Stake must be at least $1."),
-        line: z.coerce.number({invalid_type_error: "A valid total is required."}),
-        opponentTwitter: z.string().optional(),
-    }),
-]);
+const betSchema = z.object({
+    betType: z.enum(["moneyline", "spread", "totals"]),
+    teamSelection: z.string().min(1, "Please select a team or option."),
+    stake: z.coerce.number().min(1, "Stake must be at least $1."),
+    line: z.coerce.number().optional(),
+    opponentTwitter: z.string().optional(),
+}).refine((data) => {
+    if (data.betType === 'spread' || data.betType === 'totals') {
+        return data.line !== undefined && data.line !== null;
+    }
+    return true;
+}, {
+    message: "Line is required for spread and total bets.",
+    path: ["line"],
+});
 
 
 type BetFormData = z.infer<typeof betSchema>;
@@ -313,7 +306,7 @@ export function BetCreationModal({ isOpen, onOpenChange, game, odds, loadingOdds
                                 <FormControl>
                                     <SelectTrigger>
                                         <SelectValue placeholder="Select your team/side" />
-                                    </Trigger>
+                                    </SelectTrigger>
                                 </FormControl>
                                 <SelectContent>
                                   {betType !== 'totals' && (
@@ -375,3 +368,5 @@ export function BetCreationModal({ isOpen, onOpenChange, game, odds, loadingOdds
     </Dialog>
   );
 }
+
+    
