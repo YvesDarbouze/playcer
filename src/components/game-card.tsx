@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from 'react';
@@ -17,6 +16,7 @@ import { cn } from '@/lib/utils';
 import { getFirestore, collection, onSnapshot, query, limit, Timestamp } from 'firebase/firestore';
 import { getFirebaseApp } from '@/lib/firebase';
 import { Separator } from './ui/separator';
+import { useRouter } from 'next/navigation';
 
 interface GameCardProps {
     game: Game;
@@ -48,6 +48,7 @@ export function GameCard({ game }: GameCardProps) {
     const [isExpanded, setIsExpanded] = React.useState(false);
     const { user, loading } = useAuth();
     const { toast } = useToast();
+    const router = useRouter();
     const [gameTime, setGameTime] = React.useState<Date | null>(null);
     const [odds, setOdds] = React.useState<BookmakerOdds | null>(null);
     const [loadingOdds, setLoadingOdds] = React.useState(true);
@@ -82,10 +83,7 @@ export function GameCard({ game }: GameCardProps) {
     const handleCreateBetClick = (e: React.MouseEvent) => {
         e.stopPropagation(); // Prevent card from toggling expansion
         if (!user && !loading) {
-             toast({
-                title: "Ready to Play?",
-                description: "You need to be signed in to create a bet.",
-            });
+            router.push('/signin');
         } else if (user) {
             setIsModalOpen(true);
         }
@@ -98,6 +96,14 @@ export function GameCard({ game }: GameCardProps) {
     const spreadsMarket = odds?.markets.find(m => m.key === 'spreads');
     const totalsMarket = odds?.markets.find(m => m.key === 'totals');
 
+    const handleCardClick = () => {
+        if (user) {
+            setIsExpanded(!isExpanded);
+        } else {
+            router.push('/signin');
+        }
+    };
+
     return (
         <>
             <Card 
@@ -105,7 +111,7 @@ export function GameCard({ game }: GameCardProps) {
                     "hover:shadow-lg transition-all duration-300 flex flex-col overflow-hidden cursor-pointer",
                     isExpanded ? "row-span-2" : "aspect-square"
                 )}
-                onClick={() => user && setIsExpanded(!isExpanded)}
+                onClick={handleCardClick}
             >
                 <CardContent className={cn("p-4 flex-grow flex flex-col items-center justify-center transition-all duration-300", isExpanded && "justify-start")}>
                     {/* Collapsed View */}
@@ -164,8 +170,8 @@ export function GameCard({ game }: GameCardProps) {
                 </CardContent>
 
                 {!isExpanded && (
-                     <div className='p-2 bg-muted/50 text-center text-sm font-medium text-primary cursor-pointer' onClick={() => user && setIsExpanded(true)}>
-                        {user ? 'View Odds' : <LoginButton />}
+                     <div className='p-2 bg-muted/50 text-center text-sm font-medium text-primary cursor-pointer' onClick={handleCardClick}>
+                        <Button variant="ghost" className="w-full">Bet</Button>
                     </div>
                 )}
             </Card>

@@ -35,7 +35,7 @@ export function LoginButton() {
   if (!user) {
     return (
       <Link href="/signin" passHref>
-        <Button>Login</Button>
+        <Button>Bet</Button>
       </Link>
     );
   }
