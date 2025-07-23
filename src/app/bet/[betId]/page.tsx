@@ -72,10 +72,10 @@ export default function BetChallengePage() {
     setIsAccepting(true);
 
     const functions = getFunctions(getFirebaseApp());
-    const matchBetFn = httpsCallable(functions, "matchBet");
+    const acceptBetFn = httpsCallable(functions, "acceptBet");
 
     try {
-      const result: any = await matchBetFn({ betId: bet.id });
+      const result: any = await acceptBetFn({ betId: bet.id });
       if (result.data.success) {
         toast({
           title: "Challenge Accepted!",
