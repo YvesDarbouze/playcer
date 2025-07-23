@@ -9,6 +9,7 @@ import {logger} from "firebase-functions";
 import { v4 as uuidv4 } from "uuid";
 import * as algoliasearch from 'algoliasearch';
 import { generateBetImage } from "../../ai/flows/generate-bet-image";
+import fetch from "node-fetch";
 
 
 // Initialize Algolia client
@@ -94,7 +95,7 @@ const sportsDataAPI = {
                 throw new Error('Failed to fetch from TheOddsAPI');
             }
 
-            const data = await response.json();
+            const data:any = await response.json();
             const eventResult = data[0];
 
             if (!eventResult || !eventResult.completed) {
@@ -504,7 +505,7 @@ export const ingestUpcomingGames = onCall(async (request) => {
                  logger.warn(`Could not fetch events for sport ${sport.key}. Status: ${eventsResponse.status}`);
                  continue;
             }
-            const events = await eventsResponse.json();
+            const events:any = await eventsResponse.json();
 
             for (const event of events) {
                 const gameRef = db.collection('games').doc(event.id);
@@ -580,7 +581,7 @@ export const updateOddsAndScores = onCall(async (request) => {
                 logger.error(`Failed to fetch odds for ${sportKey}:`, await oddsResponse.text());
                 continue;
             }
-            const oddsData = await oddsResponse.json();
+            const oddsData:any = await oddsResponse.json();
             const batch = db.batch();
 
             for (const gameOdds of oddsData) {
@@ -604,7 +605,7 @@ export const updateOddsAndScores = onCall(async (request) => {
                 logger.error(`Failed to fetch scores for ${sportKey}:`, await scoresResponse.text());
                 continue;
             }
-            const scoresData = await scoresResponse.json();
+            const scoresData:any = await scoresResponse.json();
             const batch = db.batch();
 
             for (const gameScore of scoresData) {
@@ -647,3 +648,41 @@ export const generateBetImage = onCall(async (request) => {
     }
 });
     
+// This is our secure, callable function named 'getUpcomingOdds'
+export const getUpcomingOdds = onCall(async (request) => {
+  // Your secret API key is stored securely in environment variables, not in the code.
+  // We set this up in a previous step.
+  const apiKey = process.env.ODDS_API_KEY;
+
+  const sportKey = 'upcoming';
+  const regions = 'us';
+  const markets = 'h2h';
+  const oddsFormat = 'american';
+  const dateFormat = 'iso';
+
+  const apiUrl = `https://api.the-odds-api.com/v4/sports/${sportKey}/odds?apiKey=${apiKey}&regions=${regions}&markets=${markets}&oddsFormat=${oddsFormat}&dateFormat=${dateFormat}`;
+
+  logger.info("Fetching odds from:", apiUrl);
+
+  try {
+    const response = await fetch(apiUrl);
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      logger.error(`Failed to get odds: status_code ${response.status}, response body ${errorData}`);
+      // Throw an error that the frontend can understand
+      throw new HttpsError('internal', 'Failed to fetch odds.');
+    }
+
+    const oddsData = await response.json();
+    logger.info("Successfully fetched odds data.");
+    
+    // Return the data to the frontend that called this function
+    return oddsData;
+
+  } catch (error) {
+    logger.error('Error fetching odds data:', error);
+    // Throw an error that the frontend can understand
+    throw new HttpsError('unknown', 'An unknown error occurred.');
+  }
+});
