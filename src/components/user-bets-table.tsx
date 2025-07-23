@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { Bet } from "@/types";
 import { format } from "date-fns";
-import { ArrowUpRight, Copy, CheckCircle, XCircle, MinusCircle, User as UserIcon, Twitter } from "lucide-react";
+import { ArrowUpRight, Twitter } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
@@ -49,10 +49,11 @@ const OpponentDisplay = ({ bet, currentUserId }: { bet: Bet, currentUserId: stri
 }
 
 const OutcomeBadge = ({ bet, currentUserId }: { bet: Bet, currentUserId: string }) => {
+    if (bet.status === 'void') return <Badge variant="secondary">Push</Badge>;
     if (bet.status !== 'completed') return null;
 
     if (!bet.winnerId) {
-        return <Badge variant="secondary">Push</Badge>;
+        return <Badge variant="secondary">?</Badge>;
     }
 
     if (bet.winnerId === currentUserId) {
@@ -127,7 +128,7 @@ export function UserBetsTable({ bets, currentUserId }: UserBetsTableProps) {
                 <TableCell className="text-center">
                    <Badge variant={bet.status === 'pending_acceptance' ? 'secondary' : 'default'} className={cn({
                        'bg-green-100 text-green-800': bet.status === 'active',
-                       'bg-gray-100 text-gray-800': bet.status === 'completed',
+                       'bg-gray-100 text-gray-800': bet.status === 'completed' || bet.status === 'void',
                        'bg-yellow-100 text-yellow-800': bet.status === 'pending_acceptance'
                    })}>
                         {bet.status.replace('_', ' ').toUpperCase()}

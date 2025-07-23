@@ -96,17 +96,20 @@ export type Bet = {
     points?: number; // For spread
     over_under?: "over" | "under"; // For totals
     total?: number; // for totals
-    odds: number;
   };
-  status: "pending_acceptance" | "active" | "completed" | "declined" | "expired";
+  status: "pending_acceptance" | "active" | "completed" | "declined" | "expired" | 'void';
   stripePaymentIntentId: string | null;
   winnerId: string | null;
   createdAt: Date;
   settledAt: Date | null;
-  creatorUsername?: string; // Denormalized for display
-  creatorPhotoURL?: string; // Denormalized for display
-  recipientUsername?: string; // Denormalized for display
-  recipientPhotoURL?: string; // Denormalized for display
+  // Denormalized data
+  creatorUsername: string; 
+  creatorPhotoURL: string;
+  recipientUsername?: string; 
+  recipientPhotoURL?: string; 
+  challengerUsername?: string;
+  challengerPhotoURL?: string;
+
 };
 
 export type UserBet = {

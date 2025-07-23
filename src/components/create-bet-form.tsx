@@ -31,49 +31,46 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Loader2, ClipboardCopy, ArrowRight, ArrowLeft, Twitter } from "lucide-react";
+import { getFirestore, collection, getDocs, query, orderBy, Timestamp } from "firebase/firestore";
 
-// --- Mock API Fetchers ---
-const getSports = async (): Promise<{ key: string, title: string }[]> => {
-    console.log("Fetching sports...");
-    await new Promise(res => setTimeout(res, 500));
-    return [
-        { key: 'americanfootball_nfl', title: 'NFL' },
-        { key: 'basketball_nba', title: 'NBA' },
-        { key: 'baseball_mlb', title: 'MLB' },
-    ];
-};
+const getEvents = async (): Promise<Game[]> => {
+    const db = getFirestore(getFirebaseApp());
+    const gamesRef = collection(db, "games");
+    const q = query(
+      gamesRef,
+      orderBy("commence_time", "asc")
+    );
+    const querySnapshot = await getDocs(q);
 
-const getEvents = async (sportKey: string): Promise<Game[]> => {
-    console.log(`Fetching events for ${sportKey}...`);
-    await new Promise(res => setTimeout(res, 800));
-    
-    if (sportKey === 'basketball_nba') {
-        return [
-            { id: 'nba_1', commence_time: new Date(Date.now() + 3600000).toISOString(), home_team: 'Lakers', away_team: 'Celtics', sport_key: sportKey, sport_title: "NBA" } as Game,
-            { id: 'nba_2', commence_time: new Date(Date.now() + 7200000).toISOString(), home_team: 'Bucks', away_team: 'Warriors', sport_key: sportKey, sport_title: "NBA" } as Game,
-        ]
-    }
-     if (sportKey === 'americanfootball_nfl') {
-        return [
-            { id: 'nfl_1', commence_time: new Date(Date.now() + 10800000).toISOString(), home_team: 'Rams', away_team: '49ers', sport_key: sportKey, sport_title: "NFL" } as Game,
-            { id: 'nfl_2', commence_time: new Date(Date.now() + 14400000).toISOString(), home_team: 'Chiefs', away_team: 'Eagles', sport_key: sportKey, sport_title: "NFL" } as Game,
-        ]
-    }
-    return [];
+    return querySnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        commence_time: (data.commence_time as Timestamp).toDate().toISOString(),
+      } as unknown as Game;
+    });
 };
-// --- End Mock API Fetchers ---
 
 const betSchema = z.object({
   gameId: z.string().min(1, "Please select an event."),
   wagerAmount: z.coerce.number().min(1, "Wager must be at least $1."),
   betType: z.enum(["moneyline", "spread", "totals"]),
-  recipientTwitterHandle: z.string().min(1, "Opponent's Twitter handle is required.").max(15),
+  recipientTwitterHandle: z.string().min(1, "Opponent's Twitter handle is required.").max(15, "Twitter handle cannot be longer than 15 characters."),
   
   // Dynamic fields based on betType
   team: z.string().optional(),
   points: z.coerce.number().optional(),
   over_under: z.enum(["over", "under"]).optional(),
   total: z.coerce.number().optional(),
+}).refine(data => {
+    if(data.betType === 'moneyline') return !!data.team;
+    if(data.betType === 'spread') return !!data.team && data.points !== undefined;
+    if(data.betType === 'totals') return !!data.over_under && data.total !== undefined;
+    return false;
+}, {
+    message: "Please complete all fields for the selected bet type.",
+    path: ["betType"],
 });
 
 type FormData = z.infer<typeof betSchema>;
@@ -86,10 +83,8 @@ export function CreateBetForm() {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [challengeLink, setChallengeLink] = React.useState<string | null>(null);
 
-  const [sports, setSports] = React.useState<{ key: string, title: string }[]>([]);
   const [events, setEvents] = React.useState<Game[]>([]);
-  const [selectedSport, setSelectedSport] = React.useState<string | null>(null);
-  const [loading, setLoading] = React.useState<'sports' | 'events' | false>(false);
+  const [loading, setLoading] = React.useState<'events' | false>(false);
   
   const form = useForm<FormData>({
     resolver: zodResolver(betSchema),
@@ -99,32 +94,19 @@ export function CreateBetForm() {
     }
   });
 
-  const selectedEventId = form.watch("eventId");
+  const selectedEventId = form.watch("gameId");
   const betType = form.watch("betType");
 
   React.useEffect(() => {
-    const loadSports = async () => {
-        setLoading('sports');
-        const fetchedSports = await getSports();
-        setSports(fetchedSports);
-        setLoading(false);
-    }
-    loadSports();
-  }, []);
-
-  React.useEffect(() => {
-    if (!selectedSport) return;
     const loadEvents = async () => {
         setLoading('events');
-        setEvents([]);
-        form.setValue("gameId", "");
-        const fetchedEvents = await getEvents(selectedSport);
+        const fetchedEvents = await getEvents();
         setEvents(fetchedEvents);
         setLoading(false);
     }
     loadEvents();
-  }, [selectedSport, form]);
-  
+  }, []);
+
   const onSubmit = async (data: FormData) => {
     if (!user) return toast({ title: "Not Authenticated", variant: "destructive" });
     setIsSubmitting(true);
@@ -135,11 +117,11 @@ export function CreateBetForm() {
     // Construct betValue based on betType
     let betValue: any = {};
     if (data.betType === 'moneyline') {
-        betValue = { team: data.team, odds: 100 }; // Default odds for now
+        betValue = { team: data.team };
     } else if (data.betType === 'spread') {
-        betValue = { team: data.team, points: data.points, odds: -110 };
+        betValue = { team: data.team, points: data.points };
     } else if (data.betType === 'totals') {
-        betValue = { over_under: data.over_under, total: data.total, odds: -110 };
+        betValue = { over_under: data.over_under, total: data.total };
     }
 
     const functions = getFunctions(getFirebaseApp());
@@ -165,7 +147,7 @@ export function CreateBetForm() {
             toast({ title: "Bet Created Successfully!" });
             setStep(3); // Move to final step
         } else {
-            throw new Error(result.data.error || "Failed to create bet.");
+            throw new Error(result.data.message || "Failed to create bet.");
         }
     } catch (error: any) {
         toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -177,7 +159,7 @@ export function CreateBetForm() {
   const handleNextStep = async () => {
     let fieldsToValidate: (keyof FormData)[] = [];
     if (step === 1) fieldsToValidate = ["gameId"];
-    if (step === 2) fieldsToValidate = ["wagerAmount", "betType", "recipientTwitterHandle", "team", "points", "over_under", "total"];
+    if (step === 2) fieldsToValidate = ["wagerAmount", "recipientTwitterHandle", "betType", "team", "points", "over_under", "total"];
     
     const isValid = await form.trigger(fieldsToValidate);
     if (isValid) {
@@ -204,41 +186,28 @@ export function CreateBetForm() {
             <>
                 <CardHeader>
                     <CardTitle className="font-bold">Step 1: Select the Game</CardTitle>
-                    <CardDescription>Choose the sport and the specific game for your challenge.</CardDescription>
+                    <CardDescription>Choose the game for your challenge.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="space-y-2">
-                        <Label>Sport</Label>
-                        <Select onValueChange={setSelectedSport} disabled={loading === 'sports'}>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select a sport..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {loading === 'sports' ? <SelectItem value="loading" disabled>Loading...</SelectItem> : sports.map(s => <SelectItem key={s.key} value={s.key}>{s.title}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
+                        <Label>Event</Label>
+                        <Controller
+                            control={form.control}
+                            name="gameId"
+                            render={({ field }) => (
+                                <Select onValueChange={field.onChange} defaultValue={field.value} disabled={loading === 'events' || !events.length}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Select an event..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                            {loading === 'events' ? <SelectItem value="loading" disabled>Loading events...</SelectItem> : events.map(e => <SelectItem key={e.id} value={e.id}>{e.away_team} @ {e.home_team}</SelectItem>)}
+                                            {!loading && events.length === 0 && <SelectItem value="no-events" disabled>No upcoming events.</SelectItem>}
+                                    </SelectContent>
+                                </Select>
+                            )}
+                        />
+                        {form.formState.errors.gameId && <p className="text-sm text-destructive">{form.formState.errors.gameId.message}</p>}
                     </div>
-                    {selectedSport && (
-                        <div className="space-y-2">
-                            <Label>Event</Label>
-                            <Controller
-                                control={form.control}
-                                name="gameId"
-                                render={({ field }) => (
-                                    <Select onValueChange={field.onChange} defaultValue={field.value} disabled={loading === 'events' || !events.length}>
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Select an event..." />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                             {loading === 'events' ? <SelectItem value="loading" disabled>Loading events...</SelectItem> : events.map(e => <SelectItem key={e.id} value={e.id}>{e.away_team} @ {e.home_team}</SelectItem>)}
-                                             {!loading && events.length === 0 && <SelectItem value="no-events" disabled>No upcoming events.</SelectItem>}
-                                        </SelectContent>
-                                    </Select>
-                                )}
-                            />
-                            {form.formState.errors.gameId && <p className="text-sm text-destructive">{form.formState.errors.gameId.message}</p>}
-                        </div>
-                    )}
                 </CardContent>
                 <CardFooter className="justify-end">
                     <Button onClick={handleNextStep} disabled={!form.watch('gameId')}>Next <ArrowRight className="ml-2" /></Button>
@@ -277,7 +246,7 @@ export function CreateBetForm() {
                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
                                     <SelectTrigger><SelectValue /></SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="moneyline">Moneyline</SelectItem>
+                                        <SelectItem value="moneyline">Moneyline (Winner)</SelectItem>
                                         <SelectItem value="spread">Point Spread</SelectItem>
                                         <SelectItem value="totals">Totals (Over/Under)</SelectItem>
                                     </SelectContent>
@@ -293,7 +262,7 @@ export function CreateBetForm() {
                                 name="team"
                                 render={({ field }) => (
                                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                        <SelectTrigger><SelectValue placeholder="Select team..."/></SelectTrigger>
+                                        <SelectTrigger><SelectValue placeholder="Select team to win..."/></SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value={selectedEvent!.home_team}>{selectedEvent!.home_team}</SelectItem>
                                             <SelectItem value={selectedEvent!.away_team}>{selectedEvent!.away_team}</SelectItem>
@@ -320,7 +289,7 @@ export function CreateBetForm() {
                                 )}/>
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="points">Line</Label>
+                                <Label htmlFor="points">Point Spread</Label>
                                 <Input id="points" type="number" step="0.5" placeholder="-5.5" {...form.register("points")} />
                             </div>
                         </div>
@@ -343,7 +312,7 @@ export function CreateBetForm() {
                                 )}/>
                             </div>
                              <div className="space-y-2">
-                                <Label htmlFor="total">Total</Label>
+                                <Label htmlFor="total">Total Points</Label>
                                 <Input id="total" type="number" step="0.5" placeholder="212.5" {...form.register("total")} />
                             </div>
                         </div>
@@ -351,7 +320,7 @@ export function CreateBetForm() {
                 </CardContent>
                 <CardFooter className="justify-between">
                      <Button onClick={handlePrevStep} variant="outline"><ArrowLeft className="mr-2" /> Back</Button>
-                     <Button onClick={form.handleSubmit(onSubmit)} disabled={isSubmitting}>
+                     <Button onClick={handleNextStep} disabled={isSubmitting}>
                         {isSubmitting ? <Loader2 className="mr-2 animate-spin" /> : "Create & Get Link"}
                     </Button>
                 </CardFooter>
@@ -381,7 +350,7 @@ export function CreateBetForm() {
                     </a>
                 </CardContent>
                  <CardFooter className="justify-end">
-                     <Button onClick={() => setStep(1)}>Create Another Bet</Button>
+                     <Button onClick={() => { form.reset(); setStep(1); }}>Create Another Bet</Button>
                 </CardFooter>
             </>
          )
@@ -391,7 +360,9 @@ export function CreateBetForm() {
 
   return (
     <Card className="w-full">
-      {renderStep()}
+        <form onSubmit={form.handleSubmit(onSubmit)}>
+            {renderStep()}
+        </form>
     </Card>
   );
 }

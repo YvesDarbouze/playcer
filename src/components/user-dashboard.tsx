@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { getFirestore, doc, getDoc, collection, query, where, getDocs, orderBy, Timestamp } from "firebase/firestore";
+import { getFirestore, doc, getDoc, collection, query, where, getDocs, orderBy, Timestamp, or } from "firebase/firestore";
 import { useAuth } from "@/hooks/use-auth";
 import { getFirebaseApp } from "@/lib/firebase";
 import type { User, Bet } from "@/types";
@@ -22,9 +22,11 @@ const convertToBet = (doc: any): Bet => {
     return {
         id: doc.id,
         ...data,
-        eventDate: (data.eventDate as Timestamp).toDate(),
+        gameDetails: {
+            ...data.gameDetails,
+            commence_time: (data.gameDetails.commence_time as Timestamp).toDate(),
+        },
         createdAt: (data.createdAt as Timestamp).toDate(),
-        matchedAt: data.matchedAt ? (data.matchedAt as Timestamp).toDate() : null,
         settledAt: data.settledAt ? (data.settledAt as Timestamp).toDate() : null,
     } as Bet;
 };
@@ -51,33 +53,21 @@ export function UserDashboard() {
                 setUserProfile({ id: userDocSnap.id, ...userDocSnap.data() } as User);
             }
             
-            // Fetch all bets where user is creator or challenger
-            const asCreatorQuery = query(
-                collection(db, "bets"),
-                where("creatorId", "==", authUser.uid)
+            // Fetch all bets where user is challenger or recipient
+            const betsRef = collection(db, "bets");
+            const q = query(
+                betsRef, 
+                or(
+                    where("challengerId", "==", authUser.uid),
+                    where("recipientId", "==", authUser.uid)
+                ),
+                orderBy("createdAt", "desc")
             );
-            const asChallengerQuery = query(
-                collection(db, "bets"),
-                where("challengerId", "==", authUser.uid)
-            );
-            
-            const [creatorSnap, challengerSnap] = await Promise.all([
-                getDocs(asCreatorQuery),
-                getDocs(asChallengerQuery)
-            ]);
 
-            const combinedBets = [
-                ...creatorSnap.docs.map(convertToBet),
-                ...challengerSnap.docs.map(convertToBet),
-            ];
+            const querySnapshot = await getDocs(q);
+            const userBets = querySnapshot.docs.map(convertToBet);
             
-            // Simple deduplication
-            const uniqueBets = Array.from(new Map(combinedBets.map(bet => [bet.id, bet])).values());
-            
-            // Sort by creation date descending
-            uniqueBets.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-            
-            setBets(uniqueBets);
+            setBets(userBets);
             setLoading(false);
         };
 
@@ -91,9 +81,9 @@ export function UserDashboard() {
         }
     }, [authUser, userProfile]);
     
-    const openBets = bets.filter(b => b.status === 'open');
-    const matchedBets = bets.filter(b => b.status === 'matched');
-    const historyBets = bets.filter(b => b.status === 'settled' || b.status === 'void');
+    const pendingBets = bets.filter(b => b.status === 'pending_acceptance');
+    const activeBets = bets.filter(b => b.status === 'active');
+    const historyBets = bets.filter(b => b.status === 'completed' || b.status === 'void' || b.status === 'declined' || b.status === 'expired');
 
     const handleAvatarClick = () => {
         fileInputRef.current?.click();
@@ -231,17 +221,17 @@ export function UserDashboard() {
 
             <section>
                 <h2 className="text-2xl font-bold mb-4">My Bets</h2>
-                <Tabs defaultValue="open">
+                <Tabs defaultValue="active">
                     <TabsList>
-                        <TabsTrigger value="open">Open</TabsTrigger>
-                        <TabsTrigger value="matched">Matched</TabsTrigger>
+                        <TabsTrigger value="active">Active</TabsTrigger>
+                        <TabsTrigger value="pending">Pending</TabsTrigger>
                         <TabsTrigger value="history">History</TabsTrigger>
                     </TabsList>
-                    <TabsContent value="open">
-                         <UserBetsTable bets={openBets} currentUserId={authUser!.uid} />
+                    <TabsContent value="active">
+                         <UserBetsTable bets={activeBets} currentUserId={authUser!.uid} />
                     </TabsContent>
-                    <TabsContent value="matched">
-                         <UserBetsTable bets={matchedBets} currentUserId={authUser!.uid} />
+                    <TabsContent value="pending">
+                         <UserBetsTable bets={pendingBets} currentUserId={authUser!.uid} />
                     </TabsContent>
                     <TabsContent value="history">
                          <UserBetsTable bets={historyBets} currentUserId={authUser!.uid} />
