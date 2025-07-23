@@ -686,7 +686,7 @@ export const updateOddsAndScores = onCall(async (request) => {
     for (const sportKey in gamesBySport) {
         // 1. Fetch and update odds
         try {
-            const oddsUrl = `https://api.the-odds-api.com/v4/sports/${sportKey}/odds/?regions=us&markets=h2h&oddsFormat=american&apiKey=${apiKey}`;
+            const oddsUrl = `https://api.the-odds-api.com/v4/sports/${sportKey}/odds/?regions=us&markets=h2h,spreads,totals&oddsFormat=american&apiKey=${apiKey}`;
             const oddsResponse = await fetch(oddsUrl);
             if (!oddsResponse.ok) {
                 logger.error(`Failed to fetch odds for ${sportKey}:`, await oddsResponse.text());
