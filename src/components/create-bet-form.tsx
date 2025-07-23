@@ -56,14 +56,14 @@ const getEvents = async (sportKey: string): Promise<Game[]> => {
     // Return mock data based on sport
     if (sportKey === 'basketball_nba') {
         return [
-            { id: 'nba_1', commence_time: new Date().toISOString(), home_team: 'Lakers', away_team: 'Clippers', sport_key: sportKey, sport_title: "NBA" } as Game,
-            { id: 'nba_2', commence_time: new Date().toISOString(), home_team: 'Celtics', away_team: 'Warriors', sport_key: sportKey, sport_title: "NBA" } as Game,
+            { id: 'nba_1', commence_time: new Date(Date.now() + 3600000).toISOString(), home_team: 'Lakers', away_team: 'Clippers', sport_key: sportKey, sport_title: "NBA" } as Game,
+            { id: 'nba_2', commence_time: new Date(Date.now() + 7200000).toISOString(), home_team: 'Celtics', away_team: 'Warriors', sport_key: sportKey, sport_title: "NBA" } as Game,
         ]
     }
      if (sportKey === 'americanfootball_nfl') {
         return [
-            { id: 'nfl_1', commence_time: new Date().toISOString(), home_team: 'Rams', away_team: '49ers', sport_key: sportKey, sport_title: "NFL" } as Game,
-            { id: 'nfl_2', commence_time: new Date().toISOString(), home_team: 'Chiefs', away_team: 'Eagles', sport_key: sportKey, sport_title: "NFL" } as Game,
+            { id: 'nfl_1', commence_time: new Date(Date.now() + 10800000).toISOString(), home_team: 'Rams', away_team: '49ers', sport_key: sportKey, sport_title: "NFL" } as Game,
+            { id: 'nfl_2', commence_time: new Date(Date.now() + 14400000).toISOString(), home_team: 'Chiefs', away_team: 'Eagles', sport_key: sportKey, sport_title: "NFL" } as Game,
         ]
     }
     return [];

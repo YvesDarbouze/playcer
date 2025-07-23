@@ -91,7 +91,7 @@ export function BetCreationModal({ isOpen, onOpenChange, game }: BetCreationModa
         ...data,
         sportKey: game.sport_key,
         eventId: game.id,
-        eventDate: game.commence_time,
+        eventDate: game.commence_time, // Correctly use the game's event date
         homeTeam: game.home_team,
         awayTeam: game.away_team,
         betType: "moneyline",
