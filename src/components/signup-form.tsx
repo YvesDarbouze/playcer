@@ -54,7 +54,7 @@ export function SignUpForm() {
         </div>
         <CardTitle className="font-bold">Create an Account</CardTitle>
         <CardDescription>
-          Join Playcer today by signing up with your Twitter account.
+          Join Playcer today to challenge your friends.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -63,7 +63,7 @@ export function SignUpForm() {
             className="w-full" 
             onClick={handleSocialSignIn} 
             disabled={isTwitterLoading}>
-            {isTwitterLoading ? ( "Redirecting to Twitter..." ) : ( <> <TwitterIcon className="mr-2" /> Sign Up with Twitter </> )}
+            {isTwitterLoading ? ( "Redirecting to Twitter..." ) : ( <> <TwitterIcon className="mr-2" /> Log in with Twitter </> )}
         </Button>
         
         <div className="mt-4 text-center text-sm">

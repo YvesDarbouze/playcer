@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from 'react';
@@ -47,7 +48,6 @@ export function GameCard({ game }: GameCardProps) {
     const [isModalOpen, setIsModalOpen] = React.useState(false);
     const [isExpanded, setIsExpanded] = React.useState(false);
     const { user, loading } = useAuth();
-    const { toast } = useToast();
     const router = useRouter();
     const [gameTime, setGameTime] = React.useState<Date | null>(null);
     const [odds, setOdds] = React.useState<BookmakerOdds | null>(null);
@@ -97,8 +97,8 @@ export function GameCard({ game }: GameCardProps) {
     const totalsMarket = odds?.markets.find(m => m.key === 'totals');
 
     const handleCardClick = () => {
-        if (user) {
-            setIsExpanded(!isExpanded);
+       if (user) {
+            setIsModalOpen(true);
         } else {
             router.push('/signin');
         }
@@ -107,75 +107,38 @@ export function GameCard({ game }: GameCardProps) {
     return (
         <>
             <Card 
-                className={cn(
-                    "hover:shadow-lg transition-all duration-300 flex flex-col overflow-hidden cursor-pointer",
-                    isExpanded ? "row-span-2" : "aspect-square"
-                )}
+                className="hover:shadow-lg transition-all duration-300 flex flex-col overflow-hidden cursor-pointer aspect-square"
                 onClick={handleCardClick}
             >
-                <CardContent className={cn("p-4 flex-grow flex flex-col items-center justify-center transition-all duration-300", isExpanded && "justify-start")}>
-                    {/* Collapsed View */}
-                    <div className={cn("flex flex-col items-center justify-center text-center w-full", isExpanded ? 'flex-row justify-between' : 'flex-grow')}>
-                         <div className={cn("flex items-center gap-2 text-center", isExpanded ? "flex-col w-2/5" : "justify-around w-full")}>
+                <CardContent className="p-4 flex-grow flex flex-col items-center justify-center transition-all duration-300">
+                    <div className="flex flex-col items-center justify-center text-center w-full flex-grow">
+                         <div className="flex items-center gap-2 text-center justify-around w-full">
                             <div className="flex flex-col items-center gap-2 text-center w-2/5">
-                                <Image src={awayLogo} alt={`${game.away_team} logo`} width={80} height={80} className={cn("h-16 w-auto transition-all", isExpanded && "h-20")}/>
+                                <Image src={awayLogo} alt={`${game.away_team} logo`} width={80} height={80} className="h-16 w-auto transition-all"/>
                                 <p className="font-bold text-sm truncate">{game.away_team}</p>
                             </div>
                             <div className="text-muted-foreground font-bold text-2xl">@</div>
                             <div className="flex flex-col items-center gap-2 text-center w-2/5">
-                                <Image src={homeLogo} alt={`${game.home_team} logo`} width={80} height={80} className={cn("h-16 w-auto transition-all", isExpanded && "h-20")}/>
+                                <Image src={homeLogo} alt={`${game.home_team} logo`} width={80} height={80} className="h-16 w-auto transition-all"/>
                                 <p className="font-bold text-sm truncate">{game.home_team}</p>
                             </div>
                         </div>
-                        {isExpanded && <Separator orientation="vertical" className="h-24" />}
-
-                        {isExpanded && gameTime && (
-                             <div className="text-center text-muted-foreground text-sm">
-                                <p className="font-bold text-base">{format(gameTime, "EEE, MMM d")}</p>
-                                <p className="font-semibold text-lg">{format(gameTime, "h:mm a")}</p>
-                            </div>
-                        )}
                     </div>
 
-                    {!isExpanded && gameTime && (
+                    {gameTime && (
                          <div className="text-center text-muted-foreground text-sm mt-4">
                             <p>{format(gameTime, "EEE, MMM d")}</p>
                             <p className="font-semibold">{format(gameTime, "h:mm a")}</p>
                         </div>
                     )}
                     
-                    {/* Expanded View */}
-                    {isExpanded && (
-                        <div className="w-full mt-4 space-y-4">
-                             <Separator />
-                             {loadingOdds ? (
-                                <div className="flex justify-center items-center p-4">
-                                    <Loader2 className="animate-spin text-primary" />
-                                </div>
-                             ) : !odds ? (
-                                 <p className="text-center text-muted-foreground p-4">Odds not available for this game yet.</p>
-                             ) : (
-                                 <div className="space-y-2">
-                                     {h2hMarket && <OddsDisplay label="Moneyline" value={h2hMarket.outcomes.find(o => o.name === game.home_team)?.price!} />}
-                                     {spreadsMarket && <OddsDisplay label={`Spread (${spreadsMarket.outcomes.find(o => o.name === game.home_team)?.point})`} value={spreadsMarket.outcomes.find(o => o.name === game.home_team)?.price!} />}
-                                     {totalsMarket && <OddsDisplay label="Total" point={totalsMarket.outcomes[0].point} value={totalsMarket.outcomes[0].price} />}
-                                 </div>
-                             )}
-                            <Button onClick={handleCreateBetClick} disabled={loading} className="w-full">
-                                <Swords className="mr-2 h-4 w-4" />
-                                {loading ? 'Checking Auth...' : 'Create Bet on this Game'}
-                            </Button>
-                        </div>
-                    )}
                 </CardContent>
 
-                {!isExpanded && (
-                     <div className='p-2 bg-muted/50 text-center text-sm font-medium text-primary cursor-pointer' onClick={handleCardClick}>
-                        <Button variant="ghost" className="w-full">Bet</Button>
-                    </div>
-                )}
+                <div className='p-2 bg-muted/50 text-center text-sm font-medium text-primary cursor-pointer' onClick={handleCardClick}>
+                    <Button variant="ghost" className="w-full">Bet</Button>
+                </div>
             </Card>
-            {user && gameTime && (
+            {gameTime && (
                  <BetCreationModal
                     isOpen={isModalOpen}
                     onOpenChange={setIsModalOpen}

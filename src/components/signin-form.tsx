@@ -52,7 +52,7 @@ export function SignInForm() {
         </div>
         <CardTitle className="font-bold">Welcome to Playcer</CardTitle>
         <CardDescription>
-          Sign in or create an account with Twitter to continue.
+          The peer-to-peer betting marketplace.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -62,7 +62,7 @@ export function SignInForm() {
             onClick={handleSocialSignIn} 
             disabled={isTwitterLoading}
         >
-          {isTwitterLoading ? ( "Redirecting to Twitter..." ) : ( <> <TwitterIcon className="mr-2" /> Continue with Twitter </> )}
+          {isTwitterLoading ? ( "Redirecting to Twitter..." ) : ( <> <TwitterIcon className="mr-2" /> Log in with Twitter </> )}
         </Button>
       </CardContent>
     </Card>
