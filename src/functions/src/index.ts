@@ -6,6 +6,12 @@ import {onUserCreate} from "firebase-functions/v2/auth";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import {logger} from "firebase-functions";
 import { v4 as uuidv4 } from "uuid";
+import * as algoliasearch from 'algoliasearch';
+
+// Initialize Algolia client
+// Ensure you have set these environment variables in your Firebase project configuration
+const algoliaClient = algoliasearch.default(process.env.ALGOLIA_APP_ID!, process.env.ALGOLIA_API_KEY!);
+
 
 // Initialize Firebase Admin SDK
 initializeApp();
@@ -70,7 +76,7 @@ const sportsDataAPI = {
         logger.log(`Fetching result for event ${eventId} from sports data oracle.`);
         const apiKey = process.env.ODDS_API_KEY;
 
-        if (!apiKey || apiKey === 'YOUR_ODDS_API_KEY') {
+        if (!apiKey || apiKey === '9506477182d2f2335317a695b5e875e4') {
             logger.error(`CRITICAL: ODDS_API_KEY is not set. Aborting event result fetch for event ${eventId}.`);
             // Throw an error to prevent using mock data in a live environment.
             throw new Error('Sports data API key is not configured.');
@@ -150,6 +156,25 @@ export const onusercreate = onUserCreate(async (event) => {
 
 
 // --- HTTP CALLABLE FUNCTIONS ---
+
+export const getAlgoliaSearchKey = onCall((request) => {
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'You must be logged in to search.');
+    }
+    
+    // Create a search-only API key with filters to prevent users from seeing each other's private data
+    const searchKey = algoliaClient.generateSecuredApiKey(
+        process.env.ALGOLIA_SEARCH_ONLY_API_KEY!,
+        {
+            // You can add filters here if you have user-specific data you want to protect
+            // For example: `filters: `_tags:${request.auth.uid} OR isPublic:true``
+            // For now, we will allow searching on all public records.
+             filters: 'isPublic:true'
+        }
+    );
+
+    return { key: searchKey };
+});
 
 export const handleDeposit = onCall(async (request) => {
     if (!request.auth) {
@@ -557,13 +582,73 @@ async function processPayout(data: { betId: string, winnerId: string, loserId: s
     logger.log(`Payout for bet ${betId} processed for winner ${winnerId}.`);
 }
 
+export const ingestUpcomingGames = onCall(async (request) => {
+    logger.log("Starting to ingest upcoming games from The Odds API.");
+    const apiKey = process.env.ODDS_API_KEY;
+
+    if (!apiKey) {
+        throw new HttpsError('internal', 'The an API key is not configured.');
+    }
+
+    try {
+        const sportsUrl = `https://api.the-odds-api.com/v4/sports?apiKey=${apiKey}`;
+        const sportsResponse = await fetch(sportsUrl);
+        if(!sportsResponse.ok) {
+            throw new HttpsError('internal', `Failed to fetch sports list. Status: ${sportsResponse.status}`);
+        }
+        const sports: {key: string, title: string}[] = await sportsResponse.json();
+        
+        const batch = db.batch();
+        let gamesIngested = 0;
+
+        for (const sport of sports) {
+             if (!sport.key.includes('_nfl') && !sport.key.includes('_nba') && !sport.key.includes('_mlb')) continue;
+
+            const eventsUrl = `https://api.the-odds-api.com/v4/sports/${sport.key}/events?apiKey=${apiKey}`;
+            const eventsResponse = await fetch(eventsUrl);
+            if (!eventsResponse.ok) {
+                 logger.warn(`Could not fetch events for sport ${sport.key}. Status: ${eventsResponse.status}`);
+                 continue;
+            }
+            const events = await eventsResponse.json();
+
+            for (const event of events) {
+                const gameRef = db.collection('games').doc(event.id);
+                 const gameDoc = {
+                    id: event.id,
+                    sport_key: event.sport_key,
+                    sport_title: event.sport_title,
+                    commence_time: Timestamp.fromDate(new Date(event.commence_time)),
+                    home_team: event.home_team,
+                    away_team: event.away_team,
+                    is_complete: false,
+                    last_update: Timestamp.now()
+                };
+                batch.set(gameRef, gameDoc, { merge: true });
+                gamesIngested++;
+            }
+        }
+
+
+        await batch.commit();
+        logger.log(`Successfully ingested/updated ${gamesIngested} games.`);
+        return { success: true, gamesIngested };
+
+    } catch (error) {
+        logger.error("Error ingesting upcoming games:", error);
+        if (error instanceof HttpsError) throw error;
+        throw new HttpsError('internal', 'An internal error occurred during game ingestion.');
+    }
+});
+
+
 export const updateOddsAndScores = onCall(async (request) => {
     // This function can be triggered by Cloud Scheduler.
     // Ensure the function is secured if not using Cloud Scheduler's built-in auth.
     logger.log("Starting to update odds and scores.");
     const apiKey = process.env.ODDS_API_KEY;
 
-    if (!apiKey || apiKey === 'YOUR_ODDS_API_KEY') {
+    if (!apiKey || apiKey === '9506477182d2f2335317a695b5e875e4') {
         throw new HttpsError('internal', 'ODDS_API_KEY is not configured.');
     }
 
@@ -820,6 +905,4 @@ export const resolveDispute = onCall(async (request) => {
     } catch (error) {
         logger.error(`Error resolving dispute ${disputeId}:`, error);
         if (error instanceof HttpsError) throw error;
-        throw new HttpsError('internal', 'An internal error occurred while resolving the dispute.');
-    }
-});
+        throw new HttpsError('internal',
