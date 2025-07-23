@@ -56,13 +56,29 @@ interface BetCreationModalProps {
   loadingOdds: boolean;
 }
 
-const betSchema = z.object({
-  betType: z.enum(["moneyline", "spread", "totals"]),
-  teamSelection: z.string().min(1, "Please select a team."),
-  stake: z.coerce.number().min(1, "Stake must be at least $1."),
-  line: z.coerce.number().optional(),
-  opponentTwitter: z.string().optional(),
-});
+const betSchema = z.discriminatedUnion("betType", [
+    z.object({
+        betType: z.literal("moneyline"),
+        teamSelection: z.string().min(1, "Please select a team."),
+        stake: z.coerce.number().min(1, "Stake must be at least $1."),
+        opponentTwitter: z.string().optional(),
+    }),
+    z.object({
+        betType: z.literal("spread"),
+        teamSelection: z.string().min(1, "Please select a team."),
+        stake: z.coerce.number().min(1, "Stake must be at least $1."),
+        line: z.coerce.number({invalid_type_error: "A valid point spread is required."}),
+        opponentTwitter: z.string().optional(),
+    }),
+    z.object({
+        betType: z.literal("totals"),
+        teamSelection: z.enum(["over", "under"], {errorMap: () => ({message: "Please select Over or Under."})}),
+        stake: z.coerce.number().min(1, "Stake must be at least $1."),
+        line: z.coerce.number({invalid_type_error: "A valid total is required."}),
+        opponentTwitter: z.string().optional(),
+    }),
+]);
+
 
 type BetFormData = z.infer<typeof betSchema>;
 
@@ -85,6 +101,8 @@ export function BetCreationModal({ isOpen, onOpenChange, game, odds, loadingOdds
   const { toast } = useToast();
   const [isLoading, setIsLoading] = React.useState(false);
   const [isSuccess, setIsSuccess] = React.useState(false);
+  const [betId, setBetId] = React.useState<string | null>(null);
+
 
   const form = useForm<BetFormData>({
     resolver: zodResolver(betSchema),
@@ -97,18 +115,14 @@ export function BetCreationModal({ isOpen, onOpenChange, game, odds, loadingOdds
   const betType = form.watch("betType");
   
   React.useEffect(() => {
-    if (odds) {
-        if (betType === 'spread') {
-            const spreadMarket = odds.markets.find(m => m.key === 'spreads');
-            if (spreadMarket) {
-                form.setValue('line', spreadMarket.outcomes[0].point);
-            }
-        } else if (betType === 'totals') {
-            const totalsMarket = odds.markets.find(m => m.key === 'totals');
-             if (totalsMarket) {
-                form.setValue('line', totalsMarket.outcomes[0].point);
-            }
-        }
+    form.clearErrors();
+    const spreadMarket = odds?.markets.find(m => m.key === 'spreads');
+    const totalsMarket = odds?.markets.find(m => m.key === 'totals');
+
+    if (betType === 'spread' && spreadMarket) {
+        form.setValue('line', spreadMarket.outcomes[0].point);
+    } else if (betType === 'totals' && totalsMarket) {
+        form.setValue('line', totalsMarket.outcomes[0].point);
     }
   }, [betType, odds, form]);
 
@@ -128,56 +142,57 @@ export function BetCreationModal({ isOpen, onOpenChange, game, odds, loadingOdds
     const functions = getFunctions(getFirebaseApp());
     const createBet = httpsCallable(functions, 'createBet');
 
-    // For this user journey, we simplify the data sent.
-    // The odds will be set to a default, and descriptions are auto-generated.
-    let marketDescription = "Match Winner";
-    let outcomeDescription = `${data.teamSelection} to win`;
-    let formOdds = data.betType === 'spread' || data.betType === 'totals' ? -110 : 100;
-
-    if (data.betType === 'spread') {
-        marketDescription = "Point Spread";
-        outcomeDescription = `${data.teamSelection} ${data.line! > 0 ? '+' : ''}${data.line}`;
-    } else if (data.betType === 'totals') {
-        marketDescription = "Total Score";
-        outcomeDescription = `Over/Under ${data.line}`;
+    let betValue: any = {};
+    
+    switch(data.betType) {
+        case 'moneyline':
+            betValue = { team: data.teamSelection };
+            break;
+        case 'spread':
+            betValue = { team: data.teamSelection, points: data.line };
+            break;
+        case 'totals':
+            betValue = { over_under: data.teamSelection, total: data.line };
+            break;
     }
 
-    try {
-       const betPayload = {
-        sportKey: game.sport_key,
-        eventId: game.id,
-        eventDate: game.commence_time,
-        homeTeam: game.home_team,
-        awayTeam: game.away_team,
-        betType: data.betType,
-        stake: data.stake,
-        teamSelection: data.teamSelection,
-        line: data.line ?? null,
-        marketDescription,
-        outcomeDescription,
-        odds: formOdds, // Default odds
-        isPublic: !data.opponentTwitter, // It's public if no opponent is specified
-      };
+    const betPayload = {
+      gameId: game.id,
+      gameDetails: {
+          home_team: game.home_team,
+          away_team: game.away_team,
+          commence_time: game.commence_time,
+          sport_key: game.sport_key,
+      },
+      wagerAmount: data.stake,
+      betType: data.betType,
+      betValue,
+      recipientTwitterHandle: data.opponentTwitter,
+      stripePaymentIntentId: 'temp_placeholder_id', // This would come from a payment flow
+    };
 
+    try {
       const result: any = await createBet(betPayload);
 
       if (result.data.success) {
         setIsSuccess(true);
-        const betUrl = `${window.location.origin}/bet/${result.data.betId}`;
-        const tweetText = encodeURIComponent(`.@${data.opponentTwitter} I challenge you to a bet on Playcer! ${game.away_team} @ ${game.home_team}`);
-        const tweetUrl = `https://twitter.com/intent/tweet?text=${tweetText}&url=${betUrl}`;
+        setBetId(result.data.betId);
         
-        // Open the tweet intent in a new tab
-        if(data.opponentTwitter){
-            window.open(tweetUrl, '_blank');
-        }
-
         toast({
           title: "Challenge Created!",
-          description: data.opponentTwitter 
+          description: betPayload.recipientTwitterHandle 
             ? "Your tweet is ready to be sent." 
             : "Your public bet has been listed in the marketplace.",
         });
+        
+        if (betPayload.recipientTwitterHandle) {
+            const betUrl = `${window.location.origin}/bet/${result.data.betId}`;
+            const tweetText = encodeURIComponent(`.@${betPayload.recipientTwitterHandle} I challenge you to a bet on Playcer! ${game.away_team} @ ${game.home_team}`);
+            const tweetUrl = `https://twitter.com/intent/tweet?text=${tweetText}&url=${betUrl}`;
+            window.open(tweetUrl, '_blank');
+        }
+        
+        onOpenChange(false);
       } else {
         throw new Error(result.data.error || "Failed to create bet.");
       }
@@ -220,7 +235,7 @@ export function BetCreationModal({ isOpen, onOpenChange, game, odds, loadingOdds
              <h3 className="font-bold text-lg">Challenge Sent!</h3>
              <p className="text-sm text-muted-foreground">
                 {form.getValues("opponentTwitter") 
-                    ? "Your challenge has been sent via Twitter. Once they accept and pay, the bet is on!"
+                    ? "Your challenge has been sent. Once they accept, the bet is on!"
                     : "Your public challenge is live in the marketplace for anyone to accept."}
             </p>
              <Button onClick={() => handleModalClose(false)} className="w-full">Done</Button>
@@ -272,7 +287,7 @@ export function BetCreationModal({ isOpen, onOpenChange, game, odds, loadingOdds
                         )}
                     />
 
-                    {betType !== 'moneyline' &&
+                    {(betType === 'spread' || betType === 'totals') && (
                          <FormField
                             control={form.control}
                             name="line"
@@ -286,7 +301,7 @@ export function BetCreationModal({ isOpen, onOpenChange, game, odds, loadingOdds
                             </FormItem>
                             )}
                         />
-                    }
+                    )}
                     
                     <FormField
                         control={form.control}
@@ -301,10 +316,14 @@ export function BetCreationModal({ isOpen, onOpenChange, game, odds, loadingOdds
                                     </Trigger>
                                 </FormControl>
                                 <SelectContent>
-                                    <SelectItem value={game.home_team}>{game.home_team}</SelectItem>
-                                    <SelectItem value={game.away_team}>{game.away_team}</SelectItem>
-                                    {betType === 'totals' && <SelectItem value="over">Over</SelectItem>}
-                                    {betType === 'totals' && <SelectItem value="under">Under</SelectItem>}
+                                  {betType !== 'totals' && (
+                                    <>
+                                      <SelectItem value={game.home_team}>{game.home_team}</SelectItem>
+                                      <SelectItem value={game.away_team}>{game.away_team}</SelectItem>
+                                    </>
+                                  )}
+                                  {betType === 'totals' && <SelectItem value="over">Over</SelectItem>}
+                                  {betType === 'totals' && <SelectItem value="under">Under</SelectItem>}
                                 </SelectContent>
                             </Select>
                             <FormMessage />
