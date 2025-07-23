@@ -38,10 +38,22 @@ import { Twitter, Swords, Loader2 } from "lucide-react";
 import { getFirebaseApp } from "@/lib/firebase";
 import { Separator } from "./ui/separator";
 
+interface BookmakerOdds {
+    key: string;
+    title: string;
+    last_update: string;
+    markets: {
+        key: "h2h" | "spreads" | "totals";
+        outcomes: { name: string; price: number, point?: number }[];
+    }[];
+};
+
 interface BetCreationModalProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   game: Game;
+  odds: BookmakerOdds | null;
+  loadingOdds: boolean;
 }
 
 const betSchema = z.object({
@@ -60,7 +72,15 @@ const TeamDisplay = ({ team }: { team: string }) => (
     </div>
 )
 
-export function BetCreationModal({ isOpen, onOpenChange, game }: BetCreationModalProps) {
+const OddsInfo = ({ label, value }: { label: string, value: string }) => (
+    <div className="flex justify-between text-sm">
+        <p className="text-muted-foreground">{label}</p>
+        <p className="font-bold">{value}</p>
+    </div>
+);
+
+
+export function BetCreationModal({ isOpen, onOpenChange, game, odds, loadingOdds }: BetCreationModalProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = React.useState(false);
@@ -75,6 +95,23 @@ export function BetCreationModal({ isOpen, onOpenChange, game }: BetCreationModa
   });
 
   const betType = form.watch("betType");
+  
+  React.useEffect(() => {
+    if (odds) {
+        if (betType === 'spread') {
+            const spreadMarket = odds.markets.find(m => m.key === 'spreads');
+            if (spreadMarket) {
+                form.setValue('line', spreadMarket.outcomes[0].point);
+            }
+        } else if (betType === 'totals') {
+            const totalsMarket = odds.markets.find(m => m.key === 'totals');
+             if (totalsMarket) {
+                form.setValue('line', totalsMarket.outcomes[0].point);
+            }
+        }
+    }
+  }, [betType, odds, form]);
+
 
   const onSubmit = async (data: BetFormData) => {
     if (!user) {
@@ -95,7 +132,7 @@ export function BetCreationModal({ isOpen, onOpenChange, game }: BetCreationModa
     // The odds will be set to a default, and descriptions are auto-generated.
     let marketDescription = "Match Winner";
     let outcomeDescription = `${data.teamSelection} to win`;
-    let odds = data.betType === 'spread' || data.betType === 'totals' ? -110 : 100;
+    let formOdds = data.betType === 'spread' || data.betType === 'totals' ? -110 : 100;
 
     if (data.betType === 'spread') {
         marketDescription = "Point Spread";
@@ -118,7 +155,7 @@ export function BetCreationModal({ isOpen, onOpenChange, game }: BetCreationModa
         line: data.line ?? null,
         marketDescription,
         outcomeDescription,
-        odds, // Default odds
+        odds: formOdds, // Default odds
         isPublic: !data.opponentTwitter, // It's public if no opponent is specified
       };
 
@@ -163,6 +200,10 @@ export function BetCreationModal({ isOpen, onOpenChange, game }: BetCreationModa
     }
     onOpenChange(open);
   }
+  
+  const spreadMarket = odds?.markets.find(m => m.key === 'spreads');
+  const totalsMarket = odds?.markets.find(m => m.key === 'totals');
+
 
   return (
     <Dialog open={isOpen} onOpenChange={handleModalClose}>
@@ -195,6 +236,13 @@ export function BetCreationModal({ isOpen, onOpenChange, game }: BetCreationModa
                     </div>
                     <TeamDisplay team={game.away_team} />
                 </div>
+                {loadingOdds && <p className="text-center text-xs mt-2">Loading odds...</p>}
+                {!loadingOdds && odds && (
+                    <div className="mt-4 space-y-1 border-t pt-2">
+                        {spreadMarket && <OddsInfo label="Point Spread" value={`${spreadMarket.outcomes[0].point} / ${spreadMarket.outcomes[1].point}`} />}
+                        {totalsMarket && <OddsInfo label="Total (O/U)" value={`${totalsMarket.outcomes[0].point}`} />}
+                    </div>
+                )}
             </div>
           
             <Separator className="my-6" />
@@ -250,7 +298,7 @@ export function BetCreationModal({ isOpen, onOpenChange, game }: BetCreationModa
                                 <FormControl>
                                     <SelectTrigger>
                                         <SelectValue placeholder="Select your team/side" />
-                                    </SelectTrigger>
+                                    </Trigger>
                                 </FormControl>
                                 <SelectContent>
                                     <SelectItem value={game.home_team}>{game.home_team}</SelectItem>

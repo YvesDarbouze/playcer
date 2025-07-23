@@ -141,6 +141,8 @@ export function GameCard({ game }: GameCardProps) {
                     isOpen={isModalOpen}
                     onOpenChange={setIsModalOpen}
                     game={game}
+                    odds={odds}
+                    loadingOdds={loadingOdds}
                 />
             )}
         </>
