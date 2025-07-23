@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import * as React from "react";
@@ -112,42 +111,50 @@ export function CreateBetForm() {
     setIsSubmitting(true);
     
     const selectedEvent = events.find(e => e.id === data.gameId);
-    if (!selectedEvent) return toast({ title: "Selected event not found", variant: "destructive" });
-
-    // Construct betValue based on betType
-    let betValue: any = {};
-    if (data.betType === 'moneyline') {
-        betValue = { team: data.team };
-    } else if (data.betType === 'spread') {
-        betValue = { team: data.team, points: data.points };
-    } else if (data.betType === 'totals') {
-        betValue = { over_under: data.over_under, total: data.total };
+    if (!selectedEvent) {
+        setIsSubmitting(false);
+        return toast({ title: "Selected event not found", variant: "destructive" });
     }
 
     const functions = getFunctions(getFirebaseApp());
+    const createBetPaymentIntent = httpsCallable(functions, 'createBetPaymentIntent');
     const createBet = httpsCallable(functions, 'createBet');
 
-    const payload = {
-      gameId: selectedEvent.id,
-      gameDetails: {
-          home_team: selectedEvent.home_team,
-          away_team: selectedEvent.away_team,
-          commence_time: selectedEvent.commence_time,
-      },
-      wagerAmount: data.wagerAmount,
-      betType: data.betType,
-      betValue: betValue,
-      recipientTwitterHandle: data.recipientTwitterHandle,
-    };
-    
     try {
-        const result: any = await createBet(payload);
-        if (result.data.success) {
-            setChallengeLink(`${window.location.origin}/bet/${result.data.betId}`);
+        // Step 1: Create Payment Intent
+        const paymentResult: any = await createBetPaymentIntent({ wagerAmount: data.wagerAmount });
+        if (!paymentResult.data.success) {
+            throw new Error(paymentResult.data.message || "Failed to create payment intent.");
+        }
+        const { paymentIntentId } = paymentResult.data;
+
+        // Step 2: Create Bet Document with the payment intent ID
+        let betValue: any = {};
+        if (data.betType === 'moneyline') betValue = { team: data.team };
+        else if (data.betType === 'spread') betValue = { team: data.team, points: data.points };
+        else if (data.betType === 'totals') betValue = { over_under: data.over_under, total: data.total };
+
+        const payload = {
+          gameId: selectedEvent.id,
+          gameDetails: {
+              home_team: selectedEvent.home_team,
+              away_team: selectedEvent.away_team,
+              commence_time: selectedEvent.commence_time,
+          },
+          wagerAmount: data.wagerAmount,
+          betType: data.betType,
+          betValue: betValue,
+          recipientTwitterHandle: data.recipientTwitterHandle,
+          stripePaymentIntentId: paymentIntentId,
+        };
+    
+        const betResult: any = await createBet(payload);
+        if (betResult.data.success) {
+            setChallengeLink(`${window.location.origin}/bet/${betResult.data.betId}`);
             toast({ title: "Bet Created Successfully!" });
             setStep(3); // Move to final step
         } else {
-            throw new Error(result.data.message || "Failed to create bet.");
+            throw new Error(betResult.data.message || "Failed to create bet.");
         }
     } catch (error: any) {
         toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -159,11 +166,28 @@ export function CreateBetForm() {
   const handleNextStep = async () => {
     let fieldsToValidate: (keyof FormData)[] = [];
     if (step === 1) fieldsToValidate = ["gameId"];
-    if (step === 2) fieldsToValidate = ["wagerAmount", "recipientTwitterHandle", "betType", "team", "points", "over_under", "total"];
+    if (step === 2) {
+        fieldsToValidate = ["wagerAmount", "recipientTwitterHandle", "betType"];
+         // Add bet-type specific fields for validation
+        const betType = form.getValues("betType");
+        if (betType === 'moneyline') fieldsToValidate.push("team");
+        if (betType === 'spread') {
+            fieldsToValidate.push("team");
+            fieldsToValidate.push("points");
+        }
+        if (betType === 'totals') {
+            fieldsToValidate.push("over_under");
+            fieldsToValidate.push("total");
+        }
+    }
     
     const isValid = await form.trigger(fieldsToValidate);
     if (isValid) {
-      setStep(s => s + 1);
+        if(step === 2) {
+            await onSubmit(form.getValues());
+        } else {
+            setStep(s => s + 1);
+        }
     }
   };
   
@@ -269,6 +293,7 @@ export function CreateBetForm() {
                                         </SelectContent>
                                     </Select>
                                 )}/>
+                                 {form.formState.errors.team && <p className="text-sm text-destructive">{form.formState.errors.team.message}</p>}
                         </div>
                     )}
                     {betType === "spread" && (
@@ -287,10 +312,12 @@ export function CreateBetForm() {
                                             </SelectContent>
                                         </Select>
                                 )}/>
+                                 {form.formState.errors.team && <p className="text-sm text-destructive">{form.formState.errors.team.message}</p>}
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="points">Point Spread</Label>
                                 <Input id="points" type="number" step="0.5" placeholder="-5.5" {...form.register("points")} />
+                                 {form.formState.errors.points && <p className="text-sm text-destructive">{form.formState.errors.points.message}</p>}
                             </div>
                         </div>
                     )}
@@ -310,18 +337,21 @@ export function CreateBetForm() {
                                             </SelectContent>
                                         </Select>
                                 )}/>
+                                {form.formState.errors.over_under && <p className="text-sm text-destructive">{form.formState.errors.over_under.message}</p>}
                             </div>
                              <div className="space-y-2">
                                 <Label htmlFor="total">Total Points</Label>
                                 <Input id="total" type="number" step="0.5" placeholder="212.5" {...form.register("total")} />
+                                {form.formState.errors.total && <p className="text-sm text-destructive">{form.formState.errors.total.message}</p>}
                             </div>
                         </div>
                     )}
+                     {form.formState.errors.betType && <p className="text-sm text-destructive">{form.formState.errors.betType.message}</p>}
                 </CardContent>
                 <CardFooter className="justify-between">
                      <Button onClick={handlePrevStep} variant="outline"><ArrowLeft className="mr-2" /> Back</Button>
                      <Button onClick={handleNextStep} disabled={isSubmitting}>
-                        {isSubmitting ? <Loader2 className="mr-2 animate-spin" /> : "Create & Get Link"}
+                        {isSubmitting ? <Loader2 className="mr-2 animate-spin" /> : "Authorize & Create"}
                     </Button>
                 </CardFooter>
             </>
@@ -357,7 +387,6 @@ export function CreateBetForm() {
     }
   }
 
-
   return (
     <Card className="w-full">
         <form onSubmit={form.handleSubmit(onSubmit)}>
@@ -366,3 +395,5 @@ export function CreateBetForm() {
     </Card>
   );
 }
+
+    

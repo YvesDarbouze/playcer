@@ -1,81 +1,44 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-  
-    // Helper function to check user's self-exclusion status
-    function isUserSelfExcluded(userId) {
-      return get(/databases/$(database)/documents/users/$(userId)).data.selfExclusion.isActive == true;
-    }
 
+    // Users can only read/write their own user document.
     match /users/{userId} {
-      // Users can read their own document.
-      // Admins can read any user document.
-      allow read: if request.auth.uid == userId || request.auth.token.admin == true;
-      
-      // Users can only update specific fields on their own document.
-      // They cannot modify their balance, wins, losses, or kycStatus directly.
-      allow update: if request.auth.uid == userId &&
-                       request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-                         'displayName', 'username', 'photoURL', 
-                         'responsibleGamingLimits', 'selfExclusion'
-                       ]);
-                       
-      // Disallow creation of user documents from the client.
-      // This is handled by the onUserCreate trigger.
-      allow create: if false;
-
-      // Admins can update any field.
-      allow write: if request.auth.token.admin == true;
+      allow read, update, delete: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null;
     }
 
+    // Bets can be read by anyone.
+    // Bets can only be created by an authenticated user whose UID matches the challengerId.
+    // Bets can only be updated (e.g., to accept) by an authenticated user.
+    // Deleting bets is not allowed from the client.
     match /bets/{betId} {
-      // Anyone can read public bets.
-      allow read: if resource.data.isPublic == true;
-
-      // Authenticated users can create bets if they are NOT self-excluded.
-      allow create: if request.auth != null && 
-                       isUserSelfExcluded(request.auth.uid) == false &&
-                       request.resource.data.creatorId == request.auth.uid;
-
-      // Allow updates for specific state transitions if the user is NOT self-excluded.
-      allow update: if request.auth != null && isUserSelfExcluded(request.auth.uid) == false && (
-                      // Matching a bet (challenger)
-                      (resource.data.status == 'open' && request.resource.data.status == 'matched' && request.resource.data.challengerId == request.auth.uid) ||
-                      // Disputing a bet
-                      (resource.data.status == 'matched' && request.resource.data.status == 'disputed')
-                    ) ||
-                    // Admins can update any bet.
-                    request.auth.token.admin == true;
-
-      // Disallow client-side deletion.
+      allow read;
+      allow create: if request.auth != null && request.resource.data.challengerId == request.auth.uid;
+      allow update: if request.auth != null;
       allow delete: if false;
     }
 
+    // Transactions can only be read by the user who owns them.
+    // Transactions are only created by the backend (Cloud Functions).
     match /transactions/{transactionId} {
-      // Users can read their own transactions.
-      // Admins can read any transaction.
-      allow read: if request.auth.uid == resource.data.userId || request.auth.token.admin == true;
-      
-      // Transactions are server-created only.
-      allow write: if false;
+      allow read: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.userId == resource.data.userId;
+      allow create, update, delete: if false;
     }
+    
+    // Games can be read by anyone, but only written by the backend.
+    match /games/{gameId} {
+        allow read;
+        allow write: if false;
 
-    match /disputes/{disputeId} {
-        // Only involved parties or admins can read a dispute.
-        allow read: if request.auth.uid == resource.data.disputingUserId ||
-                       get(/databases/$(database)/documents/bets/$(resource.data.betId)).data.creatorId == request.auth.uid ||
-                       get(/databases/$(database)/documents/bets/$(resource.data.betId)).data.challengerId == request.auth.uid ||
-                       request.auth.token.admin == true;
-
-        // Only involved parties can create a dispute.
-        allow create: if request.auth != null && request.resource.data.disputingUserId == request.auth.uid &&
-                         (get(/databases/$(database)/documents/bets/$(request.resource.data.betId)).data.creatorId == request.auth.uid ||
-                          get(/databases/$(database)/documents/bets/$(request.resource.data.betId)).data.challengerId == request.auth.uid);
-
-        // Disputes are resolved by admins via Cloud Functions, not updated from client.
-        allow update: if false;
-        allow delete: if false;
+        match /bookmaker_odds/{bookmakerId} {
+            allow read;
+            allow write: if false;
+        }
     }
   }
 }
+
+    

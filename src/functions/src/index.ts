@@ -25,11 +25,11 @@ const auth = getAuth();
 const paymentGateway = {
     // This function simulates creating a payment intent (e.g., with Stripe).
     // It returns a client secret that the frontend would use to confirm the payment.
-    async createPaymentIntent(userId: string, amount: number): Promise<{success: boolean, clientSecret: string, transactionId: string}> {
-        logger.log(`Creating payment intent for user ${userId} of amount ${amount}.`);
+    async createPaymentIntent(userId: string, amount: number, captureMethod: 'manual' | 'automatic' = 'automatic'): Promise<{success: boolean, clientSecret: string, transactionId: string}> {
+        logger.log(`Creating payment intent for user ${userId} of amount ${amount} with capture method '${captureMethod}'.`);
         // In a real app, you'd call Stripe's API here.
         // The clientSecret would be returned from Stripe.
-        return { success: true, clientSecret: `pi_${uuidv4()}_secret_${uuidv4()}`, transactionId: `deposit_${uuidv4()}` };
+        return { success: true, clientSecret: `pi_${uuidv4()}_secret_${uuidv4()}`, transactionId: `txn_${uuidv4()}` };
     },
     // This would be triggered by a webhook from the payment provider (e.g., Stripe)
     // after the user successfully completes the payment on the frontend.
@@ -166,6 +166,32 @@ export const getAlgoliaSearchKey = onCall((request) => {
     return { key: searchKey };
 });
 
+export const createBetPaymentIntent = onCall(async (request) => {
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'You must be logged in to create a payment intent.');
+    }
+    const { uid } = request.auth;
+    const { wagerAmount } = request.data;
+
+    if (typeof wagerAmount !== 'number' || wagerAmount <= 0) {
+        throw new HttpsError('invalid-argument', 'A valid wager amount is required.');
+    }
+
+    try {
+        const intentResult = await paymentGateway.createPaymentIntent(uid, wagerAmount, 'manual');
+        if (!intentResult.success) {
+            throw new HttpsError('aborted', 'Payment intent creation failed.');
+        }
+        logger.log(`Successfully created payment intent for user ${uid}.`);
+        return { success: true, clientSecret: intentResult.clientSecret, paymentIntentId: intentResult.transactionId };
+    } catch (error) {
+        logger.error(`Error creating payment intent for user ${uid}:`, error);
+        if (error instanceof HttpsError) throw error;
+        throw new HttpsError('internal', 'An internal error occurred while creating the payment intent.');
+    }
+});
+
+
 export const handleDeposit = onCall(async (request) => {
     if (!request.auth) {
         throw new HttpsError('unauthenticated', 'You must be logged in to make a deposit.');
@@ -218,10 +244,11 @@ export const createBet = onCall(async (request) => {
         betType,
         betValue,
         recipientTwitterHandle,
+        stripePaymentIntentId, // Added from the new flow
     } = request.data;
     
     // Basic validation
-    if (!gameId || !gameDetails || !wagerAmount || !betType || !betValue || !recipientTwitterHandle) {
+    if (!gameId || !gameDetails || !wagerAmount || !betType || !betValue || !recipientTwitterHandle || !stripePaymentIntentId) {
         throw new HttpsError('invalid-argument', 'Missing required bet information.');
     }
     
@@ -259,7 +286,7 @@ export const createBet = onCall(async (request) => {
         betType,
         betValue,
         status: 'pending_acceptance',
-        stripePaymentIntentId: null,
+        stripePaymentIntentId: stripePaymentIntentId,
         winnerId: null,
         createdAt: Timestamp.now(),
         settledAt: null,
@@ -599,3 +626,5 @@ export const updateOddsAndScores = onCall(async (request) => {
     logger.log(`Finished update cycle. Updated odds for ${updatedOddsCount} bookmakers and scores for ${updatedScoresCount} games.`);
     return { success: true, updatedOddsCount, updatedScoresCount };
 });
+
+    
