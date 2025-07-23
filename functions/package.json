@@ -1,3 +1,4 @@
+
 {
   "name": "functions",
   "private": true,
@@ -11,6 +12,7 @@
     "logs": "firebase functions:log"
   },
   "dependencies": {
+    "algoliasearch": "^4.23.3",
     "firebase-admin": "^12.1.0",
     "firebase-functions": "^5.0.1",
     "uuid": "^9.0.1"

@@ -6,6 +6,12 @@ import {onUserCreate} from "firebase-functions/v2/auth";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
 import {logger} from "firebase-functions";
 import { v4 as uuidv4 } from "uuid";
+import * as algoliasearch from 'algoliasearch';
+
+// Initialize Algolia client
+// Ensure you have set these environment variables in your Firebase project configuration
+const algoliaClient = algoliasearch.default(process.env.ALGOLIA_APP_ID!, process.env.ALGOLIA_API_KEY!);
+
 
 // Initialize Firebase Admin SDK
 initializeApp();
@@ -71,9 +77,9 @@ const sportsDataAPI = {
         const apiKey = process.env.ODDS_API_KEY;
 
         if (!apiKey || apiKey === 'YOUR_ODDS_API_KEY') {
-            logger.warn(`ODDS_API_KEY is not set. Returning mock winner for event ${eventId}.`);
-            // Return a mock result for demonstration when API key is not available
-            return { winnerTeamName: 'Team A', status: 'Final' };
+            logger.error(`CRITICAL: ODDS_API_KEY is not set. Aborting event result fetch for event ${eventId}.`);
+            // Throw an error to prevent using mock data in a live environment.
+            throw new Error('Sports data API key is not configured.');
         }
 
         try {
@@ -150,6 +156,25 @@ export const onusercreate = onUserCreate(async (event) => {
 
 
 // --- HTTP CALLABLE FUNCTIONS ---
+
+export const getAlgoliaSearchKey = onCall((request) => {
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'You must be logged in to search.');
+    }
+    
+    // Create a search-only API key with filters to prevent users from seeing each other's private data
+    const searchKey = algoliaClient.generateSecuredApiKey(
+        process.env.ALGOLIA_SEARCH_ONLY_API_KEY!,
+        {
+            // You can add filters here if you have user-specific data you want to protect
+            // For example: `filters: `_tags:${request.auth.uid} OR isPublic:true``
+            // For now, we will allow searching on all public records.
+             filters: 'isPublic:true'
+        }
+    );
+
+    return { key: searchKey };
+});
 
 export const handleDeposit = onCall(async (request) => {
     if (!request.auth) {
@@ -556,6 +581,110 @@ async function processPayout(data: { betId: string, winnerId: string, loserId: s
 
     logger.log(`Payout for bet ${betId} processed for winner ${winnerId}.`);
 }
+
+export const updateOddsAndScores = onCall(async (request) => {
+    // This function can be triggered by Cloud Scheduler.
+    // Ensure the function is secured if not using Cloud Scheduler's built-in auth.
+    logger.log("Starting to update odds and scores.");
+    const apiKey = process.env.ODDS_API_KEY;
+
+    if (!apiKey || apiKey === 'YOUR_ODDS_API_KEY') {
+        throw new HttpsError('internal', 'ODDS_API_KEY is not configured.');
+    }
+
+    const now = new Date();
+    const sixHoursAgo = new Date(now.getTime() - 6 * 60 * 60 * 1000);
+    const fortyEightHoursFromNow = new Date(now.getTime() + 48 * 60 * 60 * 1000);
+
+    // Query for games that are not complete and are within the time window.
+    const gamesQuery = db.collection('games')
+        .where('is_complete', '!=', true)
+        .where('commence_time', '>=', Timestamp.fromDate(sixHoursAgo))
+        .where('commence_time', '<=', Timestamp.fromDate(fortyEightHoursFromNow));
+
+    const gamesSnapshot = await gamesQuery.get();
+    if (gamesSnapshot.empty) {
+        logger.log("No relevant games found to update.");
+        return { success: true, message: "No games to update." };
+    }
+
+    // Group games by sport_key
+    const gamesBySport = gamesSnapshot.docs.reduce((acc, doc) => {
+        const game = doc.data();
+        const sportKey = game.sport_key;
+        if (!acc[sportKey]) {
+            acc[sportKey] = [];
+        }
+        acc[sportKey].push(game);
+        return acc;
+    }, {} as Record<string, any[]>);
+
+    let updatedOddsCount = 0;
+    let updatedScoresCount = 0;
+
+    // Process each sport group
+    for (const sportKey in gamesBySport) {
+        // 1. Fetch and update odds
+        try {
+            const oddsUrl = `https://api.the-odds-api.com/v4/sports/${sportKey}/odds/?regions=us&markets=h2h&oddsFormat=american&apiKey=${apiKey}`;
+            const oddsResponse = await fetch(oddsUrl);
+            if (!oddsResponse.ok) {
+                logger.error(`Failed to fetch odds for ${sportKey}:`, await oddsResponse.text());
+                continue;
+            }
+            const oddsData = await oddsResponse.json();
+            const batch = db.batch();
+
+            for (const gameOdds of oddsData) {
+                if (!gameOdds.bookmakers) continue;
+                for (const bookmaker of gameOdds.bookmakers) {
+                    const oddsRef = db.collection('games').doc(gameOdds.id).collection('bookmaker_odds').doc(bookmaker.key);
+                    batch.set(oddsRef, { ...bookmaker, last_update: Timestamp.now() });
+                    updatedOddsCount++;
+                }
+            }
+            await batch.commit();
+            logger.log(`Successfully updated odds for ${sportKey}.`);
+        } catch (error) {
+            logger.error(`Error processing odds for ${sportKey}:`, error);
+        }
+        
+        // 2. Fetch and update scores
+        try {
+            const scoresUrl = `https://api.the-odds-api.com/v4/sports/${sportKey}/scores/?apiKey=${apiKey}`;
+            const scoresResponse = await fetch(scoresUrl);
+            if (!scoresResponse.ok) {
+                logger.error(`Failed to fetch scores for ${sportKey}:`, await scoresResponse.text());
+                continue;
+            }
+            const scoresData = await scoresResponse.json();
+            const batch = db.batch();
+
+            for (const gameScore of scoresData) {
+                if (gameScore.completed) {
+                    const gameRef = db.collection('games').doc(gameScore.id);
+                    const homeScore = gameScore.scores?.find((s:any) => s.name === gameScore.home_team)?.score || null;
+                    const awayScore = gameScore.scores?.find((s:any) => s.name === gameScore.away_team)?.score || null;
+                    
+                    batch.update(gameRef, {
+                        home_score: homeScore,
+                        away_score: awayScore,
+                        is_complete: true,
+                        last_update: Timestamp.now()
+                    });
+                    updatedScoresCount++;
+                }
+            }
+            await batch.commit();
+            logger.log(`Successfully updated scores for ${sportKey}.`);
+        } catch (error) {
+            logger.error(`Error processing scores for ${sportKey}:`, error);
+        }
+    }
+    
+    logger.log(`Finished update cycle. Updated odds for ${updatedOddsCount} bookmakers and scores for ${updatedScoresCount} games.`);
+    return { success: true, updatedOddsCount, updatedScoresCount };
+});
 
 
 // --- ADMIN FUNCTIONS ---
