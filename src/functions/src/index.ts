@@ -905,4 +905,6 @@ export const resolveDispute = onCall(async (request) => {
     } catch (error) {
         logger.error(`Error resolving dispute ${disputeId}:`, error);
         if (error instanceof HttpsError) throw error;
-        throw new HttpsError('internal',
+        throw new HttpsError('internal', 'An internal error occurred while resolving the dispute.');
+    }
+});

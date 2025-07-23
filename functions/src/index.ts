@@ -76,7 +76,7 @@ const sportsDataAPI = {
         logger.log(`Fetching result for event ${eventId} from sports data oracle.`);
         const apiKey = process.env.ODDS_API_KEY;
 
-        if (!apiKey || apiKey === 'YOUR_ODDS_API_KEY') {
+        if (!apiKey || apiKey === '9506477182d2f2335317a695b5e875e4') {
             logger.error(`CRITICAL: ODDS_API_KEY is not set. Aborting event result fetch for event ${eventId}.`);
             // Throw an error to prevent using mock data in a live environment.
             throw new Error('Sports data API key is not configured.');
@@ -591,48 +591,44 @@ export const ingestUpcomingGames = onCall(async (request) => {
     }
 
     try {
-        const url = `https://api.the-odds-api.com/v4/sports/upcoming/odds/?regions=us&markets=h2h,spreads&oddsFormat=american&apiKey=${apiKey}`;
-        const response = await fetch(url);
-        if (!response.ok) {
-            const errorText = await response.text();
-            logger.error(`Failed to fetch upcoming games: ${response.status}`, errorText);
-            throw new HttpsError('internal', 'Failed to fetch upcoming games from provider.');
+        const sportsUrl = `https://api.the-odds-api.com/v4/sports?apiKey=${apiKey}`;
+        const sportsResponse = await fetch(sportsUrl);
+        if(!sportsResponse.ok) {
+            throw new HttpsError('internal', `Failed to fetch sports list. Status: ${sportsResponse.status}`);
         }
-
-        const gamesData = await response.json();
-        if (!Array.isArray(gamesData)) {
-            logger.error("Unexpected data format from The Odds API:", gamesData);
-            throw new HttpsError('internal', 'Invalid data format from sports data provider.');
-        }
-
+        const sports: {key: string, title: string}[] = await sportsResponse.json();
+        
         const batch = db.batch();
         let gamesIngested = 0;
 
-        for (const game of gamesData) {
-            const gameRef = db.collection('games').doc(game.id);
-            const gameDoc = {
-                id: game.id,
-                sport_key: game.sport_key,
-                sport_title: game.sport_title,
-                commence_time: Timestamp.fromDate(new Date(game.commence_time)),
-                home_team: game.home_team,
-                away_team: game.away_team,
-                is_complete: false,
-                last_update: Timestamp.now()
-            };
-            batch.set(gameRef, gameDoc, { merge: true });
+        for (const sport of sports) {
+             if (!sport.key.includes('_nfl') && !sport.key.includes('_nba') && !sport.key.includes('_mlb')) continue;
 
-            if (game.bookmakers && Array.isArray(game.bookmakers)) {
-                for (const bookmaker of game.bookmakers) {
-                    const oddsRef = gameRef.collection('bookmaker_odds').doc(bookmaker.key);
-                    batch.set(oddsRef, {
-                        ...bookmaker,
-                        last_update: Timestamp.now()
-                    });
-                }
+            const eventsUrl = `https://api.the-odds-api.com/v4/sports/${sport.key}/events?apiKey=${apiKey}`;
+            const eventsResponse = await fetch(eventsUrl);
+            if (!eventsResponse.ok) {
+                 logger.warn(`Could not fetch events for sport ${sport.key}. Status: ${eventsResponse.status}`);
+                 continue;
             }
-            gamesIngested++;
+            const events = await eventsResponse.json();
+
+            for (const event of events) {
+                const gameRef = db.collection('games').doc(event.id);
+                 const gameDoc = {
+                    id: event.id,
+                    sport_key: event.sport_key,
+                    sport_title: event.sport_title,
+                    commence_time: Timestamp.fromDate(new Date(event.commence_time)),
+                    home_team: event.home_team,
+                    away_team: event.away_team,
+                    is_complete: false,
+                    last_update: Timestamp.now()
+                };
+                batch.set(gameRef, gameDoc, { merge: true });
+                gamesIngested++;
+            }
         }
+
 
         await batch.commit();
         logger.log(`Successfully ingested/updated ${gamesIngested} games.`);
@@ -652,7 +648,7 @@ export const updateOddsAndScores = onCall(async (request) => {
     logger.log("Starting to update odds and scores.");
     const apiKey = process.env.ODDS_API_KEY;
 
-    if (!apiKey || apiKey === 'YOUR_ODDS_API_KEY') {
+    if (!apiKey || apiKey === '9506477182d2f2335317a695b5e875e4') {
         throw new HttpsError('internal', 'ODDS_API_KEY is not configured.');
     }
 
