@@ -2,10 +2,9 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
-import { auth, googleProvider, twitterProvider } from "@/lib/firebase";
+import { signInWithPopup } from "firebase/auth";
+import { auth, twitterProvider } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 
 import { Button } from "@/components/ui/button";
@@ -16,11 +15,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import { Logo } from "./icons";
-import { Chrome } from "lucide-react";
 
 // Placeholder icon for Twitter
 const TwitterIcon = (props: React.SVGProps<SVGSVGElement>) => (
@@ -29,38 +24,14 @@ const TwitterIcon = (props: React.SVGProps<SVGSVGElement>) => (
 
 
 export function SignInForm() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isTwitterLoading, setIsTwitterLoading] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
 
-  const handleEmailSignIn = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
+  const handleSocialSignIn = async () => {
+    setIsTwitterLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      router.push("/");
-    } catch (error: any) {
-      toast({
-        title: "Sign-in Failed",
-        description: "Please check your email and password and try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSocialSignIn = async (provider: 'google' | 'twitter') => {
-    const socialProvider = provider === 'google' ? googleProvider : twitterProvider;
-    const setLoading = provider === 'google' ? setIsGoogleLoading : setIsTwitterLoading;
-
-    setLoading(true);
-    try {
-      await signInWithPopup(auth, socialProvider);
+      await signInWithPopup(auth, twitterProvider);
       router.push("/");
     } catch (error: any) {
        toast({
@@ -69,7 +40,7 @@ export function SignInForm() {
         variant: "destructive",
       });
     } finally {
-      setLoading(false);
+      setIsTwitterLoading(false);
     }
   };
 
@@ -79,65 +50,20 @@ export function SignInForm() {
         <div className="flex justify-center mb-4">
           <Logo className="size-12 text-primary" />
         </div>
-        <CardTitle className="font-bold">Welcome Back</CardTitle>
+        <CardTitle className="font-bold">Welcome to Playcer</CardTitle>
         <CardDescription>
-          Sign in to your Playcer account to continue.
+          Sign in or create an account with Twitter to continue.
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-2 gap-4">
-            <Button variant="outline" onClick={() => handleSocialSignIn('twitter')} disabled={isLoading || isGoogleLoading || isTwitterLoading}>
-             {isTwitterLoading ? ( "Signing in..." ) : ( <> <TwitterIcon className="mr-2" /> Twitter </> )}
-            </Button>
-            <Button variant="outline" onClick={() => handleSocialSignIn('google')} disabled={isLoading || isGoogleLoading || isTwitterLoading}>
-              {isGoogleLoading ? ( "Signing in..." ) : ( <> <Chrome className="mr-2" /> Google </> )}
-            </Button>
-        </div>
-
-        <div className="relative my-4">
-            <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
-            </div>
-        </div>
-
-        <form onSubmit={handleEmailSignIn} className="grid gap-4">
-          <div className="grid gap-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="m@example.com"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              disabled={isLoading || isGoogleLoading || isTwitterLoading}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="password">Password</Label>
-            <Input 
-                id="password" 
-                type="password" 
-                required 
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={isLoading || isGoogleLoading || isTwitterLoading}
-            />
-          </div>
-          <Button type="submit" className="w-full" disabled={isLoading || isGoogleLoading || isTwitterLoading}>
-            {isLoading ? "Signing In..." : "Sign In with Email"}
-          </Button>
-        </form>
-
-        <div className="mt-4 text-center text-sm">
-          Don&apos;t have an account?{" "}
-          <Link href="/signup" className="underline">
-            Sign up
-          </Link>
-        </div>
+        <Button 
+            variant="outline" 
+            className="w-full"
+            onClick={handleSocialSignIn} 
+            disabled={isTwitterLoading}
+        >
+          {isTwitterLoading ? ( "Redirecting to Twitter..." ) : ( <> <TwitterIcon className="mr-2" /> Continue with Twitter </> )}
+        </Button>
       </CardContent>
     </Card>
   );

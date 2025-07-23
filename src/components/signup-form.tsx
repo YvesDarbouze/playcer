@@ -4,8 +4,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createUserWithEmailAndPassword, updateProfile, signInWithPopup } from "firebase/auth";
-import { auth, googleProvider, twitterProvider } from "@/lib/firebase";
+import { signInWithPopup } from "firebase/auth";
+import { auth, twitterProvider } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 
 import { Button } from "@/components/ui/button";
@@ -16,10 +16,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Logo } from "./icons";
-import { Chrome } from "lucide-react";
 
 
 // Placeholder icon for Twitter
@@ -29,52 +26,14 @@ const TwitterIcon = (props: React.SVGProps<SVGSVGElement>) => (
 
 
 export function SignUpForm() {
-  const [displayName, setDisplayName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isTwitterLoading, setIsTwitterLoading] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
-
-  const handleEmailSignUp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (password.length < 6) {
-      toast({
-        title: "Password Too Short",
-        description: "Your password must be at least 6 characters long.",
-        variant: "destructive",
-      });
-      return;
-    }
-    setIsLoading(true);
-    try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      // The onUserCreate trigger will handle Firestore doc creation.
-      // We just need to update the auth profile here.
-      await updateProfile(userCredential.user, { displayName });
-      router.push("/");
-    } catch (error: any) {
-      toast({
-        title: "Sign-up Failed",
-        description: error.code === 'auth/email-already-in-use' 
-          ? "This email is already in use. Please sign in."
-          : "An unexpected error occurred. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
   
-  const handleSocialSignIn = async (provider: 'google' | 'twitter') => {
-    const socialProvider = provider === 'google' ? googleProvider : twitterProvider;
-    const setLoading = provider === 'google' ? setIsGoogleLoading : setIsTwitterLoading;
-
-    setLoading(true);
+  const handleSocialSignIn = async () => {
+    setIsTwitterLoading(true);
     try {
-      await signInWithPopup(auth, socialProvider);
+      await signInWithPopup(auth, twitterProvider);
       router.push("/");
     } catch (error: any) {
        toast({
@@ -83,7 +42,7 @@ export function SignUpForm() {
         variant: "destructive",
       });
     } finally {
-      setLoading(false);
+      setIsTwitterLoading(false);
     }
   };
 
@@ -95,69 +54,17 @@ export function SignUpForm() {
         </div>
         <CardTitle className="font-bold">Create an Account</CardTitle>
         <CardDescription>
-          Join Playcer today to start placing bets with friends.
+          Join Playcer today by signing up with your Twitter account.
         </CardDescription>
       </CardHeader>
       <CardContent>
-         <div className="grid grid-cols-2 gap-4">
-            <Button variant="outline" onClick={() => handleSocialSignIn('twitter')} disabled={isLoading || isGoogleLoading || isTwitterLoading}>
-             {isTwitterLoading ? ( "Signing in..." ) : ( <> <TwitterIcon className="mr-2" /> Twitter </> )}
-            </Button>
-            <Button variant="outline" onClick={() => handleSocialSignIn('google')} disabled={isLoading || isGoogleLoading || isTwitterLoading}>
-              {isGoogleLoading ? ( "Signing in..." ) : ( <> <Chrome className="mr-2" /> Google </> )}
-            </Button>
-        </div>
-
-        <div className="relative my-4">
-            <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
-            </div>
-        </div>
-
-        <form onSubmit={handleEmailSignUp} className="grid gap-4">
-          <div className="grid gap-2">
-            <Label htmlFor="displayName">Display Name</Label>
-            <Input
-              id="displayName"
-              type="text"
-              placeholder="Your Name"
-              required
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              disabled={isLoading || isGoogleLoading || isTwitterLoading}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="m@example.com"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              disabled={isLoading || isGoogleLoading || isTwitterLoading}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="password">Password</Label>
-            <Input 
-                id="password" 
-                type="password" 
-                required 
-                minLength={6}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={isLoading || isGoogleLoading || isTwitterLoading}
-            />
-          </div>
-          <Button type="submit" className="w-full" disabled={isLoading || isGoogleLoading || isTwitterLoading}>
-            {isLoading ? "Creating Account..." : "Sign Up with Email"}
-          </Button>
-        </form>
+        <Button 
+            variant="outline" 
+            className="w-full" 
+            onClick={handleSocialSignIn} 
+            disabled={isTwitterLoading}>
+            {isTwitterLoading ? ( "Redirecting to Twitter..." ) : ( <> <TwitterIcon className="mr-2" /> Sign Up with Twitter </> )}
+        </Button>
         
         <div className="mt-4 text-center text-sm">
           Already have an account?{" "}
