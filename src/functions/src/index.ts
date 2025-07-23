@@ -7,6 +7,8 @@ import { HttpsError, onCall } from "firebase-functions/v2/https";
 import {logger} from "firebase-functions";
 import { v4 as uuidv4 } from "uuid";
 import * as algoliasearch from 'algoliasearch';
+import { generateBetImage } from "../../ai/flows/generate-bet-image";
+
 
 // Initialize Algolia client
 // Ensure you have set these environment variables in your Firebase project configuration
@@ -627,4 +629,17 @@ export const updateOddsAndScores = onCall(async (request) => {
     return { success: true, updatedOddsCount, updatedScoresCount };
 });
 
+export const generateBetImage = onCall(async (request) => {
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'You must be logged in to generate a bet image.');
+    }
+
+    try {
+        const result = await generateBetImage(request.data);
+        return result;
+    } catch(e: any) {
+        logger.error('Error generating bet image', e);
+        throw new HttpsError('internal', 'There was an error generating the bet image.');
+    }
+});
     

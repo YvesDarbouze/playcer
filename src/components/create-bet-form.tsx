@@ -29,8 +29,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, ClipboardCopy, ArrowRight, ArrowLeft, Twitter } from "lucide-react";
+import { Loader2, ClipboardCopy, ArrowRight, ArrowLeft, Twitter, Image as ImageIcon } from "lucide-react";
 import { getFirestore, collection, getDocs, query, orderBy, Timestamp } from "firebase/firestore";
+import Image from "next/image";
 
 const getEvents = async (): Promise<Game[]> => {
     const db = getFirestore(getFirebaseApp());
@@ -81,9 +82,10 @@ export function CreateBetForm() {
   const [step, setStep] = React.useState(1);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [challengeLink, setChallengeLink] = React.useState<string | null>(null);
+  const [generatedImage, setGeneratedImage] = React.useState<string | null>(null);
 
   const [events, setEvents] = React.useState<Game[]>([]);
-  const [loading, setLoading] = React.useState<'events' | false>(false);
+  const [loading, setLoading] = React.useState<'events' | 'image' | false>(false);
   
   const form = useForm<FormData>({
     resolver: zodResolver(betSchema),
@@ -119,6 +121,7 @@ export function CreateBetForm() {
     const functions = getFunctions(getFirebaseApp());
     const createBetPaymentIntent = httpsCallable(functions, 'createBetPaymentIntent');
     const createBet = httpsCallable(functions, 'createBet');
+    const generateBetImage = httpsCallable(functions, 'generateBetImage');
 
     try {
         // Step 1: Create Payment Intent
@@ -130,9 +133,19 @@ export function CreateBetForm() {
 
         // Step 2: Create Bet Document with the payment intent ID
         let betValue: any = {};
-        if (data.betType === 'moneyline') betValue = { team: data.team };
-        else if (data.betType === 'spread') betValue = { team: data.team, points: data.points };
-        else if (data.betType === 'totals') betValue = { over_under: data.over_under, total: data.total };
+        let betDetailsString = "";
+        if (data.betType === 'moneyline') {
+            betValue = { team: data.team };
+            betDetailsString = `${data.team} to win for $${data.wagerAmount}`;
+        }
+        else if (data.betType === 'spread') {
+            betValue = { team: data.team, points: data.points };
+            betDetailsString = `${data.team} ${data.points! > 0 ? `+${data.points}` : data.points} for $${data.wagerAmount}`;
+        }
+        else if (data.betType === 'totals') {
+            betValue = { over_under: data.over_under, total: data.total };
+            betDetailsString = `Total ${data.over_under} ${data.total} for $${data.wagerAmount}`;
+        }
 
         const payload = {
           gameId: selectedEvent.id,
@@ -151,8 +164,25 @@ export function CreateBetForm() {
         const betResult: any = await createBet(payload);
         if (betResult.data.success) {
             setChallengeLink(`${window.location.origin}/bet/${betResult.data.betId}`);
-            toast({ title: "Bet Created Successfully!" });
+            toast({ title: "Bet Created! Generating challenge image..." });
             setStep(3); // Move to final step
+            setLoading('image');
+
+            // Step 3: Generate Image
+            const imagePayload = {
+                challengerName: user.displayName || "Challenger",
+                recipientName: data.recipientTwitterHandle,
+                betDetails: betDetailsString,
+                gameMatchup: `${selectedEvent.away_team} vs ${selectedEvent.home_team}`
+            }
+            const imageResult: any = await generateBetImage(imagePayload);
+            if (imageResult.data.imageUrl) {
+                setGeneratedImage(imageResult.data.imageUrl);
+            } else {
+                 toast({ title: "Image generation failed.", variant: "destructive" });
+            }
+            setLoading(false);
+
         } else {
             throw new Error(betResult.data.message || "Failed to create bet.");
         }
@@ -192,13 +222,6 @@ export function CreateBetForm() {
   };
   
   const handlePrevStep = () => setStep(s => s - 1);
-  
-  const handleCopyToClipboard = () => {
-    if (challengeLink) {
-      navigator.clipboard.writeText(challengeLink);
-      toast({ title: "Copied to clipboard!" });
-    }
-  };
   
   const selectedEvent = events.find(e => e.id === form.watch('gameId'));
 
@@ -363,24 +386,33 @@ export function CreateBetForm() {
              <>
                 <CardHeader>
                     <CardTitle className="font-bold">Challenge Created!</CardTitle>
-                    <CardDescription>Your bet is now pending. Copy the link and share it with your opponent to accept.</CardDescription>
+                    <CardDescription>Your bet is pending. Share the link with your opponent to accept.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    <div className="flex items-center space-x-2">
-                        <Input value={challengeLink!} readOnly />
-                        <Button onClick={handleCopyToClipboard} size="icon" aria-label="Copy link">
-                            <ClipboardCopy className="h-4 w-4" />
-                        </Button>
-                    </div>
+                    {loading === 'image' && (
+                        <div className="flex flex-col items-center justify-center bg-muted rounded-lg aspect-video">
+                            <ImageIcon className="h-10 w-10 text-muted-foreground animate-pulse" />
+                            <p className="text-muted-foreground mt-2">Generating Challenge Image...</p>
+                        </div>
+                    )}
+                    {generatedImage && (
+                        <Image
+                            src={generatedImage}
+                            alt="Generated bet challenge image"
+                            width={1280}
+                            height={720}
+                            className="rounded-lg border"
+                        />
+                    )}
                      <a href={tweetUrl} target="_blank" rel="noopener noreferrer">
-                        <Button className="w-full" variant="outline">
+                        <Button className="w-full" variant="outline" disabled={loading === 'image'}>
                             <Twitter className="mr-2" />
                             Tweet the Challenge
                         </Button>
                     </a>
                 </CardContent>
                  <CardFooter className="justify-end">
-                     <Button onClick={() => { form.reset(); setStep(1); }}>Create Another Bet</Button>
+                     <Button onClick={() => { form.reset(); setStep(1); setGeneratedImage(null); }}>Create Another Bet</Button>
                 </CardFooter>
             </>
          )
