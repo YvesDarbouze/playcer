@@ -241,12 +241,8 @@ export function BetCreationModal({ isOpen, onOpenChange, game, odds, loadingOdds
         ) : (
           <>
             <div className="my-4 p-4 bg-muted rounded-lg">
-                <div className="grid grid-cols-3 items-center text-center">
+                <div className="grid grid-cols-2 items-center text-center">
                     <TeamDisplay team={game.away_team} logoUrl={awayLogo} />
-                    <div className="flex flex-col items-center text-muted-foreground">
-                        <Swords />
-                        <span className="text-xs mt-1">vs</span>
-                    </div>
                     <TeamDisplay team={game.home_team} logoUrl={homeLogo} />
                 </div>
                 {loadingOdds && <p className="text-center text-xs mt-2">Loading odds...</p>}
