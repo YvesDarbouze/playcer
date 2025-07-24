@@ -52,11 +52,11 @@ export function SignInForm() {
     <Card className="w-full max-w-sm">
       <CardHeader className="text-center">
         <div className="flex justify-center mb-4">
-          <Logo className="size-12 text-primary" />
+          <Logo/>
         </div>
-        <CardTitle className="font-bold">Welcome to Playcer</CardTitle>
+        <CardTitle className="font-bold">Welcome Back</CardTitle>
         <CardDescription>
-          The peer-to-peer betting marketplace.
+          Sign in to access your dashboard and bets.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -72,3 +72,5 @@ export function SignInForm() {
     </Card>
   );
 }
+
+    

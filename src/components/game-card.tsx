@@ -114,12 +114,12 @@ export function GameCard({ game }: GameCardProps) {
                     <div className="flex flex-col items-center justify-center text-center w-full flex-grow space-y-2">
                         <div className="flex flex-col items-center text-center">
                             <Image src={awayLogo} alt={`${game.away_team} logo`} width={80} height={80} className="h-20 w-auto transition-all"/>
-                            <p className="font-bold text-lg mt-1">{game.away_team}</p>
+                            <p className="font-bold text-xl mt-1">{game.away_team}</p>
                         </div>
                         <div className="text-muted-foreground font-bold text-xl">@</div>
                         <div className="flex flex-col items-center text-center">
                             <Image src={homeLogo} alt={`${game.home_team} logo`} width={80} height={80} className="h-20 w-auto transition-all"/>
-                            <p className="font-bold text-lg mt-1">{game.home_team}</p>
+                            <p className="font-bold text-xl mt-1">{game.home_team}</p>
                         </div>
                     </div>
 
@@ -148,3 +148,5 @@ export function GameCard({ game }: GameCardProps) {
         </>
     );
 }
+
+    

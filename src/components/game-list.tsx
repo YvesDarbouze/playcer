@@ -84,3 +84,5 @@ export function GameList({ initialGames }: GameListProps) {
         </div>
     );
 }
+
+    

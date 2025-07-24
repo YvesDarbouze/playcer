@@ -73,8 +73,8 @@ export function SiteHeader() {
               </Button>
             </SheetTrigger>
             <SheetContent side="right">
-              <SheetHeader className="sr-only">
-                  <SheetTitle>Menu</SheetTitle>
+              <SheetHeader>
+                  <SheetTitle className="sr-only">Menu</SheetTitle>
               </SheetHeader>
               <Link href="/" className="flex items-center">
                   <Logo className="h-6 w-6" />
@@ -114,3 +114,5 @@ export function SiteHeader() {
     </header>
   );
 }
+
+    

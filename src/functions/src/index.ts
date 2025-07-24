@@ -8,6 +8,7 @@ import {logger} from "firebase-functions";
 import { v4 as uuidv4 } from "uuid";
 import * as algoliasearch from 'algoliasearch';
 import { generateBetImage } from "../../ai/flows/generate-bet-image";
+import fetch from "node-fetch";
 
 
 // Initialize Algolia client
@@ -93,7 +94,7 @@ const sportsDataAPI = {
                 throw new Error('Failed to fetch from TheOddsAPI');
             }
 
-            const data = await response.json();
+            const data:any = await response.json();
             const eventResult = data[0];
 
             if (!eventResult || !eventResult.completed) {
@@ -306,7 +307,7 @@ export const createBet = onCall(async (request) => {
 });
 
 
-export const matchBet = onCall(async (request) => {
+export const acceptBet = onCall(async (request) => {
     if (!request.auth) {
         throw new HttpsError('unauthenticated', 'You must be logged in to accept a bet.');
     }
@@ -316,32 +317,34 @@ export const matchBet = onCall(async (request) => {
     if (!betId) throw new HttpsError('invalid-argument', 'The `betId` must be provided.');
 
     const betDocRef = db.collection('bets').doc(betId);
+    const recipientDocRef = db.collection('users').doc(recipientId);
     
     await db.runTransaction(async (transaction) => {
         const betDoc = await transaction.get(betDocRef);
+        const recipientDoc = await transaction.get(recipientDocRef);
         
         if (!betDoc.exists) throw new HttpsError('not-found', 'Bet not found.');
+        if (!recipientDoc.exists) throw new HttpsError('not-found', 'Recipient profile not found.');
 
         const betData = betDoc.data()!;
-        const { challengerId, wagerAmount, status } = betData;
+        const recipientData = recipientDoc.data()!;
+        const { challengerId, wagerAmount, status, recipientTwitterHandle } = betData;
 
+        // Verify the user accepting the bet is the intended recipient
+        if (recipientData.username.toLowerCase() !== recipientTwitterHandle.toLowerCase()) {
+            throw new HttpsError('failed-precondition', 'You are not the intended recipient of this challenge.');
+        }
         if (challengerId === recipientId) throw new HttpsError('failed-precondition', 'You cannot accept your own bet.');
         if (status !== 'pending_acceptance') throw new HttpsError('failed-precondition', 'This bet is no longer open for acceptance.');
-        
-        const recipientDocRef = db.collection('users').doc(recipientId);
-        const recipientDoc = await transaction.get(recipientDocRef);
-        if (!recipientDoc.exists) throw new HttpsError('not-found', 'Recipient profile not found.');
-        const recipientData = recipientDoc.data()!;
-
         if (recipientData.kycStatus !== 'verified') throw new HttpsError('failed-precondition', 'You must complete identity verification to accept a bet.');
         if (recipientData.walletBalance < wagerAmount) throw new HttpsError('failed-precondition', 'You have insufficient funds to accept this bet.');
 
         const challengerDocRef = db.collection('users').doc(challengerId);
-        const challengerDoc = await transaction.get(challengerDocRef);
-        if (!challengerDoc.exists) throw new HttpsError('not-found', 'Challenger profile not found.');
+        const creatorDoc = await transaction.get(challengerDocRef);
+        if (!creatorDoc.exists) throw new HttpsError('not-found', 'Challenger profile not found.');
 
-        const challengerData = challengerDoc.data()!;
-        if (challengerData.walletBalance < wagerAmount) throw new HttpsError('failed-precondition', 'The challenger has insufficient funds.');
+        const creatorData = creatorDoc.data()!;
+        if (creatorData.walletBalance < wagerAmount) throw new HttpsError('failed-precondition', 'The challenger has insufficient funds.');
 
         // Update Bet Document
         transaction.update(betDocRef, {
@@ -352,7 +355,7 @@ export const matchBet = onCall(async (request) => {
         });
     });
     
-    logger.log(`Bet ${betId} successfully matched by ${recipientId}.`);
+    logger.log(`Bet ${betId} successfully accepted by ${recipientId}.`);
     return { success: true, message: "Bet accepted and matched!" };
 });
 
@@ -378,7 +381,7 @@ export const processBetOutcomes = onCall(async (request) => {
         const betData = betDoc.data() as any; // Cast as any to access dynamic properties
 
         try {
-            const result = await sportsDataAPI.getEventResult(betData.sportKey, betData.gameId);
+            const result = await sportsDataAPI.getEventResult(betData.gameDetails.sport_key, betData.gameId);
 
             if (result.status === 'Final') {
                 let winnerId: string | null = null;
@@ -419,7 +422,7 @@ export const processBetOutcomes = onCall(async (request) => {
                     await betDoc.ref.update({ status: 'completed', winnerId, settledAt: Timestamp.now() });
                     processedCount++;
                 } else {
-                    await betDoc.ref.update({ status: 'void', settledAt: Timestamp.now() }); // Push/Tie
+                    await betDoc.ref.update({ status: 'completed', settledAt: Timestamp.now() }); // Push/Tie
                     logger.log(`Bet ${betId} resulted in a push/void.`);
                 }
             }
@@ -443,15 +446,16 @@ async function processPayout(data: { betId: string, winnerId: string, loserId: s
     const payoutAmount = stake * 2 - commission; // Winner gets the full pot minus commission
 
     await db.runTransaction(async (transaction) => {
-        // 1. Debit both users' wallets for the stake - This should happen at bet matching
-        // We will simulate it here for now for settlement logic
+        // 1. Debit both users' wallets for the stake
         if (loserDocRef) {
-            transaction.update(loserDocRef, { losses: FieldValue.increment(1) });
+            transaction.update(loserDocRef, { walletBalance: FieldValue.increment(-stake), losses: FieldValue.increment(1) });
         }
-        
+        transaction.update(winnerDocRef, { walletBalance: FieldValue.increment(-stake) });
+
+
         // 2. Credit winner's wallet with the full pot & increment win count
         transaction.update(winnerDocRef, { 
-            walletBalance: FieldValue.increment(payoutAmount),
+            walletBalance: FieldValue.increment(stake * 2 - commission),
             wins: FieldValue.increment(1)
         });
 
@@ -500,7 +504,7 @@ export const ingestUpcomingGames = onCall(async (request) => {
                  logger.warn(`Could not fetch events for sport ${sport.key}. Status: ${eventsResponse.status}`);
                  continue;
             }
-            const events = await eventsResponse.json();
+            const events:any = await eventsResponse.json();
 
             for (const event of events) {
                 const gameRef = db.collection('games').doc(event.id);
@@ -576,7 +580,7 @@ export const updateOddsAndScores = onCall(async (request) => {
                 logger.error(`Failed to fetch odds for ${sportKey}:`, await oddsResponse.text());
                 continue;
             }
-            const oddsData = await oddsResponse.json();
+            const oddsData:any = await oddsResponse.json();
             const batch = db.batch();
 
             for (const gameOdds of oddsData) {
@@ -600,7 +604,7 @@ export const updateOddsAndScores = onCall(async (request) => {
                 logger.error(`Failed to fetch scores for ${sportKey}:`, await scoresResponse.text());
                 continue;
             }
-            const scoresData = await scoresResponse.json();
+            const scoresData:any = await scoresResponse.json();
             const batch = db.batch();
 
             for (const gameScore of scoresData) {
@@ -642,4 +646,44 @@ export const generateBetImage = onCall(async (request) => {
         throw new HttpsError('internal', 'There was an error generating the bet image.');
     }
 });
+    
+// This is our secure, callable function named 'getUpcomingOdds'
+export const getUpcomingOdds = onCall(async (request) => {
+  // Your secret API key is stored securely in environment variables, not in the code.
+  // We set this up in a previous step.
+  const apiKey = process.env.ODDS_API_KEY;
+
+  const sportKey = 'upcoming';
+  const regions = 'us';
+  const markets = 'h2h';
+  const oddsFormat = 'american';
+  const dateFormat = 'iso';
+
+  const apiUrl = `https://api.the-odds-api.com/v4/sports/${sportKey}/odds?apiKey=${apiKey}&regions=${regions}&markets=${markets}&oddsFormat=${oddsFormat}&dateFormat=${dateFormat}`;
+
+  logger.info("Fetching odds from:", apiUrl);
+
+  try {
+    const response = await fetch(apiUrl);
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      logger.error(`Failed to get odds: status_code ${response.status}, response body ${errorData}`);
+      // Throw an error that the frontend can understand
+      throw new HttpsError('internal', 'Failed to fetch odds.');
+    }
+
+    const oddsData = await response.json();
+    logger.info("Successfully fetched odds data.");
+    
+    // Return the data to the frontend that called this function
+    return oddsData;
+
+  } catch (error) {
+    logger.error('Error fetching odds data:', error);
+    // Throw an error that the frontend can understand
+    throw new HttpsError('unknown', 'An unknown error occurred.');
+  }
+});
+
     

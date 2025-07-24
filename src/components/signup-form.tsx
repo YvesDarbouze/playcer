@@ -53,7 +53,7 @@ export function SignUpForm() {
     <Card className="w-full max-w-sm">
       <CardHeader className="text-center">
         <div className="flex justify-center mb-4">
-          <Logo className="size-12 text-primary" />
+          <Logo />
         </div>
         <CardTitle className="font-bold">Create an Account</CardTitle>
         <CardDescription>
@@ -79,3 +79,5 @@ export function SignUpForm() {
     </Card>
   );
 }
+
+    

@@ -1,3 +1,4 @@
+
 import * as React from "react";
 import Image from "next/image";
 import { Logo } from "./icons";
@@ -33,3 +34,5 @@ export function AuthLayout({ children }: AuthLayoutProps) {
     </main>
   );
 }
+
+    
