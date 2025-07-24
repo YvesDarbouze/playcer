@@ -11,6 +11,7 @@ import * as algoliasearch from 'algoliasearch';
 import { generateBetImage } from "../../ai/flows/generate-bet-image";
 import fetch from "node-fetch";
 import Stripe from "stripe";
+import * as crypto from "crypto";
 
 
 // Initialize Algolia client
@@ -110,7 +111,7 @@ export const onusercreate = onUserCreate(async (event) => {
       walletBalance: 100.00, // Starting balance for demo purposes
       wins: 0,
       losses: 0,
-      kycStatus: "verified", // Auto-verified for demo purposes
+      kycStatus: "pending", // All new users start as 'pending'
       responsibleGamingLimits: {
         deposit: { daily: 0, weekly: 0, monthly: 0 },
         wager: { daily: 0, weekly: 0, monthly: 0 },
@@ -767,4 +768,68 @@ export const stripeWebhook = onRequest(async (request, response) => {
     }
 
     response.json({received: true});
+});
+
+
+export const kycWebhook = onRequest(async (request, response) => {
+    const kycWebhookSecret = process.env.KYC_WEBHOOK_SECRET;
+
+    // --- STEP 1: Verify the webhook signature (CRITICAL FOR SECURITY) ---
+    // This is a placeholder for the specific signature verification method
+    // of your chosen KYC provider (e.g., checking an HMAC signature).
+    // You MUST implement this correctly using your provider's documentation.
+    const signature = request.headers['x-kyc-provider-signature'];
+    if (kycWebhookSecret) {
+         const expectedSignature = crypto
+            .createHmac('sha256', kycWebhookSecret)
+            .update(JSON.stringify(request.body))
+            .digest('hex');
+         
+         if (signature !== expectedSignature) {
+            logger.error("Invalid KYC webhook signature.");
+            response.status(403).send("Signature verification failed.");
+            return;
+         }
+    } else {
+        logger.warn("KYC_WEBHOOK_SECRET not set. Skipping signature verification. THIS IS NOT SAFE FOR PRODUCTION.");
+    }
+    // --- End of verification ---
+
+    const { event, data } = request.body;
+
+    if (event === 'verification.completed') {
+        const { userId, status, details } = data; // Assumes this payload structure
+        
+        if (!userId) {
+            logger.error("Received KYC webhook without a userId.");
+            response.status(400).send("Missing userId in payload.");
+            return;
+        }
+
+        const userDocRef = db.collection("users").doc(userId);
+        
+        try {
+            let newKycStatus: 'verified' | 'rejected' | 'in_review' = 'in_review';
+            if (status === 'approved') {
+                newKycStatus = 'verified';
+            } else if (status === 'declined') {
+                newKycStatus = 'rejected';
+            }
+
+            await userDocRef.update({ 
+                kycStatus: newKycStatus,
+                kycDetails: details // Store additional details if provided
+            });
+
+            logger.log(`Successfully updated KYC status for user ${userId} to ${newKycStatus}.`);
+            // TODO: Send a notification to the user about their status change.
+
+        } catch(error) {
+            logger.error(`Error updating KYC status for user ${userId}:`, error);
+            response.status(500).send("Internal server error.");
+            return;
+        }
+    }
+
+    response.status(200).send({ received: true });
 });

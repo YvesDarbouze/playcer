@@ -2,8 +2,6 @@
 "use client";
 
 import * as React from "react";
-import { getFirestore, doc, updateDoc } from "firebase/firestore";
-import { getFirebaseApp } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import type { User } from "@/types";
 
@@ -21,25 +19,27 @@ import { Loader2, ShieldCheck, FileCheck, AlertTriangle } from "lucide-react";
 type VerificationStatus = 'not_started' | 'in_progress' | 'submitted' | 'failed';
 
 // --- Placeholder for a third-party KYC SDK ---
-const personaSDK = {
-    init: ({ onComplete, onCancel, onError }: { onComplete: () => void, onCancel: () => void, onError: (error: Error) => void }) => {
-        console.log("Initializing Persona SDK...");
+// In a real app, you would replace this with the actual SDK
+// from a provider like Persona, Veriff, or Stripe Identity.
+const thirdPartyKycSDK = {
+    init: ({ templateId, onComplete, onCancel, onError }: { templateId: string, onComplete: (inquiryId: string) => void, onCancel: () => void, onError: (error: Error) => void }) => {
+        console.log(`Initializing KYC SDK with template: ${templateId}`);
         
         const open = () => {
-            console.log("Opening Persona inquiry...");
-            // Simulate a user going through the flow
+            console.log("Opening KYC inquiry...");
+            // This timeout simulates a user interacting with the third-party UI.
             setTimeout(() => {
-                // Simulate a random outcome
                 const random = Math.random();
-                if (random < 0.7) { // 70% chance of success
-                    console.log("Persona inquiry completed successfully.");
-                    onComplete();
-                } else if (random < 0.9) { // 20% chance of user cancelling
-                    console.log("Persona inquiry cancelled by user.");
+                if (random < 0.8) { // 80% chance of success
+                    const fakeInquiryId = `inq_${Date.now()}`;
+                    console.log(`KYC inquiry completed successfully. Inquiry ID: ${fakeInquiryId}`);
+                    onComplete(fakeInquiryId);
+                } else if (random < 0.95) { // 15% chance of user cancelling
+                    console.log("KYC inquiry cancelled by user.");
                     onCancel();
-                } else { // 10% chance of an error
-                    console.error("Persona inquiry failed with an error.");
-                    onError(new Error("Failed to capture documents."));
+                } else { // 5% chance of an error
+                    console.error("KYC inquiry failed with a client-side error.");
+                    onError(new Error("Failed to capture documents. Please try again."));
                 }
             }, 3000); // Simulate a 3-second process
         };
@@ -54,35 +54,24 @@ export function IdentityVerification({ user }: { user: User }) {
   const { toast } = useToast();
   const [status, setStatus] = React.useState<VerificationStatus>('not_started');
 
+  // In a real app, this would be your template ID from the KYC provider's dashboard.
+  const KYC_TEMPLATE_ID = 'tmpl_1234567890';
+
   const handleVerification = () => {
     setStatus('in_progress');
 
-    const persona = personaSDK.init({
-      onComplete: async () => {
-        // In a real app, the backend would receive a webhook from Persona.
-        // For this simulation, we'll update Firestore directly from the client.
-        const db = getFirestore(getFirebaseApp());
-        const userDocRef = doc(db, "users", user.id);
-        try {
-            // Note: This is a simulation. In a real app, you would not change the status
-            // to 'verified' here, but to something like 'in_review'.
-            // The final 'verified' status would be set by a secured Cloud Function
-            // that processes the webhook from the KYC provider.
-            await updateDoc(userDocRef, { kycStatus: 'in_review' });
-            setStatus('submitted');
-            toast({
-                title: "Verification Submitted",
-                description: "Your documents have been submitted for review. We'll notify you once the process is complete.",
-            });
-        } catch (error) {
-             console.error("Error updating user status:", error);
-             setStatus('failed');
-             toast({
-                title: "Submission Failed",
-                description: "There was a problem submitting your verification. Please try again.",
-                variant: "destructive",
-            });
-        }
+    const kycFlow = thirdPartyKycSDK.init({
+      templateId: KYC_TEMPLATE_ID,
+      onComplete: (inquiryId) => {
+        // The client's job is done here. The backend will handle the result
+        // via a webhook from the KYC provider. We just update the UI to
+        // let the user know their submission was received.
+        console.log(`Client received Inquiry ID: ${inquiryId}`);
+        setStatus('submitted');
+        toast({
+            title: "Verification Submitted",
+            description: "Your documents have been submitted for review. We'll notify you once the process is complete.",
+        });
       },
       onCancel: () => {
         setStatus('not_started');
@@ -95,13 +84,13 @@ export function IdentityVerification({ user }: { user: User }) {
         setStatus('failed');
         toast({
             title: "Verification Error",
-            description: error.message || "An unexpected error occurred.",
+            description: error.message || "An unexpected error occurred during verification.",
             variant: "destructive",
         });
       },
     });
 
-    persona.open();
+    kycFlow.open();
   };
 
   const renderContent = () => {
@@ -145,7 +134,7 @@ export function IdentityVerification({ user }: { user: User }) {
                  <CardContent className="flex flex-col items-center justify-center p-10 text-center space-y-4">
                     <FileCheck className="h-12 w-12 text-green-500" />
                     <h3 className="text-xl font-bold">Verification Submitted</h3>
-                    <p className="text-muted-foreground">Your information is now under review. This usually takes a few minutes. We'll email you and update your dashboard once it's complete.</p>
+                    <p className="text-muted-foreground">Your information is now under review. This usually takes just a few minutes. We'll email you and update your dashboard once it's complete.</p>
                 </CardContent>
             );
     }
