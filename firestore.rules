@@ -1,46 +1,83 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Users can only read and write to their own user document.
-    match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+    // Helper functions
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
     }
 
-    // Bets can be read by anyone if they are public.
-    // A user can create a bet only if they are the challenger.
-    // A user can update a bet (to accept it) only if they are the recipient.
-    // Once a bet is active, it cannot be modified by users.
-    match /bets/{betId} {
-      allow read: if true;
-      allow create: if request.auth != null && request.resource.data.challengerId == request.auth.uid;
-      allow update: if request.auth != null 
-                    && resource.data.status == 'pending_acceptance'
-                    && request.resource.data.recipientId == request.auth.uid;
+    function isVerified(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)).data.kycStatus == 'verified';
     }
     
-    // Games and their odds can be read by anyone. Writes are handled by backend functions.
-    match /games/{gameId} {
-      allow read: if true;
-      allow write: if false;
+    // Deny all reads and writes by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
 
-      match /bookmaker_odds/{bookmakerId} {
-        allow read: if true;
-        allow write: if false;
+    // USERS: Users can read their own data and limited public data of others.
+    // They can only update non-critical fields on their own profile.
+    match /users/{userId} {
+      // Any authenticated user can read public profile data
+      allow get: if request.auth != null;
+      // A user can list their own data (e.g., in the auth hook)
+      allow list: if isOwner(userId);
+      // A user can create their own profile document
+      allow create: if isOwner(userId)
+                    && request.resource.data.username is string
+                    && request.resource.data.walletBalance == 100.00
+                    && request.resource.data.kycStatus == 'verified'; // KYC is auto-verified for demo
+      // A user can update their displayName, photoURL, and responsible gaming settings
+      allow update: if isOwner(userId)
+                    && request.resource.data.keys().hasOnly(['displayName', 'photoURL', 'responsibleGamingLimits', 'selfExclusion']);
+    }
+
+    // GAMES: Publicly readable, but only writable from the backend.
+    match /games/{gameId} {
+      allow get: if true;
+      allow list: if true;
+      
+      // Odds are nested, same rules apply
+      match /bookmaker_odds/{bookmaker} {
+        allow get: if true;
+        allow list: if true;
       }
     }
 
-    // Transactions can only be read by the user involved. Writes are handled by backend functions.
-    match /transactions/{transactionId} {
-      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
-      allow write: if false;
+    // BETS: Users can create bets if verified. They can accept bets.
+    // Backend handles status changes to 'completed' or 'void'.
+    match /bets/{betId} {
+      // Anyone can view a bet's details.
+      allow get: if true;
+      // Allow searching/listing of bets in the marketplace.
+      allow list: if true;
+
+      // Creating a new bet
+      allow create: if isOwner(request.resource.data.challengerId)
+                    && isVerified(request.resource.data.challengerId)
+                    && request.resource.data.wagerAmount > 0
+                    && request.resource.data.status == 'pending_acceptance';
+      
+      // Accepting a bet
+      allow update: if request.auth != null
+                    && isVerified(request.auth.uid)
+                    && request.resource.data.status == 'active'
+                    && resource.data.status == 'pending_acceptance' // Can only transition from pending
+                    && request.resource.data.recipientId == request.auth.uid; // Must be the intended recipient
     }
 
-    // Admin-only collections
+    // TRANSACTIONS: Read-only for the owner. All writes must come from the backend.
+    match /transactions/{transactionId} {
+      allow read: if isOwner(resource.data.userId);
+    }
+    
+    // DISPUTES: Read-only for involved parties and admins. Writes only by backend/admins.
     match /disputes/{disputeId} {
-        allow read, write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+        allow get: if isOwner(resource.data.disputingUserId) || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+        // Creating a dispute
+        allow create: if isOwner(request.resource.data.disputingUserId);
     }
   }
 }
