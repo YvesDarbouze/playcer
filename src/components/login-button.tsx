@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -35,7 +36,7 @@ export function LoginButton() {
   if (!user) {
     return (
       <Link href="/signin" passHref>
-        <Button>Bet</Button>
+        <Button>Login</Button>
       </Link>
     );
   }
@@ -43,11 +44,12 @@ export function LoginButton() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="relative h-10 w-10 rounded-full">
-            <Avatar className="h-10 w-10">
+        <Button variant="ghost" className="relative h-10 gap-2 px-2">
+            <Avatar className="h-8 w-8">
                 <AvatarImage src={user.photoURL || undefined} alt={user.displayName || "User"} />
                 <AvatarFallback>{user.displayName?.charAt(0) || user.email?.charAt(0)}</AvatarFallback>
             </Avatar>
+            <span className="hidden md:inline">{user.displayName}</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="end" forceMount>
