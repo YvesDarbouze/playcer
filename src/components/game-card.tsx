@@ -113,13 +113,13 @@ export function GameCard({ game }: GameCardProps) {
                 <CardContent className="p-4 flex-grow flex flex-col items-center justify-center transition-all duration-300">
                     <div className="flex flex-col items-center justify-center text-center w-full flex-grow space-y-2">
                         <div className="flex flex-col items-center text-center">
-                            <Image src={awayLogo} alt={`${game.away_team} logo`} width={56} height={56} className="h-14 w-auto transition-all"/>
-                            <p className="font-bold text-sm mt-1">{game.away_team}</p>
+                            <Image src={awayLogo} alt={`${game.away_team} logo`} width={80} height={80} className="h-20 w-auto transition-all"/>
+                            <p className="font-bold text-lg mt-1">{game.away_team}</p>
                         </div>
-                        <div className="text-muted-foreground font-bold text-lg">@</div>
+                        <div className="text-muted-foreground font-bold text-xl">@</div>
                         <div className="flex flex-col items-center text-center">
-                            <Image src={homeLogo} alt={`${game.home_team} logo`} width={56} height={56} className="h-14 w-auto transition-all"/>
-                            <p className="font-bold text-sm mt-1">{game.home_team}</p>
+                            <Image src={homeLogo} alt={`${game.home_team} logo`} width={80} height={80} className="h-20 w-auto transition-all"/>
+                            <p className="font-bold text-lg mt-1">{game.home_team}</p>
                         </div>
                     </div>
 
@@ -133,7 +133,7 @@ export function GameCard({ game }: GameCardProps) {
                 </CardContent>
 
                 <div className='p-2 bg-muted/50 text-center cursor-pointer' onClick={handleCardClick}>
-                    <Button variant="ghost" className="w-full font-headline text-lg h-12">Bet</Button>
+                    <Button variant="ghost" className="w-full font-headline text-2xl h-14">Bet</Button>
                 </div>
             </Card>
             {gameTime && (
