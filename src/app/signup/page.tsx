@@ -1,9 +1,10 @@
 import { SignUpForm } from "@/components/signup-form";
+import { AuthLayout } from "@/components/auth-layout";
 
 export default function SignUpPage() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-8 bg-gray-50">
+    <AuthLayout>
       <SignUpForm />
-    </main>
+    </AuthLayout>
   );
 }
