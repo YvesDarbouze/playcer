@@ -8,6 +8,8 @@ import { LoginButton } from "./login-button";
 import {
   Sheet,
   SheetContent,
+  SheetHeader,
+  SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Button } from "./ui/button";
@@ -71,6 +73,9 @@ export function SiteHeader() {
               </Button>
             </SheetTrigger>
             <SheetContent side="right">
+              <SheetHeader className="sr-only">
+                  <SheetTitle>Menu</SheetTitle>
+              </SheetHeader>
               <Link href="/" className="flex items-center">
                   <Logo className="h-6 w-6" />
               </Link>
