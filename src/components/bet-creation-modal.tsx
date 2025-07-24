@@ -37,6 +37,8 @@ import type { Game } from "@/types";
 import { Twitter, Swords, Loader2 } from "lucide-react";
 import { getFirebaseApp } from "@/lib/firebase";
 import { Separator } from "./ui/separator";
+import Image from "next/image";
+import { getTeamLogoUrl } from "@/lib/team-logo-helper";
 
 interface BookmakerOdds {
     key: string;
@@ -75,8 +77,9 @@ const betSchema = z.object({
 
 type BetFormData = z.infer<typeof betSchema>;
 
-const TeamDisplay = ({ team }: { team: string }) => (
-    <div className="text-center">
+const TeamDisplay = ({ team, logoUrl }: { team: string, logoUrl: string }) => (
+    <div className="text-center flex flex-col items-center gap-2">
+        <Image src={logoUrl} alt={`${team} logo`} width={48} height={48} className="h-12 w-auto" />
         <p className="font-bold text-lg">{team}</p>
     </div>
 )
@@ -212,6 +215,8 @@ export function BetCreationModal({ isOpen, onOpenChange, game, odds, loadingOdds
   const spreadMarket = odds?.markets.find(m => m.key === 'spreads');
   const totalsMarket = odds?.markets.find(m => m.key === 'totals');
 
+  const homeLogo = getTeamLogoUrl(game.home_team, game.sport_key);
+  const awayLogo = getTeamLogoUrl(game.away_team, game.sport_key);
 
   return (
     <Dialog open={isOpen} onOpenChange={handleModalClose}>
@@ -237,12 +242,12 @@ export function BetCreationModal({ isOpen, onOpenChange, game, odds, loadingOdds
           <>
             <div className="my-4 p-4 bg-muted rounded-lg">
                 <div className="grid grid-cols-3 items-center text-center">
-                    <TeamDisplay team={game.away_team} />
+                    <TeamDisplay team={game.away_team} logoUrl={awayLogo} />
                     <div className="flex flex-col items-center text-muted-foreground">
                         <Swords />
                         <span className="text-xs mt-1">vs</span>
                     </div>
-                    <TeamDisplay team={game.home_team} />
+                    <TeamDisplay team={game.home_team} logoUrl={homeLogo} />
                 </div>
                 {loadingOdds && <p className="text-center text-xs mt-2">Loading odds...</p>}
                 {!loadingOdds && odds && (
@@ -368,5 +373,3 @@ export function BetCreationModal({ isOpen, onOpenChange, game, odds, loadingOdds
     </Dialog>
   );
 }
-
-    
