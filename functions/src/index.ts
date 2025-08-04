@@ -4,8 +4,8 @@ import {initializeApp} from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import {getFirestore, Timestamp, FieldValue} from "firebase-admin/firestore";
 import {onUserCreate} from "firebase-functions/v2/auth";
-import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
-import {logger} from "firebase-functions";
+import { HttpsError, onCall } from "firebase-functions/v2/https";
+import * as functions from "firebase-functions";
 import { v4 as uuidv4 } from "uuid";
 import * as algoliasearch from 'algoliasearch';
 import { generateBetImage } from "../../ai/flows/generate-bet-image";
@@ -35,17 +35,17 @@ const stripe = new Stripe(process.env.STRIPE_API_KEY!, {
 
 const escrowService = {
     async lockFunds(betId: string, amount: number): Promise<{success: boolean, escrowId: string}> {
-        logger.log(`Locking funds for bet ${betId} of amount ${amount} in escrow.`);
+        functions.logger.log(`Locking funds for bet ${betId} of amount ${amount} in escrow.`);
         // In a real app, this would call a dedicated escrow provider API.
         return { success: true, escrowId: `escrow_${uuidv4()}`};
     },
     async releaseFunds(escrowId: string, winnerId: string): Promise<{success: boolean}> {
-        logger.log(`Releasing funds from escrow ${escrowId} to winner ${winnerId}.`);
+        functions.logger.log(`Releasing funds from escrow ${escrowId} to winner ${winnerId}.`);
         // In a real app, this would call the escrow provider to disburse funds.
         return { success: true };
     },
     async refundFunds(escrowId: string, partyIds: string[]): Promise<{success: boolean}> {
-        logger.log(`Refunding funds from escrow ${escrowId} to parties ${partyIds.join(', ')}.`);
+        functions.logger.log(`Refunding funds from escrow ${escrowId} to parties ${partyIds.join(', ')}.`);
         // In a real app, this would call the escrow provider to return funds to both parties.
         return { success: true };
     }
@@ -53,11 +53,11 @@ const escrowService = {
 
 const sportsDataAPI = {
      async getEventResult(sportKey: string, eventId: string): Promise<{ home_score: number, away_score: number, status: 'Final' | 'InProgress' }> {
-        logger.log(`Fetching result for event ${eventId} from sports data oracle.`);
+        functions.logger.log(`Fetching result for event ${eventId} from sports data oracle.`);
         const apiKey = process.env.ODDS_API_KEY;
 
         if (!apiKey || apiKey === '9506477182d2f2335317a695b5e875e4') {
-            logger.error(`CRITICAL: ODDS_API_KEY is not set. Aborting event result fetch for event ${eventId}.`);
+            functions.logger.error(`CRITICAL: ODDS_API_KEY is not set. Aborting event result fetch for event ${eventId}.`);
             // Throw an error to prevent using mock data in a live environment.
             throw new Error('Sports data API key is not configured.');
         }
@@ -67,7 +67,7 @@ const sportsDataAPI = {
             const response = await fetch(url);
 
             if (!response.ok) {
-                logger.error(`Error fetching event result from TheOddsAPI for event ${eventId}. Status: ${response.status}`);
+                functions.logger.error(`Error fetching event result from TheOddsAPI for event ${eventId}. Status: ${response.status}`);
                 throw new Error('Failed to fetch from TheOddsAPI');
             }
 
@@ -84,7 +84,7 @@ const sportsDataAPI = {
             return { home_score: homeScore, away_score: awayScore, status: 'Final' };
 
         } catch (error) {
-            logger.error(`Exception fetching event result for ${eventId}:`, error);
+            functions.logger.error(`Exception fetching event result for ${eventId}:`, error);
             // In case of any error, return a non-final status to retry later
             return { home_score: 0, away_score: 0, status: 'InProgress' };
         }
@@ -122,9 +122,9 @@ export const onusercreate = onUserCreate(async (event) => {
         endDate: null,
       },
     });
-    logger.log("User document created successfully for UID:", uid);
+    functions.logger.log("User document created successfully for UID:", uid);
   } catch (error) {
-    logger.error("Error creating user document for UID:", uid, error);
+    functions.logger.error("Error creating user document for UID:", uid, error);
   }
 });
 
@@ -168,10 +168,10 @@ export const createBetPaymentIntent = onCall(async (request) => {
             }
         });
 
-        logger.log(`Successfully created payment intent ${paymentIntent.id} for user ${uid}.`);
+        functions.logger.log(`Successfully created payment intent ${paymentIntent.id} for user ${uid}.`);
         return { success: true, clientSecret: paymentIntent.client_secret, paymentIntentId: paymentIntent.id };
     } catch (error: any) {
-        logger.error(`Error creating payment intent for user ${uid}:`, error);
+        functions.logger.error(`Error creating payment intent for user ${uid}:`, error);
         throw new HttpsError('internal', error.message);
     }
 });
@@ -210,11 +210,11 @@ export const handleDeposit = onCall(async (request) => {
             }
         });
         
-        logger.log(`Successfully created deposit payment intent ${paymentIntent.id} for user ${uid}.`);
+        functions.logger.log(`Successfully created deposit payment intent ${paymentIntent.id} for user ${uid}.`);
         return { success: true, clientSecret: paymentIntent.client_secret };
 
     } catch (error: any) {
-        logger.error(`Error handling deposit for user ${uid}:`, error);
+        functions.logger.error(`Error handling deposit for user ${uid}:`, error);
         throw new HttpsError('internal', error.message);
     }
 });
@@ -288,7 +288,7 @@ export const createBet = onCall(async (request) => {
         const betDocRef = db.collection('bets').doc(betId);
         transaction.set(betDocRef, newBet);
         
-        logger.log(`Bet ${betId} created by user ${challengerId}`);
+        functions.logger.log(`Bet ${betId} created by user ${challengerId}`);
         return { success: true, betId };
     });
 });
@@ -334,9 +334,9 @@ export const acceptBet = onCall(async (request) => {
             await stripe.paymentIntents.capture(challengerPaymentIntentId);
             // Capture recipient's payment
             await stripe.paymentIntents.capture(recipientPaymentIntentId);
-            logger.log(`Successfully captured payments for bet ${betId}.`);
+            functions.logger.log(`Successfully captured payments for bet ${betId}.`);
         } catch (error: any) {
-            logger.error(`Failed to capture payments for bet ${betId}:`, error.message);
+            functions.logger.error(`Failed to capture payments for bet ${betId}:`, error.message);
             // Attempt to cancel the intents if capture fails
             await stripe.paymentIntents.cancel(challengerPaymentIntentId).catch();
             await stripe.paymentIntents.cancel(recipientPaymentIntentId).catch();
@@ -366,12 +366,12 @@ export const acceptBet = onCall(async (request) => {
 
     });
     
-    logger.log(`Bet ${betId} successfully accepted by ${recipientId}.`);
+    functions.logger.log(`Bet ${betId} successfully accepted by ${recipientId}.`);
     return { success: true, message: "Bet accepted and matched!" };
 });
 
 export const processBetOutcomes = onCall(async (request) => {
-    logger.log("Starting processBetOutcomes...");
+    functions.logger.log("Starting processBetOutcomes...");
     
     const now = Timestamp.now();
     const query = db.collection('bets')
@@ -381,7 +381,7 @@ export const processBetOutcomes = onCall(async (request) => {
     const activeBetsSnap = await query.get();
 
     if (activeBetsSnap.empty) {
-        logger.log("No active bets found for processing.");
+        functions.logger.log("No active bets found for processing.");
         return { success: true, message: "No bets to process." };
     }
 
@@ -434,7 +434,7 @@ export const processBetOutcomes = onCall(async (request) => {
                     processedCount++;
                 } else {
                     // This is a PUSH. We need to refund both users.
-                    logger.log(`Bet ${betId} resulted in a push/tie. Refunding users.`);
+                    functions.logger.log(`Bet ${betId} resulted in a push/tie. Refunding users.`);
                     const { challengerId, recipientId, wagerAmount, challengerPaymentIntentId, recipientPaymentIntentId } = betData;
                     // Refund Stripe payments
                     await stripe.refunds.create({ payment_intent: challengerPaymentIntentId });
@@ -459,11 +459,11 @@ export const processBetOutcomes = onCall(async (request) => {
                 }
             }
         } catch (error) {
-            logger.error(`Failed to process outcome for bet ${betId}:`, error);
+            functions.logger.error(`Failed to process outcome for bet ${betId}:`, error);
         }
     }
     
-    logger.log(`Finished processBetOutcomes. Processed ${processedCount} bets.`);
+    functions.logger.log(`Finished processBetOutcomes. Processed ${processedCount} bets.`);
     return { success: true, processedCount };
 });
 
@@ -501,11 +501,11 @@ async function processPayout(data: { betId: string, winnerId: string, loserId: s
     // to the winner's connected Stripe account. For this implementation, we handle it internally
     // as a wallet balance update.
 
-    logger.log(`Payout for bet ${betId} processed for winner ${winnerId}.`);
+    functions.logger.log(`Payout for bet ${betId} processed for winner ${winnerId}.`);
 }
 
 export const ingestUpcomingGames = onCall(async (request) => {
-    logger.log("Starting to ingest upcoming games from The Odds API.");
+    functions.logger.log("Starting to ingest upcoming games from The Odds API.");
     const apiKey = process.env.ODDS_API_KEY;
 
     if (!apiKey) {
@@ -529,7 +529,7 @@ export const ingestUpcomingGames = onCall(async (request) => {
             const eventsUrl = `https://api.the-odds-api.com/v4/sports/${sport.key}/events?apiKey=${apiKey}`;
             const eventsResponse = await fetch(eventsUrl);
             if (!eventsResponse.ok) {
-                 logger.warn(`Could not fetch events for sport ${sport.key}. Status: ${eventsResponse.status}`);
+                 functions.logger.warn(`Could not fetch events for sport ${sport.key}. Status: ${eventsResponse.status}`);
                  continue;
             }
             const events:any = await eventsResponse.json();
@@ -553,11 +553,11 @@ export const ingestUpcomingGames = onCall(async (request) => {
 
 
         await batch.commit();
-        logger.log(`Successfully ingested/updated ${gamesIngested} games.`);
+        functions.logger.log(`Successfully ingested/updated ${gamesIngested} games.`);
         return { success: true, gamesIngested };
 
     } catch (error) {
-        logger.error("Error ingesting upcoming games:", error);
+        functions.logger.error("Error ingesting upcoming games:", error);
         if (error instanceof HttpsError) throw error;
         throw new HttpsError('internal', 'An internal error occurred during game ingestion.');
     }
@@ -565,7 +565,7 @@ export const ingestUpcomingGames = onCall(async (request) => {
 
 
 export const updateOddsAndScores = onCall(async (request) => {
-    logger.log("Starting to update odds and scores.");
+    functions.logger.log("Starting to update odds and scores.");
     const apiKey = process.env.ODDS_API_KEY;
 
     if (!apiKey || apiKey === '9506477182d2f2335317a695b5e875e4') {
@@ -583,7 +583,7 @@ export const updateOddsAndScores = onCall(async (request) => {
 
     const gamesSnapshot = await gamesQuery.get();
     if (gamesSnapshot.empty) {
-        logger.log("No relevant games found to update.");
+        functions.logger.log("No relevant games found to update.");
         return { success: true, message: "No games to update." };
     }
 
@@ -605,7 +605,7 @@ export const updateOddsAndScores = onCall(async (request) => {
             const oddsUrl = `https://api.the-odds-api.com/v4/sports/${sportKey}/odds/?regions=us&markets=h2h,spreads,totals&oddsFormat=american&apiKey=${apiKey}`;
             const oddsResponse = await fetch(oddsUrl);
             if (!oddsResponse.ok) {
-                logger.error(`Failed to fetch odds for ${sportKey}:`, await oddsResponse.text());
+                functions.logger.error(`Failed to fetch odds for ${sportKey}:`, await oddsResponse.text());
                 continue;
             }
             const oddsData:any = await oddsResponse.json();
@@ -620,16 +620,16 @@ export const updateOddsAndScores = onCall(async (request) => {
                 }
             }
             await batch.commit();
-            logger.log(`Successfully updated odds for ${sportKey}.`);
+            functions.logger.log(`Successfully updated odds for ${sportKey}.`);
         } catch (error) {
-            logger.error(`Error processing odds for ${sportKey}:`, error);
+            functions.logger.error(`Error processing odds for ${sportKey}:`, error);
         }
         
         try {
             const scoresUrl = `https://api.the-odds-api.com/v4/sports/${sportKey}/scores/?apiKey=${apiKey}`;
             const scoresResponse = await fetch(scoresUrl);
             if (!scoresResponse.ok) {
-                logger.error(`Failed to fetch scores for ${sportKey}:`, await scoresResponse.text());
+                functions.logger.error(`Failed to fetch scores for ${sportKey}:`, await scoresResponse.text());
                 continue;
             }
             const scoresData:any = await scoresResponse.json();
@@ -651,13 +651,13 @@ export const updateOddsAndScores = onCall(async (request) => {
                 }
             }
             await batch.commit();
-            logger.log(`Successfully updated scores for ${sportKey}.`);
+            functions.logger.log(`Successfully updated scores for ${sportKey}.`);
         } catch (error) {
-            logger.error(`Error processing scores for ${sportKey}:`, error);
+            functions.logger.error(`Error processing scores for ${sportKey}:`, error);
         }
     }
     
-    logger.log(`Finished update cycle. Updated odds for ${updatedOddsCount} bookmakers and scores for ${updatedScoresCount} games.`);
+    functions.logger.log(`Finished update cycle. Updated odds for ${updatedOddsCount} bookmakers and scores for ${updatedScoresCount} games.`);
     return { success: true, updatedOddsCount, updatedScoresCount };
 });
 
@@ -670,7 +670,7 @@ export const generateBetImage = onCall(async (request) => {
         const result = await generateBetImage(request.data);
         return result;
     } catch(e: any) {
-        logger.error('Error generating bet image', e);
+        functions.logger.error('Error generating bet image', e);
         throw new HttpsError('internal', 'There was an error generating the bet image.');
     }
 });
@@ -689,33 +689,33 @@ export const getUpcomingOdds = onCall(async (request) => {
 
   const apiUrl = `https://api.the-odds-api.com/v4/sports/${sportKey}/odds?apiKey=${apiKey}&regions=${regions}&markets=${markets}&oddsFormat=${oddsFormat}&dateFormat=${dateFormat}`;
 
-  logger.info("Fetching odds from:", apiUrl);
+  functions.logger.info("Fetching odds from:", apiUrl);
 
   try {
     const response = await fetch(apiUrl);
 
     if (!response.ok) {
       const errorData = await response.text();
-      logger.error(`Failed to get odds: status_code ${response.status}, response body ${errorData}`);
+      functions.logger.error(`Failed to get odds: status_code ${response.status}, response body ${errorData}`);
       // Throw an error that the frontend can understand
       throw new HttpsError('internal', 'Failed to fetch odds.');
     }
 
     const oddsData = await response.json();
-    logger.info("Successfully fetched odds data.");
+    functions.logger.info("Successfully fetched odds data.");
     
     // Return the data to the frontend that called this function
     return oddsData;
 
   } catch (error) {
-    logger.error('Error fetching odds data:', error);
+    functions.logger.error('Error fetching odds data:', error);
     // Throw an error that the frontend can understand
     throw new HttpsError('unknown', 'An unknown error occurred.');
   }
 });
 
 
-export const stripeWebhook = onRequest(async (request, response) => {
+export const stripeWebhook = functions.https.onRequest(async (request, response) => {
     const signature = request.headers['stripe-signature'];
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
@@ -729,7 +729,7 @@ export const stripeWebhook = onRequest(async (request, response) => {
     try {
         event = stripe.webhooks.constructEvent(request.rawBody, signature, webhookSecret);
     } catch (err: any) {
-        logger.error('Webhook signature verification failed.', err.message);
+        functions.logger.error('Webhook signature verification failed.', err.message);
         response.status(400).send(`Webhook Error: ${err.message}`);
         return;
     }
@@ -741,7 +741,7 @@ export const stripeWebhook = onRequest(async (request, response) => {
             const { userId, type } = paymentIntent.metadata;
             
             if (type === 'wallet_deposit') {
-                logger.info(`Processing successful wallet deposit for user ${userId}`);
+                functions.logger.info(`Processing successful wallet deposit for user ${userId}`);
                 const amount = paymentIntent.amount_received / 100; // convert back from cents
                 
                 const userDocRef = db.collection('users').doc(userId);
@@ -758,20 +758,20 @@ export const stripeWebhook = onRequest(async (request, response) => {
                         createdAt: Timestamp.now(),
                     });
                 });
-                logger.info(`Successfully updated wallet balance for user ${userId}.`);
+                functions.logger.info(`Successfully updated wallet balance for user ${userId}.`);
             }
             // Bet-related payment intents are handled directly in the `acceptBet` function.
             // We can add more logic here if needed for other event types.
             break;
         default:
-            logger.warn(`Unhandled event type ${event.type}`);
+            functions.logger.warn(`Unhandled event type ${event.type}`);
     }
 
     response.json({received: true});
 });
 
 
-export const kycWebhook = onRequest(async (request, response) => {
+export const kycWebhook = functions.https.onRequest(async (request, response) => {
     const kycWebhookSecret = process.env.KYC_WEBHOOK_SECRET;
 
     // --- STEP 1: Verify the webhook signature (CRITICAL FOR SECURITY) ---
@@ -786,12 +786,12 @@ export const kycWebhook = onRequest(async (request, response) => {
             .digest('hex');
          
          if (signature !== expectedSignature) {
-            logger.error("Invalid KYC webhook signature.");
+            functions.logger.error("Invalid KYC webhook signature.");
             response.status(403).send("Signature verification failed.");
             return;
          }
     } else {
-        logger.warn("KYC_WEBHOOK_SECRET not set. Skipping signature verification. THIS IS NOT SAFE FOR PRODUCTION.");
+        functions.logger.warn("KYC_WEBHOOK_SECRET not set. Skipping signature verification. THIS IS NOT SAFE FOR PRODUCTION.");
     }
     // --- End of verification ---
 
@@ -801,7 +801,7 @@ export const kycWebhook = onRequest(async (request, response) => {
         const { userId, status, details } = data; // Assumes this payload structure
         
         if (!userId) {
-            logger.error("Received KYC webhook without a userId.");
+            functions.logger.error("Received KYC webhook without a userId.");
             response.status(400).send("Missing userId in payload.");
             return;
         }
@@ -821,11 +821,11 @@ export const kycWebhook = onRequest(async (request, response) => {
                 kycDetails: details // Store additional details if provided
             });
 
-            logger.log(`Successfully updated KYC status for user ${userId} to ${newKycStatus}.`);
+            functions.logger.log(`Successfully updated KYC status for user ${userId} to ${newKycStatus}.`);
             // TODO: Send a notification to the user about their status change.
 
         } catch(error) {
-            logger.error(`Error updating KYC status for user ${userId}:`, error);
+            functions.logger.error(`Error updating KYC status for user ${userId}:`, error);
             response.status(500).send("Internal server error.");
             return;
         }
