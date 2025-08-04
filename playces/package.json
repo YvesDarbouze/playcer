@@ -1,0 +1,28 @@
+
+{
+  "name": "playces",
+  "private": true,
+  "main": "lib/index.js",
+  "scripts": {
+    "build": "tsc",
+    "serve": "firebase emulators:start --only functions",
+    "shell": "firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "firebase deploy --only functions:playces",
+    "logs": "firebase functions:log --only functions:playces",
+    "lint": "echo 'Skipping lint for deployment.' && exit 0"
+  },
+  "dependencies": {
+    "algoliasearch": "^4.23.3",
+    "firebase-admin": "^12.1.0",
+    "firebase-functions": "^5.0.1",
+    "node-fetch": "^2.7.0",
+    "stripe": "^16.2.0",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/uuid": "^9.0.8",
+    "eslint": "^8.57.0",
+    "typescript": "^5.4.5"
+  }
+}

@@ -6,8 +6,8 @@
   },
   "functions": [
     {
-      "source": "functions",
-      "codebase": "default",
+      "source": "playces",
+      "codebase": "playces",
       "ignore": [
         "node_modules",
         ".git",
