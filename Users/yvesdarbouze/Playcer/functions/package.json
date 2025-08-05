@@ -18,7 +18,8 @@
     "firebase-functions": "^5.0.1",
     "node-fetch": "^2.7.0",
     "stripe": "^16.2.0",
-    "uuid": "^9.0.1"
+    "uuid": "^9.0.1",
+    "crypto": "1.0.1"
   },
   "devDependencies": {
     "@types/uuid": "^9.0.8",
