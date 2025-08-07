@@ -7,13 +7,19 @@ let app: admin.app.App;
 if (typeof window === 'undefined') {
   if (!admin.apps.length) {
     try {
-      app = admin.initializeApp({
-        credential: admin.credential.cert({
-          projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-          privateKey: (process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
-        }),
-      });
+      // When deployed, GOOGLE_APPLICATION_CREDENTIALS will be set
+      if (process.env.NODE_ENV === 'production') {
+        app = admin.initializeApp();
+      } else {
+        // For local development, use the service account file
+        app = admin.initializeApp({
+          credential: admin.credential.cert({
+            projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+            clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+            privateKey: (process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
+          }),
+        });
+      }
     } catch (error: any) {
       console.error('Firebase admin initialization error', error.stack);
     }
