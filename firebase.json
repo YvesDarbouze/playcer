@@ -6,10 +6,7 @@
   },
   "functions": {
     "source": "functions",
-    "runtime": "nodejs20",
-    "predeploy": [
-      "npm --prefix \"$RESOURCE_DIR\" run build"
-    ]
+    "runtime": "nodejs20"
   },
   "storage": {
     "rules": "storage.rules"
