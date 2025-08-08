@@ -4,6 +4,7 @@ import { getAuth } from "firebase-admin/auth";
 import {getFirestore, Timestamp, FieldValue} from "firebase-admin/firestore";
 import * as functions from "firebase-functions";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { onUserCreate } from "firebase-functions/v2/auth";
 import { v4 as uuidv4 } from "uuid";
 import * as algoliasearch from 'algoliasearch';
 import { generateBetImage } from "../../ai/flows/generate-bet-image";
@@ -103,7 +104,7 @@ const sportsDataAPI = {
             const homeScore = parseInt(eventResult.scores.find((s: any) => s.name === eventResult.home_team)?.score || '0');
             const awayScore = parseInt(eventResult.scores.find((s: any) => s.name === eventResult.away_team)?.score || '0');
 
-            return { home_score: homeScore, away_score: away_score, status: 'Final' };
+            return { home_score: homeScore, away_score: awayScore, status: 'Final' };
 
         } catch (error) {
             functions.logger.error(`Exception fetching event result for ${eventId}:`, error);
@@ -115,7 +116,8 @@ const sportsDataAPI = {
 
 // --- AUTHENTICATION TRIGGERS ---
 
-export const onusercreate = functions.auth.user().onCreate(async (user) => {
+export const onusercreate = onUserCreate(async (event) => {
+  const user = event.data;
   const {uid, displayName, photoURL, email} = user;
 
   const username = displayName?.replace(/\s+/g, '_').toLowerCase() || `user_${uid.substring(0, 5)}`;
@@ -613,7 +615,7 @@ export const updateOddsAndScores = onCall(async (request) => {
                     
                     batch.update(gameRef, {
                         home_score: homeScore,
-                        away_score: awayScore,
+                        away_score: away_score,
                         is_complete: true,
                         last_update: Timestamp.now()
                     });
@@ -694,5 +696,6 @@ export const getusers = functions.https.onRequest(async (req, res) => {
     res.status(500).send("Error getting users");
   }
 });
+    
 
     
