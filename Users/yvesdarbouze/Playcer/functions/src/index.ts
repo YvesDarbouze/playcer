@@ -4,13 +4,11 @@ import { getAuth } from "firebase-admin/auth";
 import {getFirestore, Timestamp, FieldValue} from "firebase-admin/firestore";
 import {onUserCreate} from "firebase-functions/v2/auth";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
-import * as functions from "firebase-functions";
+import {logger} from "firebase-functions";
 import { v4 as uuidv4 } from "uuid";
 import * as algoliasearch from 'algoliasearch';
 import { generateBetImage } from "../../ai/flows/generate-bet-image";
 import fetch from "node-fetch";
-import Stripe from "stripe";
-import * as crypto from "crypto";
 
 
 // Initialize Algolia client
@@ -23,28 +21,54 @@ initializeApp();
 const db = getFirestore();
 const auth = getAuth();
 
-// Initialize Stripe SDK
-// Ensure you have set STRIPE_API_KEY environment variable
-const stripe = new Stripe(process.env.STRIPE_API_KEY!, {
-    apiVersion: '2024-06-20',
-});
 
+// --- PLACEHOLDER THIRD-PARTY SERVICES ---
+// In a real application, these would interact with external APIs.
 
-// --- THIRD-PARTY SERVICES ---
+const paymentGateway = {
+    // This function simulates creating a payment intent (e.g., with Stripe).
+    // It returns a client secret that the frontend would use to confirm the payment.
+    async createPaymentIntent(userId: string, amount: number, captureMethod: 'manual' | 'automatic' = 'automatic'): Promise<{success: boolean, clientSecret: string, transactionId: string}> {
+        logger.log(`Creating payment intent for user ${userId} of amount ${amount} with capture method '${captureMethod}'.`);
+        // In a real app, you'd call Stripe's API here.
+        // The clientSecret would be returned from Stripe.
+        return { success: true, clientSecret: `pi_${uuidv4()}_secret_${uuidv4()}`, transactionId: `txn_${uuidv4()}` };
+    },
+    // This would be triggered by a webhook from the payment provider (e.g., Stripe)
+    // after the user successfully completes the payment on the frontend.
+    // We are not building the webhook endpoint in this step, but simulating its effect.
+    async processSuccessfulPayment(transactionId: string, amount: number, userId: string) {
+        logger.log(`Processing successful payment for transaction ${transactionId}`);
+        const userDocRef = db.collection('users').doc(userId);
+        await db.runTransaction(async (transaction) => {
+            transaction.update(userDocRef, { walletBalance: FieldValue.increment(amount) });
+            const transactionDocRef = db.collection('transactions').doc(transactionId);
+             transaction.set(transactionDocRef, {
+                userId: userId,
+                type: 'deposit',
+                amount: amount,
+                status: 'completed',
+                gatewayTransactionId: transactionId,
+                createdAt: Timestamp.now(),
+            });
+        });
+        logger.log(`Wallet balance updated for user ${userId}.`);
+    }
+};
 
 const escrowService = {
     async lockFunds(betId: string, amount: number): Promise<{success: boolean, escrowId: string}> {
-        functions.logger.log(`Locking funds for bet ${betId} of amount ${amount} in escrow.`);
+        logger.log(`Locking funds for bet ${betId} of amount ${amount} in escrow.`);
         // In a real app, this would call a dedicated escrow provider API.
         return { success: true, escrowId: `escrow_${uuidv4()}`};
     },
     async releaseFunds(escrowId: string, winnerId: string): Promise<{success: boolean}> {
-        functions.logger.log(`Releasing funds from escrow ${escrowId} to winner ${winnerId}.`);
+        logger.log(`Releasing funds from escrow ${escrowId} to winner ${winnerId}.`);
         // In a real app, this would call the escrow provider to disburse funds.
         return { success: true };
     },
     async refundFunds(escrowId: string, partyIds: string[]): Promise<{success: boolean}> {
-        functions.logger.log(`Refunding funds from escrow ${escrowId} to parties ${partyIds.join(', ')}.`);
+        logger.log(`Refunding funds from escrow ${escrowId} to parties ${partyIds.join(', ')}.`);
         // In a real app, this would call the escrow provider to return funds to both parties.
         return { success: true };
     }
@@ -52,11 +76,11 @@ const escrowService = {
 
 const sportsDataAPI = {
      async getEventResult(sportKey: string, eventId: string): Promise<{ home_score: number, away_score: number, status: 'Final' | 'InProgress' }> {
-        functions.logger.log(`Fetching result for event ${eventId} from sports data oracle.`);
+        logger.log(`Fetching result for event ${eventId} from sports data oracle.`);
         const apiKey = process.env.ODDS_API_KEY;
 
         if (!apiKey || apiKey === '9506477182d2f2335317a695b5e875e4') {
-            functions.logger.error(`CRITICAL: ODDS_API_KEY is not set. Aborting event result fetch for event ${eventId}.`);
+            logger.error(`CRITICAL: ODDS_API_KEY is not set. Aborting event result fetch for event ${eventId}.`);
             // Throw an error to prevent using mock data in a live environment.
             throw new Error('Sports data API key is not configured.');
         }
@@ -66,7 +90,7 @@ const sportsDataAPI = {
             const response = await fetch(url);
 
             if (!response.ok) {
-                functions.logger.error(`Error fetching event result from TheOddsAPI for event ${eventId}. Status: ${response.status}`);
+                logger.error(`Error fetching event result from TheOddsAPI for event ${eventId}. Status: ${response.status}`);
                 throw new Error('Failed to fetch from TheOddsAPI');
             }
 
@@ -83,7 +107,7 @@ const sportsDataAPI = {
             return { home_score: homeScore, away_score: awayScore, status: 'Final' };
 
         } catch (error) {
-            functions.logger.error(`Exception fetching event result for ${eventId}:`, error);
+            logger.error(`Exception fetching event result for ${eventId}:`, error);
             // In case of any error, return a non-final status to retry later
             return { home_score: 0, away_score: 0, status: 'InProgress' };
         }
@@ -110,7 +134,7 @@ export const onusercreate = onUserCreate(async (event) => {
       walletBalance: 100.00, // Starting balance for demo purposes
       wins: 0,
       losses: 0,
-      kycStatus: "pending", // All new users start as 'pending'
+      kycStatus: "verified", // Auto-verified for demo purposes
       responsibleGamingLimits: {
         deposit: { daily: 0, weekly: 0, monthly: 0 },
         wager: { daily: 0, weekly: 0, monthly: 0 },
@@ -121,9 +145,9 @@ export const onusercreate = onUserCreate(async (event) => {
         endDate: null,
       },
     });
-    functions.logger.log("User document created successfully for UID:", uid);
+    logger.log("User document created successfully for UID:", uid);
   } catch (error) {
-    functions.logger.error("Error creating user document for UID:", uid, error);
+    logger.error("Error creating user document for UID:", uid, error);
   }
 });
 
@@ -157,21 +181,16 @@ export const createBetPaymentIntent = onCall(async (request) => {
     }
 
     try {
-        const paymentIntent = await stripe.paymentIntents.create({
-            amount: wagerAmount * 100, // Stripe works in cents
-            currency: 'usd',
-            capture_method: 'manual', // Authorize now, capture later
-            metadata: {
-                userId: uid,
-                type: 'bet_authorization'
-            }
-        });
-
-        functions.logger.log(`Successfully created payment intent ${paymentIntent.id} for user ${uid}.`);
-        return { success: true, clientSecret: paymentIntent.client_secret, paymentIntentId: paymentIntent.id };
-    } catch (error: any) {
-        functions.logger.error(`Error creating payment intent for user ${uid}:`, error);
-        throw new HttpsError('internal', error.message);
+        const intentResult = await paymentGateway.createPaymentIntent(uid, wagerAmount, 'manual');
+        if (!intentResult.success) {
+            throw new HttpsError('aborted', 'Payment intent creation failed.');
+        }
+        logger.log(`Successfully created payment intent for user ${uid}.`);
+        return { success: true, clientSecret: intentResult.clientSecret, paymentIntentId: intentResult.transactionId };
+    } catch (error) {
+        logger.error(`Error creating payment intent for user ${uid}:`, error);
+        if (error instanceof HttpsError) throw error;
+        throw new HttpsError('internal', 'An internal error occurred while creating the payment intent.');
     }
 });
 
@@ -199,22 +218,18 @@ export const handleDeposit = onCall(async (request) => {
     }
     
     try {
-        const paymentIntent = await stripe.paymentIntents.create({
-            amount: depositAmount * 100, // Stripe works in cents
-            currency: 'usd',
-            automatic_payment_methods: { enabled: true },
-            metadata: {
-                userId: uid,
-                type: 'wallet_deposit'
-            }
-        });
-        
-        functions.logger.log(`Successfully created deposit payment intent ${paymentIntent.id} for user ${uid}.`);
-        return { success: true, clientSecret: paymentIntent.client_secret };
+        const intentResult = await paymentGateway.createPaymentIntent(uid, depositAmount);
+        if (!intentResult.success) {
+            throw new HttpsError('aborted', 'Payment intent creation failed.');
+        }
+        await paymentGateway.processSuccessfulPayment(intentResult.transactionId, depositAmount, uid);
+        logger.log(`Successfully processed deposit simulation for user ${uid}.`);
+        return { success: true, message: 'Deposit successful.' };
 
-    } catch (error: any) {
-        functions.logger.error(`Error handling deposit for user ${uid}:`, error);
-        throw new HttpsError('internal', error.message);
+    } catch (error) {
+        logger.error(`Error handling deposit for user ${uid}:`, error);
+        if (error instanceof HttpsError) throw error;
+        throw new HttpsError('internal', 'An internal error occurred while processing your deposit.');
     }
 });
 
@@ -232,7 +247,7 @@ export const createBet = onCall(async (request) => {
         betType,
         betValue,
         recipientTwitterHandle,
-        stripePaymentIntentId, // This now comes from the client after authorization
+        stripePaymentIntentId, // Added from the new flow
     } = request.data;
     
     // Basic validation
@@ -245,51 +260,50 @@ export const createBet = onCall(async (request) => {
     }
 
     const userDocRef = db.collection('users').doc(challengerId);
+    const userDoc = await userDocRef.get();
+    if (!userDoc.exists) {
+        throw new HttpsError('not-found', 'User profile not found.');
+    }
+    const userData = userDoc.data()!;
+
+    if (userData.kycStatus !== 'verified') {
+        throw new HttpsError('failed-precondition', 'You must verify your identity to create a bet.');
+    }
+    if (userData.walletBalance < wagerAmount) {
+        throw new HttpsError('failed-precondition', 'Insufficient wallet balance to create this bet.');
+    }
     
-    return db.runTransaction(async (transaction) => {
-        const userDoc = await transaction.get(userDocRef);
-        if (!userDoc.exists) {
-            throw new HttpsError('not-found', 'User profile not found.');
-        }
-        const userData = userDoc.data()!;
+    const betId = uuidv4();
+    const newBet = {
+        id: betId,
+        gameId,
+        gameDetails: {
+            ...gameDetails,
+            commence_time: Timestamp.fromDate(new Date(gameDetails.commence_time)),
+        },
+        challengerId: challengerId,
+        recipientId: null,
+        challengerTwitterHandle: userData.username,
+        recipientTwitterHandle: recipientTwitterHandle.startsWith('@') ? recipientTwitterHandle.substring(1) : recipientTwitterHandle,
+        wagerAmount,
+        betType,
+        betValue,
+        status: 'pending_acceptance',
+        stripePaymentIntentId: stripePaymentIntentId,
+        winnerId: null,
+        createdAt: Timestamp.now(),
+        settledAt: null,
 
-        if (userData.kycStatus !== 'verified') {
-            throw new HttpsError('failed-precondition', 'You must verify your identity to create a bet.');
-        }
-        
-        const betId = uuidv4();
-        const newBet = {
-            id: betId,
-            gameId,
-            gameDetails: {
-                ...gameDetails,
-                commence_time: Timestamp.fromDate(new Date(gameDetails.commence_time)),
-            },
-            challengerId: challengerId,
-            recipientId: null,
-            challengerTwitterHandle: userData.username,
-            recipientTwitterHandle: recipientTwitterHandle.startsWith('@') ? recipientTwitterHandle.substring(1) : recipientTwitterHandle,
-            wagerAmount,
-            betType,
-            betValue,
-            status: 'pending_acceptance',
-            challengerPaymentIntentId: stripePaymentIntentId,
-            recipientPaymentIntentId: null,
-            winnerId: null,
-            createdAt: Timestamp.now(),
-            settledAt: null,
+        // Denormalized data for display purposes
+        creatorUsername: userData.username,
+        creatorPhotoURL: userData.photoURL,
+    };
 
-            // Denormalized data for display purposes
-            creatorUsername: userData.username,
-            creatorPhotoURL: userData.photoURL,
-        };
-
-        const betDocRef = db.collection('bets').doc(betId);
-        transaction.set(betDocRef, newBet);
-        
-        functions.logger.log(`Bet ${betId} created by user ${challengerId}`);
-        return { success: true, betId };
-    });
+    const betDocRef = db.collection('bets').doc(betId);
+    await betDocRef.set(newBet);
+    
+    logger.log(`Bet ${betId} created by user ${challengerId}`);
+    return { success: true, betId };
 });
 
 
@@ -299,78 +313,54 @@ export const acceptBet = onCall(async (request) => {
     }
 
     const { uid: recipientId } = request.auth;
-    const { betId, recipientPaymentIntentId } = request.data;
+    const { betId } = request.data;
     if (!betId) throw new HttpsError('invalid-argument', 'The `betId` must be provided.');
-    if (!recipientPaymentIntentId) throw new HttpsError('invalid-argument', 'A payment intent from the recipient is required.');
-
 
     const betDocRef = db.collection('bets').doc(betId);
+    const recipientDocRef = db.collection('users').doc(recipientId);
     
     await db.runTransaction(async (transaction) => {
         const betDoc = await transaction.get(betDocRef);
-        if (!betDoc.exists) throw new HttpsError('not-found', 'Bet not found.');
-        
-        const betData = betDoc.data()!;
-        const { challengerId, wagerAmount, status, recipientTwitterHandle, challengerPaymentIntentId } = betData;
-
-        // --- Pre-condition checks ---
-        if (status !== 'pending_acceptance') throw new HttpsError('failed-precondition', 'This bet is no longer open for acceptance.');
-        if (challengerId === recipientId) throw new HttpsError('failed-precondition', 'You cannot accept your own bet.');
-
-        const recipientDocRef = db.collection('users').doc(recipientId);
         const recipientDoc = await transaction.get(recipientDocRef);
+        
+        if (!betDoc.exists) throw new HttpsError('not-found', 'Bet not found.');
         if (!recipientDoc.exists) throw new HttpsError('not-found', 'Recipient profile not found.');
+
+        const betData = betDoc.data()!;
         const recipientData = recipientDoc.data()!;
+        const { challengerId, wagerAmount, status, recipientTwitterHandle } = betData;
 
+        // Verify the user accepting the bet is the intended recipient
         if (recipientData.username.toLowerCase() !== recipientTwitterHandle.toLowerCase()) {
-            throw new HttpsError('permission-denied', 'You are not the intended recipient of this challenge.');
+            throw new HttpsError('failed-precondition', 'You are not the intended recipient of this challenge.');
         }
+        if (challengerId === recipientId) throw new HttpsError('failed-precondition', 'You cannot accept your own bet.');
+        if (status !== 'pending_acceptance') throw new HttpsError('failed-precondition', 'This bet is no longer open for acceptance.');
         if (recipientData.kycStatus !== 'verified') throw new HttpsError('failed-precondition', 'You must complete identity verification to accept a bet.');
+        if (recipientData.walletBalance < wagerAmount) throw new HttpsError('failed-precondition', 'You have insufficient funds to accept this bet.');
 
-        // --- Capture payments ---
-        try {
-            // Capture challenger's payment
-            await stripe.paymentIntents.capture(challengerPaymentIntentId);
-            // Capture recipient's payment
-            await stripe.paymentIntents.capture(recipientPaymentIntentId);
-            functions.logger.log(`Successfully captured payments for bet ${betId}.`);
-        } catch (error: any) {
-            functions.logger.error(`Failed to capture payments for bet ${betId}:`, error.message);
-            // Attempt to cancel the intents if capture fails
-            await stripe.paymentIntents.cancel(challengerPaymentIntentId).catch();
-            await stripe.paymentIntents.cancel(recipientPaymentIntentId).catch();
-            throw new HttpsError('aborted', 'Payment capture failed. The bet could not be activated.');
-        }
+        const challengerDocRef = db.collection('users').doc(challengerId);
+        const creatorDoc = await transaction.get(challengerDocRef);
+        if (!creatorDoc.exists) throw new HttpsError('not-found', 'Challenger profile not found.');
 
-        // --- Update database documents ---
+        const creatorData = creatorDoc.data()!;
+        if (creatorData.walletBalance < wagerAmount) throw new HttpsError('failed-precondition', 'The challenger has insufficient funds.');
+
+        // Update Bet Document
         transaction.update(betDocRef, {
             recipientId: recipientId,
             status: 'active',
             recipientUsername: recipientData.username,
             recipientPhotoURL: recipientData.photoURL,
-            recipientPaymentIntentId: recipientPaymentIntentId,
         });
-
-        const challengerDocRef = db.collection('users').doc(challengerId);
-        // Log transaction for challenger
-        const challengerTxRef = db.collection('transactions').doc();
-        transaction.set(challengerTxRef, { userId: challengerId, type: 'bet_stake', amount: -wagerAmount, status: 'completed', relatedBetId: betId, createdAt: Timestamp.now() });
-        transaction.update(challengerDocRef, { walletBalance: FieldValue.increment(-wagerAmount) });
-
-
-        // Log transaction for recipient
-        const recipientTxRef = db.collection('transactions').doc();
-        transaction.set(recipientTxRef, { userId: recipientId, type: 'bet_stake', amount: -wagerAmount, status: 'completed', relatedBetId: betId, createdAt: Timestamp.now() });
-        transaction.update(recipientDocRef, { walletBalance: FieldValue.increment(-wagerAmount) });
-
     });
     
-    functions.logger.log(`Bet ${betId} successfully accepted by ${recipientId}.`);
+    logger.log(`Bet ${betId} successfully accepted by ${recipientId}.`);
     return { success: true, message: "Bet accepted and matched!" };
 });
 
 export const processBetOutcomes = onCall(async (request) => {
-    functions.logger.log("Starting processBetOutcomes...");
+    logger.log("Starting processBetOutcomes...");
     
     const now = Timestamp.now();
     const query = db.collection('bets')
@@ -380,7 +370,7 @@ export const processBetOutcomes = onCall(async (request) => {
     const activeBetsSnap = await query.get();
 
     if (activeBetsSnap.empty) {
-        functions.logger.log("No active bets found for processing.");
+        logger.log("No active bets found for processing.");
         return { success: true, message: "No bets to process." };
     }
 
@@ -432,37 +422,16 @@ export const processBetOutcomes = onCall(async (request) => {
                     await betDoc.ref.update({ status: 'completed', winnerId, settledAt: Timestamp.now() });
                     processedCount++;
                 } else {
-                    // This is a PUSH. We need to refund both users.
-                    functions.logger.log(`Bet ${betId} resulted in a push/tie. Refunding users.`);
-                    const { challengerId, recipientId, wagerAmount, challengerPaymentIntentId, recipientPaymentIntentId } = betData;
-                    // Refund Stripe payments
-                    await stripe.refunds.create({ payment_intent: challengerPaymentIntentId });
-                    await stripe.refunds.create({ payment_intent: recipientPaymentIntentId });
-                    
-                    // Update user wallets and log transactions
-                    const challengerRef = db.collection('users').doc(challengerId);
-                    const recipientRef = db.collection('users').doc(recipientId);
-
-                    await db.runTransaction(async (transaction) => {
-                        transaction.update(challengerRef, { walletBalance: FieldValue.increment(wagerAmount) });
-                        transaction.update(recipientRef, { walletBalance: FieldValue.increment(wagerAmount) });
-
-                        const tx1Ref = db.collection('transactions').doc();
-                        transaction.set(tx1Ref, { userId: challengerId, type: 'bet_payout', amount: wagerAmount, status: 'completed', relatedBetId: betId, createdAt: Timestamp.now(), notes: 'Bet push/tie refund.' });
-
-                        const tx2Ref = db.collection('transactions').doc();
-                        transaction.set(tx2Ref, { userId: recipientId, type: 'bet_payout', amount: wagerAmount, status: 'completed', relatedBetId: betId, createdAt: Timestamp.now(), notes: 'Bet push/tie refund.' });
-                    });
-                    
-                    await betDoc.ref.update({ status: 'completed', settledAt: Timestamp.now() });
+                    await betDoc.ref.update({ status: 'completed', settledAt: Timestamp.now() }); // Push/Tie
+                    logger.log(`Bet ${betId} resulted in a push/void.`);
                 }
             }
         } catch (error) {
-            functions.logger.error(`Failed to process outcome for bet ${betId}:`, error);
+            logger.error(`Failed to process outcome for bet ${betId}:`, error);
         }
     }
     
-    functions.logger.log(`Finished processBetOutcomes. Processed ${processedCount} bets.`);
+    logger.log(`Finished processBetOutcomes. Processed ${processedCount} bets.`);
     return { success: true, processedCount };
 });
 
@@ -471,40 +440,44 @@ async function processPayout(data: { betId: string, winnerId: string, loserId: s
     const PLATFORM_COMMISSION_RATE = 0.045; // 4.5% vig
     
     const winnerDocRef = db.collection('users').doc(winnerId);
+    const loserDocRef = loserId ? db.collection('users').doc(loserId) : null;
     
     const commission = stake * PLATFORM_COMMISSION_RATE;
-    const totalPot = stake * 2;
-    const payoutToWinner = totalPot - commission; 
+    const payoutAmount = stake * 2 - commission; // Winner gets the full pot minus commission
 
     await db.runTransaction(async (transaction) => {
-        // 1. Credit winner's wallet with the full pot (minus commission) & increment win count
+        // 1. Debit both users' wallets for the stake
+        if (loserDocRef) {
+            transaction.update(loserDocRef, { walletBalance: FieldValue.increment(-stake), losses: FieldValue.increment(1) });
+        }
+        transaction.update(winnerDocRef, { walletBalance: FieldValue.increment(-stake) });
+
+
+        // 2. Credit winner's wallet with the full pot & increment win count
         transaction.update(winnerDocRef, { 
-            walletBalance: FieldValue.increment(payoutToWinner),
+            walletBalance: FieldValue.increment(stake * 2 - commission),
             wins: FieldValue.increment(1)
         });
 
-        // 2. Increment loser's loss count
-        if (loserId) {
-            const loserDocRef = db.collection('users').doc(loserId);
-            transaction.update(loserDocRef, { losses: FieldValue.increment(1) });
-        }
-
-        // 3. Log transactions for the payout and commission
-        const payoutTxId = db.collection('transactions').doc().id;
-        transaction.set(db.collection('transactions').doc(payoutTxId), {
-            userId: winnerId, type: 'bet_payout', amount: payoutToWinner, status: 'completed', relatedBetId: betId, createdAt: Timestamp.now()
+        // 3. Log transactions
+        const winnerTxId = db.collection('transactions').doc().id;
+        transaction.set(db.collection('transactions').doc(winnerTxId), {
+            userId: winnerId, type: 'bet_payout', amount: stake - commission, status: 'completed', relatedBetId: betId, createdAt: Timestamp.now()
         });
-    });
-    
-    // In a real Stripe Connect platform model, this might trigger a Payout from the platform's balance
-    // to the winner's connected Stripe account. For this implementation, we handle it internally
-    // as a wallet balance update.
 
-    functions.logger.log(`Payout for bet ${betId} processed for winner ${winnerId}.`);
+        if (loserId) {
+            const loserTxId = db.collection('transactions').doc().id;
+            transaction.set(db.collection('transactions').doc(loserTxId), {
+                userId: loserId, type: 'bet_stake', amount: -stake, status: 'completed', relatedBetId: betId, createdAt: Timestamp.now()
+            });
+        }
+    });
+
+    logger.log(`Payout for bet ${betId} processed for winner ${winnerId}.`);
 }
 
 export const ingestUpcomingGames = onCall(async (request) => {
-    functions.logger.log("Starting to ingest upcoming games from The Odds API.");
+    logger.log("Starting to ingest upcoming games from The Odds API.");
     const apiKey = process.env.ODDS_API_KEY;
 
     if (!apiKey) {
@@ -528,7 +501,7 @@ export const ingestUpcomingGames = onCall(async (request) => {
             const eventsUrl = `https://api.the-odds-api.com/v4/sports/${sport.key}/events?apiKey=${apiKey}`;
             const eventsResponse = await fetch(eventsUrl);
             if (!eventsResponse.ok) {
-                 functions.logger.warn(`Could not fetch events for sport ${sport.key}. Status: ${eventsResponse.status}`);
+                 logger.warn(`Could not fetch events for sport ${sport.key}. Status: ${eventsResponse.status}`);
                  continue;
             }
             const events:any = await eventsResponse.json();
@@ -552,11 +525,11 @@ export const ingestUpcomingGames = onCall(async (request) => {
 
 
         await batch.commit();
-        functions.logger.log(`Successfully ingested/updated ${gamesIngested} games.`);
+        logger.log(`Successfully ingested/updated ${gamesIngested} games.`);
         return { success: true, gamesIngested };
 
     } catch (error) {
-        functions.logger.error("Error ingesting upcoming games:", error);
+        logger.error("Error ingesting upcoming games:", error);
         if (error instanceof HttpsError) throw error;
         throw new HttpsError('internal', 'An internal error occurred during game ingestion.');
     }
@@ -564,7 +537,7 @@ export const ingestUpcomingGames = onCall(async (request) => {
 
 
 export const updateOddsAndScores = onCall(async (request) => {
-    functions.logger.log("Starting to update odds and scores.");
+    logger.log("Starting to update odds and scores.");
     const apiKey = process.env.ODDS_API_KEY;
 
     if (!apiKey || apiKey === '9506477182d2f2335317a695b5e875e4') {
@@ -582,7 +555,7 @@ export const updateOddsAndScores = onCall(async (request) => {
 
     const gamesSnapshot = await gamesQuery.get();
     if (gamesSnapshot.empty) {
-        functions.logger.log("No relevant games found to update.");
+        logger.log("No relevant games found to update.");
         return { success: true, message: "No games to update." };
     }
 
@@ -604,7 +577,7 @@ export const updateOddsAndScores = onCall(async (request) => {
             const oddsUrl = `https://api.the-odds-api.com/v4/sports/${sportKey}/odds/?regions=us&markets=h2h,spreads,totals&oddsFormat=american&apiKey=${apiKey}`;
             const oddsResponse = await fetch(oddsUrl);
             if (!oddsResponse.ok) {
-                functions.logger.error(`Failed to fetch odds for ${sportKey}:`, await oddsResponse.text());
+                logger.error(`Failed to fetch odds for ${sportKey}:`, await oddsResponse.text());
                 continue;
             }
             const oddsData:any = await oddsResponse.json();
@@ -619,16 +592,16 @@ export const updateOddsAndScores = onCall(async (request) => {
                 }
             }
             await batch.commit();
-            functions.logger.log(`Successfully updated odds for ${sportKey}.`);
+            logger.log(`Successfully updated odds for ${sportKey}.`);
         } catch (error) {
-            functions.logger.error(`Error processing odds for ${sportKey}:`, error);
+            logger.error(`Error processing odds for ${sportKey}:`, error);
         }
         
         try {
             const scoresUrl = `https://api.the-odds-api.com/v4/sports/${sportKey}/scores/?apiKey=${apiKey}`;
             const scoresResponse = await fetch(scoresUrl);
             if (!scoresResponse.ok) {
-                functions.logger.error(`Failed to fetch scores for ${sportKey}:`, await scoresResponse.text());
+                logger.error(`Failed to fetch scores for ${sportKey}:`, await scoresResponse.text());
                 continue;
             }
             const scoresData:any = await scoresResponse.json();
@@ -650,13 +623,13 @@ export const updateOddsAndScores = onCall(async (request) => {
                 }
             }
             await batch.commit();
-            functions.logger.log(`Successfully updated scores for ${sportKey}.`);
+            logger.log(`Successfully updated scores for ${sportKey}.`);
         } catch (error) {
-            functions.logger.error(`Error processing scores for ${sportKey}:`, error);
+            logger.error(`Error processing scores for ${sportKey}:`, error);
         }
     }
     
-    functions.logger.log(`Finished update cycle. Updated odds for ${updatedOddsCount} bookmakers and scores for ${updatedScoresCount} games.`);
+    logger.log(`Finished update cycle. Updated odds for ${updatedOddsCount} bookmakers and scores for ${updatedScoresCount} games.`);
     return { success: true, updatedOddsCount, updatedScoresCount };
 });
 
@@ -669,7 +642,7 @@ export const generateBetImage = onCall(async (request) => {
         const result = await generateBetImage(request.data);
         return result;
     } catch(e: any) {
-        functions.logger.error('Error generating bet image', e);
+        logger.error('Error generating bet image', e);
         throw new HttpsError('internal', 'There was an error generating the bet image.');
     }
 });
@@ -688,147 +661,27 @@ export const getUpcomingOdds = onCall(async (request) => {
 
   const apiUrl = `https://api.the-odds-api.com/v4/sports/${sportKey}/odds?apiKey=${apiKey}&regions=${regions}&markets=${markets}&oddsFormat=${oddsFormat}&dateFormat=${dateFormat}`;
 
-  functions.logger.info("Fetching odds from:", apiUrl);
+  logger.info("Fetching odds from:", apiUrl);
 
   try {
     const response = await fetch(apiUrl);
 
     if (!response.ok) {
       const errorData = await response.text();
-      functions.logger.error(`Failed to get odds: status_code ${response.status}, response body ${errorData}`);
+      logger.error(`Failed to get odds: status_code ${response.status}, response body ${errorData}`);
       // Throw an error that the frontend can understand
       throw new HttpsError('internal', 'Failed to fetch odds.');
     }
 
     const oddsData = await response.json();
-    functions.logger.info("Successfully fetched odds data.");
+    logger.info("Successfully fetched odds data.");
     
     // Return the data to the frontend that called this function
     return oddsData;
 
   } catch (error) {
-    functions.logger.error('Error fetching odds data:', error);
+    logger.error('Error fetching odds data:', error);
     // Throw an error that the frontend can understand
     throw new HttpsError('unknown', 'An unknown error occurred.');
   }
-});
-
-
-export const stripeWebhook = functions.https.onRequest(async (request, response) => {
-    const signature = request.headers['stripe-signature'];
-    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-
-    if (!signature || !webhookSecret) {
-        response.status(400).send('Webhook Error: Missing signature or secret.');
-        return;
-    }
-
-    let event: Stripe.Event;
-
-    try {
-        event = stripe.webhooks.constructEvent(request.rawBody, signature, webhookSecret);
-    } catch (err: any) {
-        functions.logger.error('Webhook signature verification failed.', err.message);
-        response.status(400).send(`Webhook Error: ${err.message}`);
-        return;
-    }
-
-    // Handle the event
-    switch (event.type) {
-        case 'payment_intent.succeeded':
-            const paymentIntent = event.data.object as Stripe.PaymentIntent;
-            const { userId, type } = paymentIntent.metadata;
-            
-            if (type === 'wallet_deposit') {
-                functions.logger.info(`Processing successful wallet deposit for user ${userId}`);
-                const amount = paymentIntent.amount_received / 100; // convert back from cents
-                
-                const userDocRef = db.collection('users').doc(userId);
-                const transactionDocRef = db.collection('transactions').doc();
-
-                await db.runTransaction(async (transaction) => {
-                    transaction.update(userDocRef, { walletBalance: FieldValue.increment(amount) });
-                    transaction.set(transactionDocRef, {
-                        userId: userId,
-                        type: 'deposit',
-                        amount: amount,
-                        status: 'completed',
-                        gatewayTransactionId: paymentIntent.id,
-                        createdAt: Timestamp.now(),
-                    });
-                });
-                functions.logger.info(`Successfully updated wallet balance for user ${userId}.`);
-            }
-            // Bet-related payment intents are handled directly in the `acceptBet` function.
-            // We can add more logic here if needed for other event types.
-            break;
-        default:
-            functions.logger.warn(`Unhandled event type ${event.type}`);
-    }
-
-    response.json({received: true});
-});
-
-
-export const kycWebhook = functions.https.onRequest(async (request, response) => {
-    const kycWebhookSecret = process.env.KYC_WEBHOOK_SECRET;
-
-    // --- STEP 1: Verify the webhook signature (CRITICAL FOR SECURITY) ---
-    // This is a placeholder for the specific signature verification method
-    // of your chosen KYC provider (e.g., checking an HMAC signature).
-    // You MUST implement this correctly using your provider's documentation.
-    const signature = request.headers['x-kyc-provider-signature'];
-    if (kycWebhookSecret) {
-         const expectedSignature = crypto
-            .createHmac('sha256', kycWebhookSecret)
-            .update(JSON.stringify(request.body))
-            .digest('hex');
-         
-         if (signature !== expectedSignature) {
-            functions.logger.error("Invalid KYC webhook signature.");
-            response.status(403).send("Signature verification failed.");
-            return;
-         }
-    } else {
-        functions.logger.warn("KYC_WEBHOOK_SECRET not set. Skipping signature verification. THIS IS NOT SAFE FOR PRODUCTION.");
-    }
-    // --- End of verification ---
-
-    const { event, data } = request.body;
-
-    if (event === 'verification.completed') {
-        const { userId, status, details } = data; // Assumes this payload structure
-        
-        if (!userId) {
-            functions.logger.error("Received KYC webhook without a userId.");
-            response.status(400).send("Missing userId in payload.");
-            return;
-        }
-
-        const userDocRef = db.collection("users").doc(userId);
-        
-        try {
-            let newKycStatus: 'verified' | 'rejected' | 'in_review' = 'in_review';
-            if (status === 'approved') {
-                newKycStatus = 'verified';
-            } else if (status === 'declined') {
-                newKycStatus = 'rejected';
-            }
-
-            await userDocRef.update({ 
-                kycStatus: newKycStatus,
-                kycDetails: details // Store additional details if provided
-            });
-
-            functions.logger.log(`Successfully updated KYC status for user ${userId} to ${newKycStatus}.`);
-            // TODO: Send a notification to the user about their status change.
-
-        } catch(error) {
-            functions.logger.error(`Error updating KYC status for user ${userId}:`, error);
-            response.status(500).send("Internal server error.");
-            return;
-        }
-    }
-
-    response.status(200).send({ received: true });
 });
