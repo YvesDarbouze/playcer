@@ -2,9 +2,8 @@
 import {initializeApp} from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import {getFirestore, Timestamp, FieldValue} from "firebase-admin/firestore";
-import {onUserCreate} from "firebase-functions/v2/auth";
+import * as functions from "firebase-functions";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
-import {logger} from "firebase-functions";
 import { v4 as uuidv4 } from "uuid";
 import * as algoliasearch from 'algoliasearch';
 import { generateBetImage } from "../../ai/flows/generate-bet-image";
@@ -29,7 +28,7 @@ const paymentGateway = {
     // This function simulates creating a payment intent (e.g., with Stripe).
     // It returns a client secret that the frontend would use to confirm the payment.
     async createPaymentIntent(userId: string, amount: number, captureMethod: 'manual' | 'automatic' = 'automatic'): Promise<{success: boolean, clientSecret: string, transactionId: string}> {
-        logger.log(`Creating payment intent for user ${userId} of amount ${amount} with capture method '${captureMethod}'.`);
+        functions.logger.log(`Creating payment intent for user ${userId} of amount ${amount} with capture method '${captureMethod}'.`);
         // In a real app, you'd call Stripe's API here.
         // The clientSecret would be returned from Stripe.
         return { success: true, clientSecret: `pi_${uuidv4()}_secret_${uuidv4()}`, transactionId: `txn_${uuidv4()}` };
@@ -38,7 +37,7 @@ const paymentGateway = {
     // after the user successfully completes the payment on the frontend.
     // We are not building the webhook endpoint in this step, but simulating its effect.
     async processSuccessfulPayment(transactionId: string, amount: number, userId: string) {
-        logger.log(`Processing successful payment for transaction ${transactionId}`);
+        functions.logger.log(`Processing successful payment for transaction ${transactionId}`);
         const userDocRef = db.collection('users').doc(userId);
         await db.runTransaction(async (transaction) => {
             transaction.update(userDocRef, { walletBalance: FieldValue.increment(amount) });
@@ -52,23 +51,23 @@ const paymentGateway = {
                 createdAt: Timestamp.now(),
             });
         });
-        logger.log(`Wallet balance updated for user ${userId}.`);
+        functions.logger.log(`Wallet balance updated for user ${userId}.`);
     }
 };
 
 const escrowService = {
     async lockFunds(betId: string, amount: number): Promise<{success: boolean, escrowId: string}> {
-        logger.log(`Locking funds for bet ${betId} of amount ${amount} in escrow.`);
+        functions.logger.log(`Locking funds for bet ${betId} of amount ${amount} in escrow.`);
         // In a real app, this would call a dedicated escrow provider API.
         return { success: true, escrowId: `escrow_${uuidv4()}`};
     },
     async releaseFunds(escrowId: string, winnerId: string): Promise<{success: boolean}> {
-        logger.log(`Releasing funds from escrow ${escrowId} to winner ${winnerId}.`);
+        functions.logger.log(`Releasing funds from escrow ${escrowId} to winner ${winnerId}.`);
         // In a real app, this would call the escrow provider to disburse funds.
         return { success: true };
     },
     async refundFunds(escrowId: string, partyIds: string[]): Promise<{success: boolean}> {
-        logger.log(`Refunding funds from escrow ${escrowId} to parties ${partyIds.join(', ')}.`);
+        functions.logger.log(`Refunding funds from escrow ${escrowId} to parties ${partyIds.join(', ')}.`);
         // In a real app, this would call the escrow provider to return funds to both parties.
         return { success: true };
     }
@@ -76,11 +75,11 @@ const escrowService = {
 
 const sportsDataAPI = {
      async getEventResult(sportKey: string, eventId: string): Promise<{ home_score: number, away_score: number, status: 'Final' | 'InProgress' }> {
-        logger.log(`Fetching result for event ${eventId} from sports data oracle.`);
+        functions.logger.log(`Fetching result for event ${eventId} from sports data oracle.`);
         const apiKey = process.env.ODDS_API_KEY;
 
         if (!apiKey || apiKey === '9506477182d2f2335317a695b5e875e4') {
-            logger.error(`CRITICAL: ODDS_API_KEY is not set. Aborting event result fetch for event ${eventId}.`);
+            functions.logger.error(`CRITICAL: ODDS_API_KEY is not set. Aborting event result fetch for event ${eventId}.`);
             // Throw an error to prevent using mock data in a live environment.
             throw new Error('Sports data API key is not configured.');
         }
@@ -90,7 +89,7 @@ const sportsDataAPI = {
             const response = await fetch(url);
 
             if (!response.ok) {
-                logger.error(`Error fetching event result from TheOddsAPI for event ${eventId}. Status: ${response.status}`);
+                functions.logger.error(`Error fetching event result from TheOddsAPI for event ${eventId}. Status: ${response.status}`);
                 throw new Error('Failed to fetch from TheOddsAPI');
             }
 
@@ -104,10 +103,10 @@ const sportsDataAPI = {
             const homeScore = parseInt(eventResult.scores.find((s: any) => s.name === eventResult.home_team)?.score || '0');
             const awayScore = parseInt(eventResult.scores.find((s: any) => s.name === eventResult.away_team)?.score || '0');
 
-            return { home_score: homeScore, away_score: awayScore, status: 'Final' };
+            return { home_score: homeScore, away_score: away_score, status: 'Final' };
 
         } catch (error) {
-            logger.error(`Exception fetching event result for ${eventId}:`, error);
+            functions.logger.error(`Exception fetching event result for ${eventId}:`, error);
             // In case of any error, return a non-final status to retry later
             return { home_score: 0, away_score: 0, status: 'InProgress' };
         }
@@ -116,8 +115,7 @@ const sportsDataAPI = {
 
 // --- AUTHENTICATION TRIGGERS ---
 
-export const onusercreate = onUserCreate(async (event) => {
-  const user = event.data;
+export const onusercreate = functions.auth.user().onCreate(async (user) => {
   const {uid, displayName, photoURL, email} = user;
 
   const username = displayName?.replace(/\s+/g, '_').toLowerCase() || `user_${uid.substring(0, 5)}`;
@@ -145,9 +143,9 @@ export const onusercreate = onUserCreate(async (event) => {
         endDate: null,
       },
     });
-    logger.log("User document created successfully for UID:", uid);
+    functions.logger.log("User document created successfully for UID:", uid);
   } catch (error) {
-    logger.error("Error creating user document for UID:", uid, error);
+    functions.logger.error("Error creating user document for UID:", uid, error);
   }
 });
 
@@ -185,10 +183,10 @@ export const createBetPaymentIntent = onCall(async (request) => {
         if (!intentResult.success) {
             throw new HttpsError('aborted', 'Payment intent creation failed.');
         }
-        logger.log(`Successfully created payment intent for user ${uid}.`);
+        functions.logger.log(`Successfully created payment intent for user ${uid}.`);
         return { success: true, clientSecret: intentResult.clientSecret, paymentIntentId: intentResult.transactionId };
     } catch (error) {
-        logger.error(`Error creating payment intent for user ${uid}:`, error);
+        functions.logger.error(`Error creating payment intent for user ${uid}:`, error);
         if (error instanceof HttpsError) throw error;
         throw new HttpsError('internal', 'An internal error occurred while creating the payment intent.');
     }
@@ -223,11 +221,11 @@ export const handleDeposit = onCall(async (request) => {
             throw new HttpsError('aborted', 'Payment intent creation failed.');
         }
         await paymentGateway.processSuccessfulPayment(intentResult.transactionId, depositAmount, uid);
-        logger.log(`Successfully processed deposit simulation for user ${uid}.`);
+        functions.logger.log(`Successfully processed deposit simulation for user ${uid}.`);
         return { success: true, message: 'Deposit successful.' };
 
     } catch (error) {
-        logger.error(`Error handling deposit for user ${uid}:`, error);
+        functions.logger.error(`Error handling deposit for user ${uid}:`, error);
         if (error instanceof HttpsError) throw error;
         throw new HttpsError('internal', 'An internal error occurred while processing your deposit.');
     }
@@ -302,7 +300,7 @@ export const createBet = onCall(async (request) => {
     const betDocRef = db.collection('bets').doc(betId);
     await betDocRef.set(newBet);
     
-    logger.log(`Bet ${betId} created by user ${challengerId}`);
+    functions.logger.log(`Bet ${betId} created by user ${challengerId}`);
     return { success: true, betId };
 });
 
@@ -355,12 +353,12 @@ export const acceptBet = onCall(async (request) => {
         });
     });
     
-    logger.log(`Bet ${betId} successfully accepted by ${recipientId}.`);
+    functions.logger.log(`Bet ${betId} successfully accepted by ${recipientId}.`);
     return { success: true, message: "Bet accepted and matched!" };
 });
 
 export const processBetOutcomes = onCall(async (request) => {
-    logger.log("Starting processBetOutcomes...");
+    functions.logger.log("Starting processBetOutcomes...");
     
     const now = Timestamp.now();
     const query = db.collection('bets')
@@ -370,7 +368,7 @@ export const processBetOutcomes = onCall(async (request) => {
     const activeBetsSnap = await query.get();
 
     if (activeBetsSnap.empty) {
-        logger.log("No active bets found for processing.");
+        functions.logger.log("No active bets found for processing.");
         return { success: true, message: "No bets to process." };
     }
 
@@ -423,15 +421,15 @@ export const processBetOutcomes = onCall(async (request) => {
                     processedCount++;
                 } else {
                     await betDoc.ref.update({ status: 'completed', settledAt: Timestamp.now() }); // Push/Tie
-                    logger.log(`Bet ${betId} resulted in a push/void.`);
+                    functions.logger.log(`Bet ${betId} resulted in a push/void.`);
                 }
             }
         } catch (error) {
-            logger.error(`Failed to process outcome for bet ${betId}:`, error);
+            functions.logger.error(`Failed to process outcome for bet ${betId}:`, error);
         }
     }
     
-    logger.log(`Finished processBetOutcomes. Processed ${processedCount} bets.`);
+    functions.logger.log(`Finished processBetOutcomes. Processed ${processedCount} bets.`);
     return { success: true, processedCount };
 });
 
@@ -473,11 +471,11 @@ async function processPayout(data: { betId: string, winnerId: string, loserId: s
         }
     });
 
-    logger.log(`Payout for bet ${betId} processed for winner ${winnerId}.`);
+    functions.logger.log(`Payout for bet ${betId} processed for winner ${winnerId}.`);
 }
 
 export const ingestUpcomingGames = onCall(async (request) => {
-    logger.log("Starting to ingest upcoming games from The Odds API.");
+    functions.logger.log("Starting to ingest upcoming games from The Odds API.");
     const apiKey = process.env.ODDS_API_KEY;
 
     if (!apiKey) {
@@ -501,7 +499,7 @@ export const ingestUpcomingGames = onCall(async (request) => {
             const eventsUrl = `https://api.the-odds-api.com/v4/sports/${sport.key}/events?apiKey=${apiKey}`;
             const eventsResponse = await fetch(eventsUrl);
             if (!eventsResponse.ok) {
-                 logger.warn(`Could not fetch events for sport ${sport.key}. Status: ${eventsResponse.status}`);
+                 functions.logger.warn(`Could not fetch events for sport ${sport.key}. Status: ${eventsResponse.status}`);
                  continue;
             }
             const events:any = await eventsResponse.json();
@@ -525,11 +523,11 @@ export const ingestUpcomingGames = onCall(async (request) => {
 
 
         await batch.commit();
-        logger.log(`Successfully ingested/updated ${gamesIngested} games.`);
+        functions.logger.log(`Successfully ingested/updated ${gamesIngested} games.`);
         return { success: true, gamesIngested };
 
     } catch (error) {
-        logger.error("Error ingesting upcoming games:", error);
+        functions.logger.error("Error ingesting upcoming games:", error);
         if (error instanceof HttpsError) throw error;
         throw new HttpsError('internal', 'An internal error occurred during game ingestion.');
     }
@@ -537,7 +535,7 @@ export const ingestUpcomingGames = onCall(async (request) => {
 
 
 export const updateOddsAndScores = onCall(async (request) => {
-    logger.log("Starting to update odds and scores.");
+    functions.logger.log("Starting to update odds and scores.");
     const apiKey = process.env.ODDS_API_KEY;
 
     if (!apiKey || apiKey === '9506477182d2f2335317a695b5e875e4') {
@@ -555,7 +553,7 @@ export const updateOddsAndScores = onCall(async (request) => {
 
     const gamesSnapshot = await gamesQuery.get();
     if (gamesSnapshot.empty) {
-        logger.log("No relevant games found to update.");
+        functions.logger.log("No relevant games found to update.");
         return { success: true, message: "No games to update." };
     }
 
@@ -577,7 +575,7 @@ export const updateOddsAndScores = onCall(async (request) => {
             const oddsUrl = `https://api.the-odds-api.com/v4/sports/${sportKey}/odds/?regions=us&markets=h2h,spreads,totals&oddsFormat=american&apiKey=${apiKey}`;
             const oddsResponse = await fetch(oddsUrl);
             if (!oddsResponse.ok) {
-                logger.error(`Failed to fetch odds for ${sportKey}:`, await oddsResponse.text());
+                functions.logger.error(`Failed to fetch odds for ${sportKey}:`, await oddsResponse.text());
                 continue;
             }
             const oddsData:any = await oddsResponse.json();
@@ -592,16 +590,16 @@ export const updateOddsAndScores = onCall(async (request) => {
                 }
             }
             await batch.commit();
-            logger.log(`Successfully updated odds for ${sportKey}.`);
+            functions.logger.log(`Successfully updated odds for ${sportKey}.`);
         } catch (error) {
-            logger.error(`Error processing odds for ${sportKey}:`, error);
+            functions.logger.error(`Error processing odds for ${sportKey}:`, error);
         }
         
         try {
             const scoresUrl = `https://api.the-odds-api.com/v4/sports/${sportKey}/scores/?apiKey=${apiKey}`;
             const scoresResponse = await fetch(scoresUrl);
             if (!scoresResponse.ok) {
-                logger.error(`Failed to fetch scores for ${sportKey}:`, await scoresResponse.text());
+                functions.logger.error(`Failed to fetch scores for ${sportKey}:`, await scoresResponse.text());
                 continue;
             }
             const scoresData:any = await scoresResponse.json();
@@ -623,13 +621,13 @@ export const updateOddsAndScores = onCall(async (request) => {
                 }
             }
             await batch.commit();
-            logger.log(`Successfully updated scores for ${sportKey}.`);
+            functions.logger.log(`Successfully updated scores for ${sportKey}.`);
         } catch (error) {
-            logger.error(`Error processing scores for ${sportKey}:`, error);
+            functions.logger.error(`Error processing scores for ${sportKey}:`, error);
         }
     }
     
-    logger.log(`Finished update cycle. Updated odds for ${updatedOddsCount} bookmakers and scores for ${updatedScoresCount} games.`);
+    functions.logger.log(`Finished update cycle. Updated odds for ${updatedOddsCount} bookmakers and scores for ${updatedScoresCount} games.`);
     return { success: true, updatedOddsCount, updatedScoresCount };
 });
 
@@ -642,7 +640,7 @@ export const generateBetImage = onCall(async (request) => {
         const result = await generateBetImage(request.data);
         return result;
     } catch(e: any) {
-        logger.error('Error generating bet image', e);
+        functions.logger.error('Error generating bet image', e);
         throw new HttpsError('internal', 'There was an error generating the bet image.');
     }
 });
@@ -661,27 +659,40 @@ export const getUpcomingOdds = onCall(async (request) => {
 
   const apiUrl = `https://api.the-odds-api.com/v4/sports/${sportKey}/odds?apiKey=${apiKey}&regions=${regions}&markets=${markets}&oddsFormat=${oddsFormat}&dateFormat=${dateFormat}`;
 
-  logger.info("Fetching odds from:", apiUrl);
+  functions.logger.info("Fetching odds from:", apiUrl);
 
   try {
     const response = await fetch(apiUrl);
 
     if (!response.ok) {
       const errorData = await response.text();
-      logger.error(`Failed to get odds: status_code ${response.status}, response body ${errorData}`);
+      functions.logger.error(`Failed to get odds: status_code ${response.status}, response body ${errorData}`);
       // Throw an error that the frontend can understand
       throw new HttpsError('internal', 'Failed to fetch odds.');
     }
 
     const oddsData = await response.json();
-    logger.info("Successfully fetched odds data.");
+    functions.logger.info("Successfully fetched odds data.");
     
     // Return the data to the frontend that called this function
     return oddsData;
 
   } catch (error) {
-    logger.error('Error fetching odds data:', error);
+    functions.logger.error('Error fetching odds data:', error);
     // Throw an error that the frontend can understand
     throw new HttpsError('unknown', 'An unknown error occurred.');
   }
 });
+
+export const getusers = functions.https.onRequest(async (req, res) => {
+  try {
+    const snapshot = await db.collection("users").get();
+    const users = snapshot.docs.map((doc) => ({id: doc.id,...doc.data()}));
+    res.status(200).json(users);
+  } catch (error) {
+    functions.logger.error("Error getting users:", error);
+    res.status(500).send("Error getting users");
+  }
+});
+
+    
