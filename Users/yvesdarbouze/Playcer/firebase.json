@@ -1,3 +1,4 @@
+
 {
   "storage": {
     "rules": "storage.rules"
@@ -10,18 +11,6 @@
     {
       "source": "functions",
       "codebase": "default",
-      "ignore": [
-        "node_modules",
-        ".git",
-        "firebase-debug.log",
-        "firebase-debug.*.log",
-        "*.local"
-      ],
-      "runtime": "nodejs22"
-    },
-    {
-      "source": "playces",
-      "codebase": "playces",
       "ignore": [
         "node_modules",
         ".git",
