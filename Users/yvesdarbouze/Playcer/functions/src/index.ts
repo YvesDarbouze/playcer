@@ -260,7 +260,7 @@ export const createBet = onCall(async (request) => {
     } = request.data;
     
     // Basic validation
-    if (!gameId || !gameDetails || !wagerAmount || !betType || !betValue || !recipientTwitterHandle) {
+    if (!gameId || !gameDetails || !wagerAmount || !betType || !betValue) {
         throw new HttpsError('invalid-argument', 'Missing required bet information.');
     }
     
@@ -297,18 +297,17 @@ export const createBet = onCall(async (request) => {
             challengerId: challengerId,
             recipientId: null,
             challengerTwitterHandle: userData.username,
-            recipientTwitterHandle: recipientTwitterHandle.startsWith('@') ? recipientTwitterHandle.substring(1) : recipientTwitterHandle,
+            recipientTwitterHandle: recipientTwitterHandle ? (recipientTwitterHandle.startsWith('@') ? recipientTwitterHandle.substring(1) : recipientTwitterHandle) : null,
             wagerAmount,
             betType,
             betValue,
             status: 'pending_acceptance',
-            challengerPaymentIntentId: transactionId, // Using placeholder payment system
+            challengerPaymentIntentId: transactionId, 
             recipientPaymentIntentId: null,
             winnerId: null,
+            isPublic: !recipientTwitterHandle,
             createdAt: Timestamp.now(),
             settledAt: null,
-
-            // Denormalized data for display purposes
             creatorUsername: userData.username,
             creatorPhotoURL: userData.photoURL,
         };
@@ -351,7 +350,7 @@ export const acceptBet = onCall(async (request) => {
         if (!recipientDoc.exists) throw new HttpsError('not-found', 'Recipient profile not found.');
         const recipientData = recipientDoc.data()!;
 
-        if (recipientData.username.toLowerCase() !== recipientTwitterHandle.toLowerCase()) {
+        if (recipientTwitterHandle && recipientData.username.toLowerCase() !== recipientTwitterHandle.toLowerCase()) {
             throw new HttpsError('permission-denied', 'You are not the intended recipient of this challenge.');
         }
         if (recipientData.kycStatus !== 'verified') throw new HttpsError('failed-precondition', 'You must complete identity verification to accept a bet.');
@@ -853,5 +852,3 @@ export const kycWebhook = functions.https.onRequest(async (request, response) =>
 
     response.status(200).send({ received: true });
 });
-
-    
