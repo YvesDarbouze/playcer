@@ -32,24 +32,6 @@ const stripe = new Stripe(process.env.STRIPE_API_KEY!, {
 
 // --- THIRD-PARTY SERVICES ---
 
-const escrowService = {
-    async lockFunds(betId: string, amount: number): Promise<{success: boolean, escrowId: string}> {
-        functions.logger.log(`Locking funds for bet ${betId} of amount ${amount} in escrow.`);
-        // In a real app, this would call a dedicated escrow provider API.
-        return { success: true, escrowId: `escrow_${uuidv4()}`};
-    },
-    async releaseFunds(escrowId: string, winnerId: string): Promise<{success: boolean}> {
-        functions.logger.log(`Releasing funds from escrow ${escrowId} to winner ${winnerId}.`);
-        // In a real app, this would call the escrow provider to disburse funds.
-        return { success: true };
-    },
-    async refundFunds(escrowId: string, partyIds: string[]): Promise<{success: boolean}> {
-        functions.logger.log(`Refunding funds from escrow ${escrowId} to parties ${partyIds.join(', ')}.`);
-        // In a real app, this would call the escrow provider to return funds to both parties.
-        return { success: true };
-    }
-}
-
 const sportsDataAPI = {
      async getEventResult(sportKey: string, eventId: string): Promise<{ home_score: number, away_score: number, status: 'Final' | 'InProgress' }> {
         functions.logger.log(`Fetching result for event ${eventId} from sports data oracle.`);
@@ -168,7 +150,7 @@ export const createBetPaymentIntent = onCall(async (request) => {
         });
 
         functions.logger.log(`Successfully created payment intent ${paymentIntent.id} for user ${uid}.`);
-        return { success: true, clientSecret: paymentIntent.client_secret, paymentIntentId: paymentIntent.id };
+        return { success: true, clientSecret: paymentIntent.client_secret };
     } catch (error: any) {
         functions.logger.error(`Error creating payment intent for user ${uid}:`, error);
         throw new HttpsError('internal', error.message);
@@ -299,82 +281,36 @@ export const acceptBet = onCall(async (request) => {
     }
 
     const { uid: recipientId } = request.auth;
-    const { betId, recipientPaymentIntentId } = request.data;
+    const { betId } = request.data;
     if (!betId) throw new HttpsError('invalid-argument', 'The `betId` must be provided.');
-    if (!recipientPaymentIntentId) throw new HttpsError('invalid-argument', 'A payment intent from the recipient is required.');
-
-
+   
     const betDocRef = db.collection('bets').doc(betId);
     
-    await db.runTransaction(async (transaction) => {
-        const betDoc = await transaction.get(betDocRef);
-        if (!betDoc.exists) throw new HttpsError('not-found', 'Bet not found.');
-        
-        const betData = betDoc.data()!;
-        const { challengerId, wagerAmount, status, recipientTwitterHandle, challengerPaymentIntentId } = betData;
+    const betDoc = await betDocRef.get();
+    if (!betDoc.exists) throw new HttpsError('not-found', 'Bet not found.');
+    const betData = betDoc.data()!;
 
-        // --- Pre-condition checks ---
-        if (status !== 'pending_acceptance') throw new HttpsError('failed-precondition', 'This bet is no longer open for acceptance.');
-        if (challengerId === recipientId) throw new HttpsError('failed-precondition', 'You cannot accept your own bet.');
-
-        const recipientDocRef = db.collection('users').doc(recipientId);
-        const recipientDoc = await transaction.get(recipientDocRef);
-        if (!recipientDoc.exists) throw new HttpsError('not-found', 'Recipient profile not found.');
-        const recipientData = recipientDoc.data()!;
-
-        if (recipientTwitterHandle && recipientData.username.toLowerCase() !== recipientTwitterHandle.toLowerCase()) {
-            throw new HttpsError('permission-denied', 'You are not the intended recipient of this challenge.');
-        }
-        if (recipientData.kycStatus !== 'verified') throw new HttpsError('failed-precondition', 'You must complete identity verification to accept a bet.');
-
-        // --- Capture payments ---
-        try {
-            // Capture challenger's payment
-            await stripe.paymentIntents.capture(challengerPaymentIntentId);
-            // Capture recipient's payment
-            await stripe.paymentIntents.capture(recipientPaymentIntentId);
-            functions.logger.log(`Successfully captured payments for bet ${betId}.`);
-        } catch (error: any) {
-            functions.logger.error(`Failed to capture payments for bet ${betId}:`, error.message);
-            // Attempt to cancel the intents if capture fails
-            try {
-                await stripe.paymentIntents.cancel(challengerPaymentIntentId);
-            } catch (cancelError) {
-                functions.logger.error(`Failed to cancel challenger payment intent ${challengerPaymentIntentId} for bet ${betId}:`, cancelError);
+    // Create payment intent for the recipient
+    try {
+        const paymentIntent = await stripe.paymentIntents.create({
+            amount: betData.wagerAmount * 100, // Stripe works in cents
+            currency: 'usd',
+            capture_method: 'manual', // Authorize now, capture later on confirmation
+            metadata: {
+                userId: recipientId,
+                type: 'bet_authorization',
+                betId: betId
             }
-             try {
-                await stripe.paymentIntents.cancel(recipientPaymentIntentId);
-            } catch (cancelError) {
-                functions.logger.error(`Failed to cancel recipient payment intent ${recipientPaymentIntentId} for bet ${betId}:`, cancelError);
-            }
-            throw new HttpsError('aborted', 'Payment capture failed. The bet could not be activated.');
-        }
-
-        // --- Update database documents ---
-        transaction.update(betDocRef, {
-            recipientId: recipientId,
-            status: 'active',
-            recipientUsername: recipientData.username,
-            recipientPhotoURL: recipientData.photoURL,
-            recipientPaymentIntentId: recipientPaymentIntentId,
         });
+        
+        // This is a two-step process. First, we send the clientSecret back.
+        // The client confirms the payment. A webhook will finalize the bet.
+        return { success: true, clientSecret: paymentIntent.client_secret };
 
-        const challengerDocRef = db.collection('users').doc(challengerId);
-        // Log transaction for challenger
-        const challengerTxRef = db.collection('transactions').doc();
-        transaction.set(challengerTxRef, { userId: challengerId, type: 'bet_stake', amount: -wagerAmount, status: 'completed', relatedBetId: betId, createdAt: Timestamp.now() });
-        transaction.update(challengerDocRef, { walletBalance: FieldValue.increment(-wagerAmount) });
-
-
-        // Log transaction for recipient
-        const recipientTxRef = db.collection('transactions').doc();
-        transaction.set(recipientTxRef, { userId: recipientId, type: 'bet_stake', amount: -wagerAmount, status: 'completed', relatedBetId: betId, createdAt: Timestamp.now() });
-        transaction.update(recipientDocRef, { walletBalance: FieldValue.increment(-wagerAmount) });
-
-    });
-    
-    functions.logger.log(`Bet ${betId} successfully accepted by ${recipientId}.`);
-    return { success: true, message: "Bet accepted and matched!" };
+    } catch (error: any) {
+        functions.logger.error(`Error creating recipient payment intent for bet ${betId}:`, error);
+        throw new HttpsError('internal', error.message);
+    }
 });
 
 export const processBetOutcomes = onCall(async (request) => {
@@ -744,32 +680,89 @@ export const stripeWebhook = functions.https.onRequest(async (request, response)
     // Handle the event
     switch (event.type) {
         case 'payment_intent.succeeded':
-            const paymentIntent = event.data.object as Stripe.PaymentIntent;
-            const { userId, type } = paymentIntent.metadata;
-            
-            if (type === 'wallet_deposit') {
-                functions.logger.info(`Processing successful wallet deposit for user ${userId}`);
-                const amount = paymentIntent.amount_received / 100; // convert back from cents
+            const piSucceeded = event.data.object as Stripe.PaymentIntent;
+            if (piSucceeded.metadata.type === 'wallet_deposit') {
+                functions.logger.info(`Processing successful wallet deposit for user ${piSucceeded.metadata.userId}`);
+                const amount = piSucceeded.amount_received / 100; // convert back from cents
                 
-                const userDocRef = db.collection('users').doc(userId);
+                const userDocRef = db.collection('users').doc(piSucceeded.metadata.userId);
                 const transactionDocRef = db.collection('transactions').doc();
 
                 await db.runTransaction(async (transaction) => {
                     transaction.update(userDocRef, { walletBalance: FieldValue.increment(amount) });
                     transaction.set(transactionDocRef, {
-                        userId: userId,
+                        userId: piSucceeded.metadata.userId,
                         type: 'deposit',
                         amount: amount,
                         status: 'completed',
-                        gatewayTransactionId: paymentIntent.id,
+                        gatewayTransactionId: piSucceeded.id,
                         createdAt: Timestamp.now(),
                     });
                 });
-                functions.logger.info(`Successfully updated wallet balance for user ${userId}.`);
+                functions.logger.info(`Successfully updated wallet balance for user ${piSucceeded.metadata.userId}.`);
             }
-            // Bet-related payment intents are handled directly in the `acceptBet` function.
-            // We can add more logic here if needed for other event types.
             break;
+
+        case 'payment_intent.payment_failed':
+            const piFailed = event.data.object as Stripe.PaymentIntent;
+            functions.logger.warn(`Payment failed for user ${piFailed.metadata.userId} for intent ${piFailed.id}.`);
+            // Optionally, notify the user about the payment failure.
+            break;
+
+        case 'payment_intent.requires_capture':
+            // This is the key event for finalizing a bet.
+            // It indicates the recipient has successfully authorized their card.
+            const piToCapture = event.data.object as Stripe.PaymentIntent;
+            const { userId: recipientId, betId } = piToCapture.metadata;
+            if (betId && recipientId) {
+                functions.logger.info(`Finalizing bet ${betId} after recipient ${recipientId} authorized payment.`);
+                
+                const betDocRef = db.collection('bets').doc(betId);
+                const recipientDocRef = db.collection('users').doc(recipientId);
+
+                await db.runTransaction(async (transaction) => {
+                    const betDoc = await transaction.get(betDocRef);
+                    const recipientDoc = await transaction.get(recipientDocRef);
+                    
+                    if (!betDoc.exists) throw new Error(`Bet ${betId} not found.`);
+                    if (!recipientDoc.exists) throw new Error(`Recipient ${recipientId} not found.`);
+
+                    const betData = betDoc.data()!;
+                    const recipientData = recipientDoc.data()!;
+                    const { challengerId, wagerAmount, status, recipientTwitterHandle } = betData;
+
+                    if (status !== 'pending_acceptance') throw new Error(`Bet ${betId} is not pending acceptance.`);
+                    if (challengerId === recipientId) throw new Error('User cannot accept their own bet.');
+                    if (recipientData.username.toLowerCase() !== recipientTwitterHandle.toLowerCase()) throw new Error('User is not the intended recipient.');
+                    if (recipientData.kycStatus !== 'verified') throw new Error('Recipient must be KYC verified.');
+
+                    // Capture both payments
+                    await stripe.paymentIntents.capture(betData.challengerPaymentIntentId);
+                    await stripe.paymentIntents.capture(piToCapture.id); // The recipient's intent
+
+                    // Update Bet Document
+                    transaction.update(betDocRef, {
+                        recipientId: recipientId,
+                        status: 'active',
+                        recipientUsername: recipientData.username,
+                        recipientPhotoURL: recipientData.photoURL,
+                        recipientPaymentIntentId: piToCapture.id,
+                    });
+
+                    // Log transactions for both users
+                    const challengerDocRef = db.collection('users').doc(challengerId);
+                    const challengerTxRef = db.collection('transactions').doc();
+                    transaction.set(challengerTxRef, { userId: challengerId, type: 'bet_stake', amount: -wagerAmount, status: 'completed', relatedBetId: betId, createdAt: Timestamp.now() });
+                    transaction.update(challengerDocRef, { walletBalance: FieldValue.increment(-wagerAmount) });
+
+                    const recipientTxRef = db.collection('transactions').doc();
+                    transaction.set(recipientTxRef, { userId: recipientId, type: 'bet_stake', amount: -wagerAmount, status: 'completed', relatedBetId: betId, createdAt: Timestamp.now() });
+                    transaction.update(recipientDocRef, { walletBalance: FieldValue.increment(-wagerAmount) });
+                });
+                functions.logger.log(`Bet ${betId} successfully activated.`);
+            }
+            break;
+
         default:
             functions.logger.warn(`Unhandled event type ${event.type}`);
     }
@@ -840,5 +833,3 @@ export const kycWebhook = functions.https.onRequest(async (request, response) =>
 
     response.status(200).send({ received: true });
 });
-
-    
