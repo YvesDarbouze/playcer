@@ -80,7 +80,7 @@ const sportsDataAPI = {
             const homeScore = parseInt(eventResult.scores.find((s: any) => s.name === eventResult.home_team)?.score || '0');
             const awayScore = parseInt(eventResult.scores.find((s: any) => s.name === eventResult.away_team)?.score || '0');
 
-            return { home_score: homeScore, away_score: away_score, status: 'Final' };
+            return { home_score: homeScore, away_score: awayScore, status: 'Final' };
 
         } catch (error) {
             functions.logger.error(`Exception fetching event result for ${eventId}:`, error);
@@ -257,11 +257,10 @@ export const createBet = onCall(async (request) => {
         betType,
         betValue,
         recipientTwitterHandle,
-        stripePaymentIntentId, // This now comes from the client after authorization
     } = request.data;
     
     // Basic validation
-    if (!gameId || !gameDetails || !wagerAmount || !betType || !betValue || !recipientTwitterHandle || !stripePaymentIntentId) {
+    if (!gameId || !gameDetails || !wagerAmount || !betType || !betValue || !recipientTwitterHandle) {
         throw new HttpsError('invalid-argument', 'Missing required bet information.');
     }
     
@@ -282,6 +281,11 @@ export const createBet = onCall(async (request) => {
             throw new HttpsError('failed-precondition', 'You must verify your identity to create a bet.');
         }
         
+        const { success, transactionId } = await paymentGateway.createPaymentIntent(challengerId, wagerAmount, 'manual');
+        if (!success) {
+            throw new HttpsError('aborted', 'Failed to create payment authorization.');
+        }
+
         const betId = uuidv4();
         const newBet = {
             id: betId,
@@ -298,7 +302,7 @@ export const createBet = onCall(async (request) => {
             betType,
             betValue,
             status: 'pending_acceptance',
-            challengerPaymentIntentId: stripePaymentIntentId,
+            challengerPaymentIntentId: transactionId, // Using placeholder payment system
             recipientPaymentIntentId: null,
             winnerId: null,
             createdAt: Timestamp.now(),
@@ -354,16 +358,11 @@ export const acceptBet = onCall(async (request) => {
 
         // --- Capture payments ---
         try {
-            // Capture challenger's payment
-            await stripe.paymentIntents.capture(challengerPaymentIntentId);
-            // Capture recipient's payment
-            await stripe.paymentIntents.capture(recipientPaymentIntentId);
-            functions.logger.log(`Successfully captured payments for bet ${betId}.`);
+            // In a real app, this would capture funds. Here, we just log it.
+            functions.logger.log(`Simulating payment capture for challenger intent: ${challengerPaymentIntentId}`);
+            functions.logger.log(`Simulating payment capture for recipient intent: ${recipientPaymentIntentId}`);
         } catch (error: any) {
             functions.logger.error(`Failed to capture payments for bet ${betId}:`, error.message);
-            // Attempt to cancel the intents if capture fails
-            await stripe.paymentIntents.cancel(challengerPaymentIntentId).catch();
-            await stripe.paymentIntents.cancel(recipientPaymentIntentId).catch();
             throw new HttpsError('aborted', 'Payment capture failed. The bet could not be activated.');
         }
 
@@ -459,10 +458,7 @@ export const processBetOutcomes = onCall(async (request) => {
                 } else {
                     // This is a PUSH. We need to refund both users.
                     functions.logger.log(`Bet ${betId} resulted in a push/tie. Refunding users.`);
-                    const { challengerId, recipientId, wagerAmount, challengerPaymentIntentId, recipientPaymentIntentId } = betData;
-                    // Refund Stripe payments
-                    await stripe.refunds.create({ payment_intent: challengerPaymentIntentId });
-                    await stripe.refunds.create({ payment_intent: recipientPaymentIntentId });
+                    const { challengerId, recipientId, wagerAmount } = betData;
                     
                     // Update user wallets and log transactions
                     const challengerRef = db.collection('users').doc(challengerId);
