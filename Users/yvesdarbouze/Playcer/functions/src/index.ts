@@ -145,37 +145,6 @@ export const getAlgoliaSearchKey = onCall((request) => {
     return { key: searchKey };
 });
 
-const paymentGateway = {
-    // This function simulates creating a payment intent (e.g., with Stripe).
-    // It returns a client secret that the frontend would use to confirm the payment.
-    async createPaymentIntent(userId: string, amount: number, captureMethod: 'manual' | 'automatic' = 'automatic'): Promise<{success: boolean, clientSecret: string, transactionId: string}> {
-        functions.logger.log(`Creating payment intent for user ${userId} of amount ${amount} with capture method '${captureMethod}'.`);
-        // In a real app, you'd call Stripe's API here.
-        // The clientSecret would be returned from Stripe.
-        return { success: true, clientSecret: `pi_${uuidv4()}_secret_${uuidv4()}`, transactionId: `txn_${uuidv4()}` };
-    },
-    // This would be triggered by a webhook from the payment provider (e.g., Stripe)
-    // after the user successfully completes the payment on the frontend.
-    // We are not building the webhook endpoint in this step, but simulating its effect.
-    async processSuccessfulPayment(transactionId: string, amount: number, userId: string) {
-        functions.logger.log(`Processing successful payment for transaction ${transactionId}`);
-        const userDocRef = db.collection('users').doc(userId);
-        await db.runTransaction(async (transaction) => {
-            transaction.update(userDocRef, { walletBalance: FieldValue.increment(amount) });
-            const transactionDocRef = db.collection('transactions').doc(transactionId);
-             transaction.set(transactionDocRef, {
-                userId: userId,
-                type: 'deposit',
-                amount: amount,
-                status: 'completed',
-                gatewayTransactionId: transactionId,
-                createdAt: Timestamp.now(),
-            });
-        });
-        functions.logger.log(`Wallet balance updated for user ${userId}.`);
-    }
-};
-
 export const createBetPaymentIntent = onCall(async (request) => {
     if (!request.auth) {
         throw new HttpsError('unauthenticated', 'You must be logged in to create a payment intent.');
@@ -188,12 +157,18 @@ export const createBetPaymentIntent = onCall(async (request) => {
     }
 
     try {
-        const intentResult = await paymentGateway.createPaymentIntent(uid, wagerAmount, 'manual');
-        if (!intentResult.success) {
-            throw new HttpsError('aborted', 'Payment intent creation failed.');
-        }
-        functions.logger.log(`Successfully created payment intent for user ${uid}.`);
-        return { success: true, clientSecret: intentResult.clientSecret, paymentIntentId: intentResult.transactionId };
+        const paymentIntent = await stripe.paymentIntents.create({
+            amount: wagerAmount * 100, // Stripe works in cents
+            currency: 'usd',
+            capture_method: 'manual', // Authorize now, capture later
+            metadata: {
+                userId: uid,
+                type: 'bet_authorization'
+            }
+        });
+
+        functions.logger.log(`Successfully created payment intent ${paymentIntent.id} for user ${uid}.`);
+        return { success: true, clientSecret: paymentIntent.client_secret, paymentIntentId: paymentIntent.id };
     } catch (error: any) {
         functions.logger.error(`Error creating payment intent for user ${uid}:`, error);
         throw new HttpsError('internal', error.message);
@@ -257,10 +232,11 @@ export const createBet = onCall(async (request) => {
         betType,
         betValue,
         recipientTwitterHandle,
+        stripePaymentIntentId, // This now comes from the client after authorization
     } = request.data;
     
     // Basic validation
-    if (!gameId || !gameDetails || !wagerAmount || !betType || !betValue) {
+    if (!gameId || !gameDetails || !wagerAmount || !betType || !betValue || !recipientTwitterHandle || !stripePaymentIntentId) {
         throw new HttpsError('invalid-argument', 'Missing required bet information.');
     }
     
@@ -281,11 +257,6 @@ export const createBet = onCall(async (request) => {
             throw new HttpsError('failed-precondition', 'You must verify your identity to create a bet.');
         }
         
-        const { success, transactionId } = await paymentGateway.createPaymentIntent(challengerId, wagerAmount, 'manual');
-        if (!success) {
-            throw new HttpsError('aborted', 'Failed to create payment authorization.');
-        }
-
         const betId = uuidv4();
         const newBet = {
             id: betId,
@@ -297,17 +268,18 @@ export const createBet = onCall(async (request) => {
             challengerId: challengerId,
             recipientId: null,
             challengerTwitterHandle: userData.username,
-            recipientTwitterHandle: recipientTwitterHandle ? (recipientTwitterHandle.startsWith('@') ? recipientTwitterHandle.substring(1) : recipientTwitterHandle) : null,
+            recipientTwitterHandle: recipientTwitterHandle.startsWith('@') ? recipientTwitterHandle.substring(1) : recipientTwitterHandle,
             wagerAmount,
             betType,
             betValue,
             status: 'pending_acceptance',
-            challengerPaymentIntentId: transactionId, 
+            challengerPaymentIntentId: stripePaymentIntentId,
             recipientPaymentIntentId: null,
             winnerId: null,
-            isPublic: !recipientTwitterHandle,
             createdAt: Timestamp.now(),
             settledAt: null,
+
+            // Denormalized data for display purposes
             creatorUsername: userData.username,
             creatorPhotoURL: userData.photoURL,
         };
@@ -357,11 +329,24 @@ export const acceptBet = onCall(async (request) => {
 
         // --- Capture payments ---
         try {
-            // In a real app, this would capture funds. Here, we just log it.
-            functions.logger.log(`Simulating payment capture for challenger intent: ${challengerPaymentIntentId}`);
-            functions.logger.log(`Simulating payment capture for recipient intent: ${recipientPaymentIntentId}`);
+            // Capture challenger's payment
+            await stripe.paymentIntents.capture(challengerPaymentIntentId);
+            // Capture recipient's payment
+            await stripe.paymentIntents.capture(recipientPaymentIntentId);
+            functions.logger.log(`Successfully captured payments for bet ${betId}.`);
         } catch (error: any) {
             functions.logger.error(`Failed to capture payments for bet ${betId}:`, error.message);
+            // Attempt to cancel the intents if capture fails
+            try {
+                await stripe.paymentIntents.cancel(challengerPaymentIntentId);
+            } catch (cancelError) {
+                functions.logger.error(`Failed to cancel challenger payment intent ${challengerPaymentIntentId} for bet ${betId}:`, cancelError);
+            }
+             try {
+                await stripe.paymentIntents.cancel(recipientPaymentIntentId);
+            } catch (cancelError) {
+                functions.logger.error(`Failed to cancel recipient payment intent ${recipientPaymentIntentId} for bet ${betId}:`, cancelError);
+            }
             throw new HttpsError('aborted', 'Payment capture failed. The bet could not be activated.');
         }
 
@@ -457,7 +442,10 @@ export const processBetOutcomes = onCall(async (request) => {
                 } else {
                     // This is a PUSH. We need to refund both users.
                     functions.logger.log(`Bet ${betId} resulted in a push/tie. Refunding users.`);
-                    const { challengerId, recipientId, wagerAmount } = betData;
+                    const { challengerId, recipientId, wagerAmount, challengerPaymentIntentId, recipientPaymentIntentId } = betData;
+                    // Refund Stripe payments
+                    await stripe.refunds.create({ payment_intent: challengerPaymentIntentId });
+                    await stripe.refunds.create({ payment_intent: recipientPaymentIntentId });
                     
                     // Update user wallets and log transactions
                     const challengerRef = db.collection('users').doc(challengerId);
