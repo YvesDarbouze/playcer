@@ -120,7 +120,7 @@ export const getAlgoliaSearchKey = onCall((request) => {
     const searchKey = algoliasearch.generateSecuredApiKey(
         process.env.ALGOLIA_SEARCH_ONLY_API_KEY!,
         {
-             filters: 'status:pending_acceptance'
+             filters: 'status:pending_acceptance OR isPublic:true'
         }
     );
 
@@ -214,11 +214,12 @@ export const createBet = onCall(async (request) => {
         betType,
         betValue,
         recipientTwitterHandle,
-        stripePaymentIntentId, // This now comes from the client after authorization
+        stripePaymentIntentId,
+        isPublic,
     } = request.data;
     
     // Basic validation
-    if (!gameId || !gameDetails || !wagerAmount || !betType || !betValue || !recipientTwitterHandle || !stripePaymentIntentId) {
+    if (!gameId || !gameDetails || !wagerAmount || !betType || !betValue || !stripePaymentIntentId) {
         throw new HttpsError('invalid-argument', 'Missing required bet information.');
     }
     
@@ -250,7 +251,7 @@ export const createBet = onCall(async (request) => {
             challengerId: challengerId,
             recipientId: null,
             challengerTwitterHandle: userData.username,
-            recipientTwitterHandle: recipientTwitterHandle.startsWith('@') ? recipientTwitterHandle.substring(1) : recipientTwitterHandle,
+            recipientTwitterHandle: recipientTwitterHandle ? (recipientTwitterHandle.startsWith('@') ? recipientTwitterHandle.substring(1) : recipientTwitterHandle) : null,
             wagerAmount,
             betType,
             betValue,
@@ -260,6 +261,7 @@ export const createBet = onCall(async (request) => {
             winnerId: null,
             createdAt: Timestamp.now(),
             settledAt: null,
+            isPublic: isPublic,
 
             // Denormalized data for display purposes
             creatorUsername: userData.username,
@@ -733,7 +735,11 @@ export const stripeWebhook = functions.https.onRequest(async (request, response)
 
                     if (status !== 'pending_acceptance') throw new Error(`Bet ${betId} is not pending acceptance.`);
                     if (challengerId === recipientId) throw new Error('User cannot accept their own bet.');
-                    if (recipientData.username.toLowerCase() !== recipientTwitterHandle.toLowerCase()) throw new Error('User is not the intended recipient.');
+                    
+                    if(recipientTwitterHandle && recipientData.username.toLowerCase() !== recipientTwitterHandle.toLowerCase()) {
+                        throw new Error('User is not the intended recipient.');
+                    }
+                    
                     if (recipientData.kycStatus !== 'verified') throw new Error('Recipient must be KYC verified.');
 
                     // Capture both payments

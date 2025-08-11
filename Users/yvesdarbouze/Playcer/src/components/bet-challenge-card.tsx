@@ -22,8 +22,6 @@ import { cn } from "@/lib/utils";
 import { LoginButton } from "./login-button";
 import { useToast } from "@/hooks/use-toast";
 import { useStripe, useElements, PaymentElement } from "@stripe/react-stripe-js";
-import { getFunctions, httpsCallable } from "firebase/functions";
-import { getFirebaseApp } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
 
 
@@ -73,14 +71,15 @@ export function BetChallengeCard({
   const [isFinalizing, setIsFinalizing] = React.useState(false);
 
   const isChallenger = currentUser && currentUser.uid === bet.challengerId;
-  const isRecipient = currentUser && currentUser.providerData[0]?.uid === bet.recipientTwitterHandle; // A simplification
-  
-  const canAccept = currentUser && bet.status === 'pending_acceptance' && !isChallenger;
+
+  const canAccept = currentUser && bet.status === 'pending_acceptance' && !isChallenger && (bet.isPublic || (bet.recipientTwitterHandle && currentUser.providerData[0]?.uid === bet.recipientTwitterHandle));
 
 
   const handleShareBet = () => {
     const challengeLink = window.location.href;
-    const tweetText = encodeURIComponent(`@${bet.recipientTwitterHandle} I challenge you to a bet on Playcer! ${bet.gameDetails.away_team} @ ${bet.gameDetails.home_team}`);
+    const tweetText = bet.recipientTwitterHandle
+        ? encodeURIComponent(`@${bet.recipientTwitterHandle} I challenge you to a bet on Playcer! ${bet.gameDetails.away_team} @ ${bet.gameDetails.home_team}`)
+        : encodeURIComponent(`I just posted a public challenge on Playcer for ${bet.gameDetails.away_team} @ ${bet.gameDetails.home_team}. Who wants to accept?`);
     const tweetUrl = `https://twitter.com/intent/tweet?text=${tweetText}&url=${challengeLink}`;
     window.open(tweetUrl, '_blank');
   };
@@ -161,7 +160,7 @@ export function BetChallengeCard({
       return (
         <Button onClick={handleShareBet} className="w-full" size="lg" variant="secondary">
           <Twitter className="mr-2" />
-          Tweet Challenge Again
+          Share Challenge
         </Button>
       );
     }

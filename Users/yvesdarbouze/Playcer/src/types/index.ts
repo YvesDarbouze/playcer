@@ -89,7 +89,7 @@ export type Bet = {
   challengerId: string;
   recipientId: string | null;
   challengerTwitterHandle: string;
-  recipientTwitterHandle: string;
+  recipientTwitterHandle: string | null;
   wagerAmount: number;
   betType: "moneyline" | "spread" | "totals";
   betValue: {
@@ -104,6 +104,7 @@ export type Bet = {
   winnerId: string | null;
   createdAt: Date;
   settledAt: Date | null;
+  isPublic: boolean;
   // Denormalized data
   creatorUsername: string; 
   creatorPhotoURL: string;

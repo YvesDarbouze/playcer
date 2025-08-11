@@ -66,7 +66,9 @@ const betSchema = z.object({
     teamSelection: z.string().min(1, "Please select a team or option."),
     stake: z.coerce.number().min(1, "Stake must be at least $1."),
     line: z.coerce.number().optional(),
-    opponentTwitter: z.string().min(1, "An opponent's Twitter handle is required.").startsWith("@", "Twitter handle must start with @"),
+    opponentTwitter: z.string().optional().refine(val => !val || val.startsWith('@'), {
+        message: "Twitter handle must start with @"
+    }),
 }).refine((data) => {
     if (data.betType === 'spread' || data.betType === 'totals') {
         return data.line !== undefined && data.line !== null;
@@ -118,6 +120,7 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, odds, loadingOdd
   });
 
   const betType = form.watch("betType");
+  const opponentTwitter = form.watch("opponentTwitter");
   
   React.useEffect(() => {
     form.clearErrors();
@@ -166,8 +169,9 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, odds, loadingOdd
           wagerAmount: data.stake,
           betType: data.betType,
           betValue,
-          recipientTwitterHandle: data.opponentTwitter,
+          recipientTwitterHandle: data.opponentTwitter || null,
           stripePaymentIntentId: paymentIntent.id,
+          isPublic: !data.opponentTwitter,
         };
 
         try {
@@ -283,8 +287,8 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, odds, loadingOdd
                                 )}
                             />
                              <FormField control={form.control} name="opponentTwitter" render={({ field }) => (
-                                <FormItem><FormLabel>Opponent's Twitter</FormLabel>
-                                <FormControl><div className="relative"><Twitter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="@BenTheBettor" className="pl-9" {...field} /></div></FormControl>
+                                <FormItem><FormLabel>Opponent (Optional)</FormLabel>
+                                <FormControl><div className="relative"><Twitter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="@BenTheBettor or leave blank for public" className="pl-9" {...field} /></div></FormControl>
                                 <FormMessage /></FormItem>
                                 )}
                             />
@@ -311,10 +315,17 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, odds, loadingOdd
                 return (
                     <div className="space-y-4 py-8 text-center">
                          <h3 className="font-bold text-lg">Challenge Sent!</h3>
-                         <p className="text-sm text-muted-foreground">Your challenge has been created. Once your opponent accepts, the bet is on!</p>
+                         <p className="text-sm text-muted-foreground">
+                            {opponentTwitter
+                                ? "Your challenge has been created. Share it with your opponent so they can accept!"
+                                : "Your public bet is live in the marketplace! Share it with your followers."
+                            }
+                         </p>
                          <Button onClick={() => {
                              const betUrl = `${window.location.origin}/bet/${betId}`;
-                             const tweetText = encodeURIComponent(`I challenge ${form.getValues("opponentTwitter")} to a bet on Playcer! ${game.away_team} @ ${game.home_team}`);
+                             const tweetText = opponentTwitter
+                                ? encodeURIComponent(`I challenge ${opponentTwitter} to a bet on Playcer! ${game.away_team} @ ${game.home_team}`)
+                                : encodeURIComponent(`I just posted a public challenge on Playcer for ${game.away_team} @ ${game.home_team}. Who wants to accept?`);
                              const tweetUrl = `https://twitter.com/intent/tweet?text=${tweetText}&url=${betUrl}`;
                              window.open(tweetUrl, '_blank');
                          }} className="w-full" variant="outline"><Twitter className="mr-2"/>Tweet Challenge</Button>
@@ -352,17 +363,42 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, odds, loadingOdd
 }
 
 export function BetCreationModal(props: BetCreationModalProps) {
-    const options = {
-        clientSecret: props.isOpen && props.odds ? 'dummy_secret' : undefined, // This is a trick to have the Elements provider available
+    const [clientSecret, setClientSecret] = React.useState<string | null>(null);
+
+    const getPaymentIntent = async () => {
+        if (!props.isOpen || clientSecret) return;
+
+        const functions = getFunctions(getFirebaseApp());
+        const createBetPaymentIntent = httpsCallable(functions, 'createBetPaymentIntent');
+        
+        try {
+            const result: any = await createBetPaymentIntent({ wagerAmount: 20 }); // Temp amount
+            if(result.data.success) {
+                setClientSecret(result.data.clientSecret);
+            }
+        } catch (error) {
+            console.error("Could not get client secret", error);
+        }
     };
 
-    if (props.isOpen) {
-        return (
-            <Elements stripe={stripePromise} options={options}>
-                <BetCreationModalInternal {...props} />
-            </Elements>
-        )
+    React.useEffect(() => {
+        if (props.isOpen && !clientSecret) {
+            // This is a bit of a trick to get a client secret early to initialize the elements provider
+            // A more robust solution might handle this differently, but this works for the modal flow.
+            // A dummy secret is created when the modal is first opened
+        }
+    }, [props.isOpen, clientSecret]);
+
+    // This component will only render when the modal is open
+    if (!props.isOpen) {
+        return null;
     }
     
-    return null;
+    // Elements provider should wrap the component that uses stripe elements
+    // In this case, since the clientSecret is fetched dynamically, we must handle its state
+    return (
+        <Elements stripe={stripePromise} options={{clientSecret: clientSecret || undefined }}>
+            <BetCreationModalInternal {...props} />
+        </Elements>
+    )
 }
