@@ -316,21 +316,6 @@ export const acceptBet = onCall(async (request) => {
     }
 });
 
-async function createNotification(userId: string, data: { title: string, message: string, betId?: string }) {
-    if (!userId) return;
-    try {
-        const notificationRef = db.collection('users').doc(userId).collection('notifications').doc();
-        await notificationRef.set({
-            ...data,
-            createdAt: Timestamp.now(),
-            isRead: false,
-        });
-    } catch (error) {
-        functions.logger.error(`Failed to create notification for user ${userId}:`, error);
-    }
-}
-
-
 export const processBetOutcomes = onCall(async (request) => {
     functions.logger.log("Starting processBetOutcomes...");
     
@@ -409,7 +394,7 @@ export const processBetOutcomes = onCall(async (request) => {
                 } else {
                     // This is a PUSH. We need to refund both users.
                     functions.logger.log(`Bet ${betId} resulted in a push/tie. Refunding users.`);
-                    const { challengerPaymentIntentId, recipientPaymentIntentId, wagerAmount, challengerId, recipientId } = betData;
+                    const { challengerPaymentIntentId, recipientPaymentIntentId } = betData;
                     
                     try {
                         if (challengerPaymentIntentId) await stripe.refunds.create({ payment_intent: challengerPaymentIntentId });
@@ -418,17 +403,6 @@ export const processBetOutcomes = onCall(async (request) => {
                     } catch (refundError: any) {
                         functions.logger.error(`Could not issue Stripe refund for push on bet ${betId}. Manual intervention required.`, refundError.message);
                     }
-
-                    await createNotification(challengerId, {
-                        title: "Bet Pushed",
-                        message: `Your bet on ${betData.gameDetails.away_team} @ ${betData.gameDetails.home_team} was a push. Your $${wagerAmount.toFixed(2)} stake has been refunded.`,
-                        betId
-                    });
-                    await createNotification(recipientId, {
-                        title: "Bet Pushed",
-                        message: `Your bet on ${betData.gameDetails.away_team} @ ${betData.gameDetails.home_team} was a push. Your $${wagerAmount.toFixed(2)} stake has been refunded.`,
-                        betId
-                    });
                     
                     await betDoc.ref.update({ status: 'completed', settledAt: Timestamp.now(), winnerId: null });
                     processedCount++;
@@ -471,20 +445,6 @@ async function processPayout(data: { betId: string, winnerId: string, loserId: s
             userId: winnerId, type: 'bet_payout', amount: payoutToWinner, status: 'completed', relatedBetId: betId, createdAt: Timestamp.now()
         });
     });
-
-    await createNotification(winnerId, {
-        title: "You Won!",
-        message: `Congratulations! You won your bet and received $${payoutToWinner.toFixed(2)}.`,
-        betId
-    });
-
-    if (loserId) {
-        await createNotification(loserId, {
-            title: "Bet Lost",
-            message: `Your bet was settled. Better luck next time!`,
-            betId
-        });
-    }
 
     functions.logger.log(`Payout for bet ${betId} processed for winner ${winnerId}.`);
 }
@@ -859,29 +819,4 @@ export const kycWebhook = functions.https.onRequest(async (request, response) =>
     }
 
     response.status(200).send({ received: true });
-});
-
-export const markNotificationsAsRead = onCall(async (request) => {
-    if (!request.auth) {
-        throw new HttpsError('unauthenticated', 'You must be logged in.');
-    }
-    const { uid } = request.auth;
-    const { notificationIds } = request.data;
-    if (!Array.isArray(notificationIds) || notificationIds.length === 0) {
-        throw new HttpsError('invalid-argument', 'An array of notificationIds is required.');
-    }
-
-    const batch = db.batch();
-    notificationIds.forEach(id => {
-        const notifRef = db.collection('users').doc(uid).collection('notifications').doc(id);
-        batch.update(notifRef, { isRead: true });
-    });
-
-    try {
-        await batch.commit();
-        return { success: true };
-    } catch (error) {
-        functions.logger.error(`Error marking notifications as read for user ${uid}:`, error);
-        throw new HttpsError('internal', 'Could not update notifications.');
-    }
 });

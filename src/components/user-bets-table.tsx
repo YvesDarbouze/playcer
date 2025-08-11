@@ -31,7 +31,7 @@ const OpponentDisplay = ({ bet, currentUserId }: { bet: Bet, currentUserId: stri
     
     const opponent = isChallenger
       ? { id: bet.recipientId, username: bet.recipientUsername, photoURL: bet.recipientPhotoURL, twitterHandle: bet.recipientTwitterHandle }
-      : { id: bet.challengerId, username: bet.creatorUsername, photoURL: bet.creatorPhotoURL, twitterHandle: bet.challengerTwitterHandle };
+      : { id: bet.challengerId, username: bet.challengerUsername, photoURL: bet.challengerPhotoURL };
 
     if (!opponent.id) {
         return <span className="text-muted-foreground">vs. @{opponent.twitterHandle}</span>
@@ -49,7 +49,7 @@ const OpponentDisplay = ({ bet, currentUserId }: { bet: Bet, currentUserId: stri
 }
 
 const OutcomeBadge = ({ bet, currentUserId }: { bet: Bet, currentUserId: string }) => {
-    if (bet.status === 'void') return <Badge variant="secondary">Push</Badge>;
+    if (bet.winnerId === null && bet.status === 'completed') return <Badge variant="secondary">Push</Badge>;
     if (bet.status !== 'completed') return null;
 
     if (!bet.winnerId) {
@@ -124,14 +124,14 @@ export function UserBetsTable({ bets, currentUserId }: UserBetsTableProps) {
                 </TableCell>
                 <TableCell><OpponentDisplay bet={bet} currentUserId={currentUserId} /></TableCell>
                 <TableCell><BetValueDisplay bet={bet} /></TableCell>
-                <TableCell className="text-right font-headline font-black">${bet.wagerAmount.toFixed(2)}</TableCell>
+                <TableCell className="text-right font-bold">${bet.wagerAmount.toFixed(2)}</TableCell>
                 <TableCell className="text-center">
                    <Badge variant={bet.status === 'pending_acceptance' ? 'secondary' : 'default'} className={cn({
                        'bg-green-100 text-green-800': bet.status === 'active',
                        'bg-gray-100 text-gray-800': bet.status === 'completed' || bet.status === 'void',
                        'bg-yellow-100 text-yellow-800': bet.status === 'pending_acceptance'
                    })}>
-                        {bet.status.replace('_', ' ').toUpperCase()}
+                        {bet.status.replace(/_/g, ' ').toUpperCase()}
                     </Badge>
                 </TableCell>
                 <TableCell className="text-center">

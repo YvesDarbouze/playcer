@@ -83,12 +83,14 @@ export type Bet = {
   gameDetails: {
     home_team: string;
     away_team: string;
-    commence_time: Date;
+    commence_time: string; // Should be string for serialization
+    sport_key: string;
   };
   challengerId: string;
   recipientId: string | null;
-  challengerTwitterHandle: string;
-  recipientTwitterHandle: string;
+  challengerUsername: string;
+  challengerPhotoURL: string;
+  recipientTwitterHandle: string | null;
   wagerAmount: number;
   betType: "moneyline" | "spread" | "totals";
   betValue: {
@@ -98,18 +100,14 @@ export type Bet = {
     total?: number; // for totals
   };
   status: "pending_acceptance" | "active" | "completed" | "declined" | "expired" | 'void';
-  stripePaymentIntentId: string | null;
+  challengerPaymentIntentId: string;
+  recipientPaymentIntentId: string | null;
   winnerId: string | null;
   createdAt: Date;
   settledAt: Date | null;
-  // Denormalized data
-  creatorUsername: string; 
-  creatorPhotoURL: string;
+  isPublic: boolean;
   recipientUsername?: string; 
   recipientPhotoURL?: string; 
-  challengerUsername?: string;
-  challengerPhotoURL?: string;
-
 };
 
 export type UserBet = {
@@ -142,3 +140,5 @@ export type Dispute = {
   } | null;
   createdAt: Timestamp;
 };
+
+    

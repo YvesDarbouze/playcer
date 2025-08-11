@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import * as React from "react";
@@ -12,6 +11,10 @@ import { getFirebaseApp } from "@/lib/firebase";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { BetChallengeCard } from "@/components/bet-challenge-card";
+import { Elements } from '@stripe/react-stripe-js';
+import { loadStripe } from '@stripe/stripe-js';
+
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
 // Helper function to convert Firestore data to Bet type
 const convertToBet = (docSnap: any): Bet => {
@@ -21,11 +24,11 @@ const convertToBet = (docSnap: any): Bet => {
     ...data,
     gameDetails: {
       ...data.gameDetails,
-      commence_time: (data.gameDetails.commence_time as Timestamp).toDate(),
+      commence_time: (data.gameDetails.commence_time as Timestamp).toDate().toISOString(),
     },
     createdAt: (data.createdAt as Timestamp).toDate(),
     settledAt: data.settledAt ? (data.settledAt as Timestamp).toDate() : null,
-  } as Bet;
+  } as unknown as Bet;
 }
 
 
@@ -40,6 +43,7 @@ export default function BetChallengePage() {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [isAccepting, setIsAccepting] = React.useState(false);
+  const [clientSecret, setClientSecret] = React.useState<string | null>(null);
 
   const fetchBet = React.useCallback(async () => {
       if (typeof betId !== "string") return;
@@ -72,19 +76,18 @@ export default function BetChallengePage() {
     setIsAccepting(true);
 
     const functions = getFunctions(getFirebaseApp());
-    const acceptBetFn = httpsCallable(functions, "acceptBet");
+    const acceptBetFn = httpsCallable(functions, "acceptBet"); 
 
     try {
       const result: any = await acceptBetFn({ betId: bet.id });
-      if (result.data.success) {
+      if (result.data.success && result.data.clientSecret) {
+        setClientSecret(result.data.clientSecret);
         toast({
-          title: "Challenge Accepted!",
-          description: "The bet is now active. Good luck!",
+          title: "Authorize Payment",
+          description: "Please confirm your payment to finalize the bet.",
         });
-        // Redirect to dashboard after accepting
-        router.push('/dashboard');
       } else {
-        throw new Error(result.data.message || "Failed to accept bet.");
+        throw new Error(result.data.message || "Failed to initiate bet acceptance.");
       }
     } catch (err: any) {
       console.error("Error accepting bet:", err);
@@ -93,7 +96,6 @@ export default function BetChallengePage() {
         description: err.message || "An unexpected error occurred.",
         variant: "destructive",
       });
-    } finally {
       setIsAccepting(false);
     }
   };
@@ -112,13 +114,17 @@ export default function BetChallengePage() {
     }
 
     if (bet) {
+      const stripeOptions = clientSecret ? { clientSecret } : {};
       return (
-        <BetChallengeCard
-          bet={bet}
-          currentUser={user}
-          onAccept={handleAcceptBet}
-          isAccepting={isAccepting}
-        />
+        <Elements stripe={stripePromise} options={stripeOptions}>
+            <BetChallengeCard
+              bet={bet}
+              currentUser={user}
+              onAccept={handleAcceptBet}
+              isAccepting={isAccepting}
+              clientSecret={clientSecret}
+            />
+        </Elements>
       );
     }
 
@@ -127,7 +133,7 @@ export default function BetChallengePage() {
 
   return (
     <main className="flex min-h-screen w-full flex-col items-center justify-center p-4 bg-muted/40">
-        {renderContent()}
+      {renderContent()}
     </main>
   );
 }
