@@ -2,11 +2,14 @@
 "use client";
 
 import { useState, useMemo } from 'react';
+import Link from 'next/link';
+import Image from 'next/image';
 import { Input } from "@/components/ui/input";
 import { GameCard } from "./game-card";
 import { Search } from 'lucide-react';
+import { Button } from './ui/button';
 import type { Game } from '@/types';
-import Image from 'next/image';
+import { LoginButton } from './login-button';
 
 interface GameListProps {
     initialGames: Game[];
@@ -21,8 +24,7 @@ export function GameList({ initialGames }: GameListProps) {
         }
         return initialGames.filter(game =>
             game.home_team.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            game.away_team.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            game.sport_title.toLowerCase().includes(searchTerm.toLowerCase())
+            game.away_team.toLowerCase().includes(searchTerm.toLowerCase())
         );
     }, [initialGames, searchTerm]);
 
@@ -38,40 +40,40 @@ export function GameList({ initialGames }: GameListProps) {
                         data-ai-hint="stadium lights"
                         priority
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-primary-dark-blue via-primary-dark-blue/80 to-primary-dark-blue/50"></div>
+                    <div className="absolute inset-0 bg-primary-dark-blue/80"></div>
                 </div>
                 
-                <div className="container mx-auto relative z-10">
-                    <h1 className="text-5xl md:text-7xl lg:text-8xl font-headline font-black uppercase tracking-tighter">
-                        The Peer-to-Peer Betting Exchange
-                    </h1>
-                    <p className="mt-4 text-lg md:text-xl text-accent-peach max-w-2xl mx-auto">
-                       Challenge friends, not the house. Welcome to social betting.
-                    </p>
+                <div className="container mx-auto relative">
+                    <h1 className="text-7xl md:text-9xl font-headline font-black uppercase tracking-tighter">Stop Arguing. Start Winning.</h1>
+                    <p className="mt-4 text-lg md:text-xl text-accent-peach">Peer to Peer Betting that makes sports betting personal</p>
                     <div className="mt-8 max-w-2xl mx-auto">
                         <div className="relative">
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-neutral-grey" />
                             <Input 
                                 type="search"
-                                placeholder="Search for a team or league (e.g., 'Lakers' or 'NFL')"
-                                className="w-full p-4 pl-12 text-lg rounded-full shadow-lg text-primary-dark-blue"
+                                placeholder="Search for a game or team..."
+                                className="w-full p-4 pl-12 text-lg text-primary-dark-blue"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                             />
                         </div>
+                         <p className="mt-6 text-base max-w-xl mx-auto">
+                           Tired of betting against the house? Playcer is the peer-to-peer app where you bet directly against friends and other fans. You set the odds, you make the challenge. It's just mano y mano.
+                        </p>
                     </div>
                 </div>
             </header>
             
-            <div className="container mx-auto py-12 -mt-16 relative z-20">
+            <div className="container mx-auto py-12">
+                 <h2 className="text-3xl font-bold mb-6 text-primary-dark-blue">Upcoming Games</h2>
                 {filteredGames.length > 0 ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                         {filteredGames.map(game => (
                             <GameCard key={game.id} game={game} />
                         ))}
                     </div>
                 ) : (
-                    <div className="text-center py-16 bg-background rounded-lg shadow-md">
+                    <div className="text-center py-16">
                         <h2 className="text-xl font-bold">No Games Found</h2>
                         <p className="text-muted-foreground mt-2">
                             {initialGames.length > 0 ? "No games match your search." : "There are no upcoming games to display."}
@@ -82,3 +84,5 @@ export function GameList({ initialGames }: GameListProps) {
         </div>
     );
 }
+
+    
