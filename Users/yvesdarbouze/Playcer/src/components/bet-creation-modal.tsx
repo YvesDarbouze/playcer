@@ -352,15 +352,17 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, odds, loadingOdd
 }
 
 export function BetCreationModal(props: BetCreationModalProps) {
-    const options = props.isOpen && props.odds ? {
-        // You can customize the payment element here if needed
-    } : {};
+    const options = {
+        clientSecret: props.isOpen && props.odds ? 'dummy_secret' : undefined, // This is a trick to have the Elements provider available
+    };
 
-    return (
-        <Elements stripe={stripePromise} options={options}>
-            <BetCreationModalInternal {...props} />
-        </Elements>
-    )
-}
-
+    if (props.isOpen) {
+        return (
+            <Elements stripe={stripePromise} options={options}>
+                <BetCreationModalInternal {...props} />
+            </Elements>
+        )
+    }
     
+    return null;
+}
