@@ -83,7 +83,7 @@ export type Bet = {
   gameDetails: {
     home_team: string;
     away_team: string;
-    commence_time: string;
+    commence_time: string; // Changed to string to match what's passed from the client
     sport_key: string;
   };
   challengerId: string;
