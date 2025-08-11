@@ -34,3 +34,4 @@ const signOut = () => {
 // Export the initialized app instance
 export const getFirebaseApp = () => app;
 export { auth, firestore, storage, twitterProvider, signOut };
+
