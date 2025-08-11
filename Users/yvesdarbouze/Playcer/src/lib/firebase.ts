@@ -25,7 +25,7 @@ if (getApps().length === 0) {
 const auth = getAuth(app);
 const firestore = getFirestore(app);
 const storage = getStorage(app);
-const twitterProvider = new TwitterAuthProvider();
+const twitterAuthProvider = new TwitterAuthProvider(); // Renamed to bust cache
 
 const signOut = () => {
   return firebaseSignOut(auth);
@@ -33,4 +33,4 @@ const signOut = () => {
 
 // Export the initialized app instance
 export const getFirebaseApp = () => app;
-export { auth, firestore, storage, twitterProvider, signOut };
+export { auth, firestore, storage, twitterAuthProvider, signOut };

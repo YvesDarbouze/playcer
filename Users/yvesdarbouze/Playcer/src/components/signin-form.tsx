@@ -4,7 +4,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signInWithPopup } from "firebase/auth";
-import { auth, twitterProvider } from "@/lib/firebase";
+import { auth, twitterAuthProvider } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 
 import { Button } from "@/components/ui/button";
@@ -31,7 +31,7 @@ export function SignInForm() {
   const handleSocialSignIn = async () => {
     setIsLoading(true);
     try {
-      await signInWithPopup(auth, twitterProvider);
+      await signInWithPopup(auth, twitterAuthProvider);
       router.push("/");
     } catch (error: any) {
        toast({
