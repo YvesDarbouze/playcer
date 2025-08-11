@@ -140,7 +140,7 @@ export default function GameDetailsPage({ params }: { params: { gameId: string }
         <Card>
           <CardHeader>
             <CardTitle className="font-bold">Head-to-Head Odds</CardTitle>
-            <CardDescription>Odds from various sportsbooks. Odds update in real-time.</CardDescription>
+            <CardDescription>Odds from a representative sportsbook. Odds update in real-time.</CardDescription>
           </CardHeader>
           <CardContent>
               {loadingOdds ? (

@@ -164,6 +164,7 @@ export function BetCreationModal({ isOpen, onOpenChange, game, odds, loadingOdds
       betType: data.betType,
       betValue,
       recipientTwitterHandle: data.opponentTwitter,
+      stripePaymentIntentId: "placeholder" // This will be handled in a later step
     };
 
     try {
