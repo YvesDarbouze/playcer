@@ -122,7 +122,7 @@ export function GameCard({ game }: GameCardProps) {
                     </div>
                 </CardContent>
 
-                <div className='p-2 bg-muted/50 text-center cursor-pointer' onClick={handleCardClick}>
+                <div className='p-2 bg-muted/50 text-center cursor-pointer' onClick={handleCreateBetClick}>
                     <Button variant="ghost" className="w-full font-bold h-12 text-base">
                         <Swords className="mr-2" />
                         Create Challenge
