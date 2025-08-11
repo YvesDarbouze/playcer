@@ -374,11 +374,8 @@ export function BetCreationModal(props: BetCreationModalProps) {
         return null;
     }
     
-    // The options object is empty because the clientSecret will be passed to the Elements provider later
-    const stripeOptions = {};
-
     return (
-        <Elements stripe={stripePromise} options={stripeOptions}>
+        <Elements stripe={stripePromise} options={{}}>
             <BetCreationModalInternal {...props} />
         </Elements>
     )
