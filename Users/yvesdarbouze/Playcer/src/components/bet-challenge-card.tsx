@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import * as React from "react";
@@ -178,7 +177,7 @@ export function BetChallengeCard({
     <Card className="w-full max-w-2xl shadow-2xl">
       <CardHeader className="text-center bg-muted/30 p-4">
         <Badge variant={bet.status === 'pending_acceptance' ? 'default' : 'secondary'} className="mx-auto w-fit mb-2">
-            {bet.status.replace('_', ' ').toUpperCase()}
+            {bet.status.replace(/_/g, ' ').toUpperCase()}
         </Badge>
         <CardTitle className="font-bold text-lg">
             {bet.gameDetails.away_team} @ {bet.gameDetails.home_team}
@@ -188,11 +187,13 @@ export function BetChallengeCard({
         </CardDescription>
       </CardHeader>
       <CardContent className="p-6">
-       {!clientSecret && (
-        <>
+       <div className={cn(clientSecret && "hidden")}>
             <div className="grid grid-cols-3 items-center text-center mb-6">
                 <UserDisplay username={bet.creatorUsername} photoURL={bet.creatorPhotoURL}/>
-                <Swords className="text-muted-foreground my-2 size-8" />
+                <div className="flex flex-col items-center">
+                    <Swords className="text-muted-foreground my-2 size-8" />
+                    <span className="font-bold text-xl">${bet.wagerAmount.toFixed(2)}</span>
+                </div>
                 <UserDisplay username={bet.recipientUsername || bet.recipientTwitterHandle} photoURL={bet.recipientPhotoURL}/>
             </div>
 
@@ -201,9 +202,9 @@ export function BetChallengeCard({
             <div className="space-y-2">
                 <BetDetail label="Challenger's Pick" value={getBetValueDisplay()} />
                 <BetDetail label="Wager" value={`$${bet.wagerAmount.toFixed(2)}`} />
+                <BetDetail label="Potential Payout" value={`$${(bet.wagerAmount * 2).toFixed(2)}`} />
             </div>
-        </>
-       )}
+       </div>
       </CardContent>
       <CardFooter className="p-4 bg-muted/30">
         {renderActionButton()}
@@ -211,3 +212,5 @@ export function BetChallengeCard({
     </Card>
   );
 }
+
+    

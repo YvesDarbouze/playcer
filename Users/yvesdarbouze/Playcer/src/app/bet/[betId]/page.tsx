@@ -118,14 +118,17 @@ export default function BetChallengePage() {
     }
 
     if (bet) {
+      const stripeOptions = clientSecret ? { clientSecret } : {};
       return (
-        <BetChallengeCard
-          bet={bet}
-          currentUser={user}
-          onAccept={handleAcceptBet}
-          isAccepting={isAccepting}
-          clientSecret={clientSecret}
-        />
+        <Elements stripe={stripePromise} options={stripeOptions}>
+            <BetChallengeCard
+              bet={bet}
+              currentUser={user}
+              onAccept={handleAcceptBet}
+              isAccepting={isAccepting}
+              clientSecret={clientSecret}
+            />
+        </Elements>
       );
     }
 
@@ -134,9 +137,9 @@ export default function BetChallengePage() {
 
   return (
     <main className="flex min-h-screen w-full flex-col items-center justify-center p-4 bg-muted/40">
-        <Elements stripe={stripePromise} options={{}}>
-            {renderContent()}
-        </Elements>
+      {renderContent()}
     </main>
   );
 }
+
+    

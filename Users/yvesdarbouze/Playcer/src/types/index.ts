@@ -99,6 +99,8 @@ export type Bet = {
     total?: number; // for totals
   };
   status: "pending_acceptance" | "active" | "completed" | "declined" | "expired" | 'void';
+  challengerPaymentIntentId: string;
+  recipientPaymentIntentId: string | null;
   winnerId: string | null;
   createdAt: Date;
   settledAt: Date | null;
@@ -142,3 +144,5 @@ export type Dispute = {
   } | null;
   createdAt: Timestamp;
 };
+
+    

@@ -39,9 +39,8 @@ import { getFirebaseApp } from "@/lib/firebase";
 import { Separator } from "./ui/separator";
 import Image from "next/image";
 import { getTeamLogoUrl } from "@/lib/team-logo-helper";
-import { useStripe, useElements, PaymentElement } from '@stripe/react-stripe-js';
+import { useStripe, useElements, PaymentElement, Elements } from '@stripe/react-stripe-js';
 import { loadStripe } from '@stripe/stripe-js';
-import { Elements } from '@stripe/react-stripe-js';
 
 
 interface BookmakerOdds {
@@ -353,8 +352,12 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, odds, loadingOdd
 }
 
 export function BetCreationModal(props: BetCreationModalProps) {
+    const options = props.isOpen && props.odds ? {
+        // You can customize the payment element here if needed
+    } : {};
+
     return (
-        <Elements stripe={stripePromise} options={{}}>
+        <Elements stripe={stripePromise} options={options}>
             <BetCreationModalInternal {...props} />
         </Elements>
     )
