@@ -222,6 +222,10 @@ export const createBet = onCall(async (request) => {
     if (!gameId || !gameDetails || !wagerAmount || !betType || !betValue || !stripePaymentIntentId) {
         throw new HttpsError('invalid-argument', 'Missing required bet information.');
     }
+
+    if (!isPublic && !recipientTwitterHandle) {
+        throw new HttpsError('invalid-argument', 'A recipient Twitter handle is required for a private challenge.');
+    }
     
     if (typeof wagerAmount !== 'number' || wagerAmount <= 0) {
         throw new HttpsError('invalid-argument', 'The wager amount must be a positive number.');
