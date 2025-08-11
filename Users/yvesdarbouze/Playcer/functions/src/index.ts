@@ -355,14 +355,20 @@ export const processBetOutcomes = onCall(async (request) => {
                 } else if (betData.betType === 'spread') {
                     const pickedTeamIsHome = betData.betValue.team === home_team;
                     const spread = betData.betValue.points;
-                    if ((pickedTeamIsHome && (home_score + spread) > away_score) || (!pickedTeamIsHome && (away_score + spread) > home_score)) {
+                    // Check for push on spread
+                    if ((home_score + spread) === away_score) {
+                         winnerId = null; // Push
+                    } else if ((pickedTeamIsHome && (home_score + spread) > away_score) || (!pickedTeamIsHome && (away_score + spread) > home_score)) {
                          winnerId = betData.challengerId;
                     } else {
                          winnerId = betData.recipientId;
                     }
                 } else if (betData.betType === 'totals') {
                     const totalScore = home_score + away_score;
-                    if ((betData.betValue.over_under === 'over' && totalScore > betData.betValue.total) || (betData.betValue.over_under === 'under' && totalScore < betData.betValue.total)) {
+                     // Check for push on totals
+                    if (totalScore === betData.betValue.total) {
+                        winnerId = null; // Push
+                    } else if ((betData.betValue.over_under === 'over' && totalScore > betData.betValue.total) || (betData.betValue.over_under === 'under' && totalScore < betData.betValue.total)) {
                         winnerId = betData.challengerId;
                     } else {
                         winnerId = betData.recipientId;
@@ -382,11 +388,21 @@ export const processBetOutcomes = onCall(async (request) => {
                     // This is a PUSH. We need to refund both users.
                     functions.logger.log(`Bet ${betId} resulted in a push/tie. Refunding users.`);
                     const { challengerId, recipientId, wagerAmount, challengerPaymentIntentId, recipientPaymentIntentId } = betData;
-                    // Refund Stripe payments
-                    if (challengerPaymentIntentId) await stripe.refunds.create({ payment_intent: challengerPaymentIntentId });
-                    if (recipientPaymentIntentId) await stripe.refunds.create({ payment_intent: recipientPaymentIntentId });
                     
-                    await betDoc.ref.update({ status: 'completed', settledAt: Timestamp.now() });
+                    // Refund Stripe payments if they exist
+                    try {
+                        if (challengerPaymentIntentId) await stripe.refunds.create({ payment_intent: challengerPaymentIntentId });
+                        if (recipientPaymentIntentId) await stripe.refunds.create({ payment_intent: recipientPaymentIntentId });
+                    } catch (refundError: any) {
+                        functions.logger.error(`Could not issue Stripe refund for push on bet ${betId}. Manual intervention required.`, refundError.message);
+                        // Continue to update wallets regardless, as this is the source of truth for the user.
+                    }
+                    
+                    // Since funds were never deducted from wallet balances in this model,
+                    // we just need to update the bet status. If the model involved deducting
+                    // from wallets upon bet acceptance, we would re-add the funds here.
+                    await betDoc.ref.update({ status: 'completed', settledAt: Timestamp.now(), winnerId: null });
+                    processedCount++;
                 }
             }
         } catch (error) {
