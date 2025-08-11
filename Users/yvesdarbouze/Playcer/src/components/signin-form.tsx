@@ -18,8 +18,8 @@ import {
 import { Logo } from "./icons";
 
 const TwitterIcon = (props: React.SVGProps<SVGSVGElement>) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-        <path d="M22 4s-.7 2.1-2 3.4c1.6 1.4 3.3 4.4 3.3 4.4s-1.4 1.4-3.3 1.4c-1.9 0-3.3-1.4-3.3-1.4s-1.4 1.4-3.3 1.4c-1.9 0-3.3-1.4-3.3-1.4s-1.4 1.4-3.3 1.4c-1.9 0-3.3-1.4-3.3-1.4s-.7 2.1-2 3.4c1.6 1.4 3.3 4.4 3.3 4.4s-1.4 1.4-3.3 1.4c-1.9 0-3.3-1.4-3.3-1.4s-1.4 1.4-3.3 1.4c-1.9 0-3.3-1.4-3.3-1.4s-1.4 1.4-3.3 1.4c-1.9 0-3.3-1.4-3.3-1.4s-1.4 1.4-3.3 1.4c-1.9 0-3.3-1.4-3.3-1.4s-1.4 1.4-3.3 1.4c-1.9 0-3.3-1.4-3.3-1.4s-1.4 1.4-3.3 1.4c-1.9 0-3.3-1.4-3.3-1.4s-1.4 1.4-3.3 1.4c-1.9 0-3.3-1.4-3.3-1.4z"/>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" {...props}>
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
     </svg>
 )
 
