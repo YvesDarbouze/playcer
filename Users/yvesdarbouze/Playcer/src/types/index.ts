@@ -83,7 +83,7 @@ export type Bet = {
   gameDetails: {
     home_team: string;
     away_team: string;
-    commence_time: string;
+    commence_time: string; // Should be string for serialization
     sport_key: string;
   };
   challengerId: string;
@@ -112,7 +112,6 @@ export type Bet = {
   recipientPhotoURL?: string; 
   challengerUsername?: string;
   challengerPhotoURL?: string;
-
 };
 
 export type UserBet = {
@@ -145,5 +144,3 @@ export type Dispute = {
   } | null;
   createdAt: Timestamp;
 };
-
-    
