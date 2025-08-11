@@ -11,10 +11,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UserBetsTable } from "./user-bets-table";
-import { Banknote, Trophy, ShieldHalf, Swords, Hourglass, LifeBuoy, ShieldCheck, PlusCircle, Store, Upload } from "lucide-react";
+import { Banknote, Trophy, ShieldHalf, Swords, Hourglass, LifeBuoy, ShieldCheck, PlusCircle, Store, Upload, BarChart } from "lucide-react";
 import Link from 'next/link';
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RankingTable } from "./ranking-table";
 
 
 const convertToBet = (doc: any): Bet => {
@@ -167,21 +168,7 @@ export function UserDashboard() {
                             <h1 className="text-3xl font-bold">{userProfile.displayName}</h1>
                             <p className="text-muted-foreground text-lg">@{userProfile.username}</p>
                         </div>
-                        <div className="flex flex-wrap justify-center gap-4">
-                            <div className="text-center">
-                                <p className="text-3xl font-bold text-primary">{userProfile.wins}</p>
-                                <p className="text-sm text-muted-foreground">Wins</p>
-                            </div>
-                            <div className="text-center">
-                                 <p className="text-3xl font-bold text-destructive">{userProfile.losses}</p>
-                                <p className="text-sm text-muted-foreground">Losses</p>
-                            </div>
-                             <div className="text-center">
-                                 <p className="text-3xl font-bold">${userProfile.walletBalance.toFixed(2)}</p>
-                                <p className="text-sm text-muted-foreground">Wallet</p>
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
+                         <div className="grid grid-cols-2 gap-2">
                              <Link href="/create-bet" passHref>
                                 <Button className="w-full">
                                     <PlusCircle className="mr-2" />
@@ -211,6 +198,37 @@ export function UserDashboard() {
                 </Card>
             </header>
 
+             <Tabs defaultValue="stats" className="w-full mb-8">
+                <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="stats"><Trophy className="mr-2"/> My Stats</TabsTrigger>
+                    <TabsTrigger value="ranking"><BarChart className="mr-2"/>Global Ranking</TabsTrigger>
+                </TabsList>
+                <TabsContent value="stats">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Your Record</CardTitle>
+                        </CardHeader>
+                        <CardContent className="flex flex-wrap justify-around gap-4">
+                             <div className="text-center">
+                                <p className="text-4xl font-bold text-primary">{userProfile.wins}</p>
+                                <p className="text-sm text-muted-foreground">Wins</p>
+                            </div>
+                            <div className="text-center">
+                                 <p className="text-4xl font-bold text-destructive">{userProfile.losses}</p>
+                                <p className="text-sm text-muted-foreground">Losses</p>
+                            </div>
+                             <div className="text-center">
+                                 <p className="text-4xl font-bold">${userProfile.walletBalance.toFixed(2)}</p>
+                                <p className="text-sm text-muted-foreground">Wallet</p>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+                <TabsContent value="ranking">
+                    <RankingTable currentUserId={userProfile.id} />
+                </TabsContent>
+            </Tabs>
+
             <section>
                 <h2 className="text-2xl font-bold mb-4">My Bets</h2>
                 <Tabs defaultValue="active">
@@ -233,5 +251,3 @@ export function UserDashboard() {
         </div>
     );
 }
-
-    
