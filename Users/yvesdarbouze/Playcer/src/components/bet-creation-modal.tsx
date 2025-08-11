@@ -356,51 +356,27 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, odds, loadingOdd
             )}
         </div>
         <Separator className="my-6" />
-        {renderStepContent()}
+        {step === 2 && clientSecret ? (
+            <Elements stripe={stripePromise} options={{clientSecret}}>
+                {renderStepContent()}
+            </Elements>
+        ) : (
+            renderStepContent()
+        )}
       </DialogContent>
     </Dialog>
   );
 }
 
+
 export function BetCreationModal(props: BetCreationModalProps) {
-    const [clientSecret, setClientSecret] = React.useState<string | null>(null);
-
-    const getPaymentIntent = async () => {
-        if (!props.isOpen || clientSecret) return;
-
-        const functions = getFunctions(getFirebaseApp());
-        const createBetPaymentIntent = httpsCallable(functions, 'createBetPaymentIntent');
-        
-        try {
-            const result: any = await createBetPaymentIntent({ wagerAmount: 20 }); // Temp amount
-            if(result.data.success) {
-                setClientSecret(result.data.clientSecret);
-            }
-        } catch (error) {
-            console.error("Could not get client secret", error);
-        }
-    };
-
-    React.useEffect(() => {
-        if (props.isOpen && !clientSecret) {
-            // This is a bit of a trick to get a client secret early to initialize the elements provider
-            // A more robust solution might handle this differently, but this works for the modal flow.
-            // A dummy secret is created when the modal is first opened
-        }
-    }, [props.isOpen, clientSecret]);
-
-    // This component will only render when the modal is open
     if (!props.isOpen) {
         return null;
     }
-    
-    // Elements provider should wrap the component that uses stripe elements
-    // In this case, since the clientSecret is fetched dynamically, we must handle its state
+
     return (
-        <Elements stripe={stripePromise} options={{clientSecret: clientSecret || undefined }}>
+        <Elements stripe={stripePromise} options={{}}>
             <BetCreationModalInternal {...props} />
         </Elements>
     )
 }
-
-    

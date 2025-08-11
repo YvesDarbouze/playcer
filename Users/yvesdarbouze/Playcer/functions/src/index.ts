@@ -223,7 +223,7 @@ export const createBet = onCall(async (request) => {
         throw new HttpsError('invalid-argument', 'Missing required bet information.');
     }
 
-    if (!isPublic && !recipientTwitterHandle) {
+    if (isPublic === false && !recipientTwitterHandle) {
         throw new HttpsError('invalid-argument', 'A recipient Twitter handle is required for a private challenge.');
     }
     
@@ -267,8 +267,6 @@ export const createBet = onCall(async (request) => {
             createdAt: Timestamp.now(),
             settledAt: null,
             isPublic: isPublic,
-            creatorUsername: userData.username,
-            creatorPhotoURL: userData.photoURL,
         };
 
         const betDocRef = db.collection('bets').doc(betId);
@@ -713,7 +711,7 @@ export const stripeWebhook = functions.https.onRequest(async (request, response)
 
                     const betData = betDoc.data()!;
                     const recipientData = recipientDoc.data()!;
-                    const { challengerId, wagerAmount, status, recipientTwitterHandle } = betData;
+                    const { challengerId, status, recipientTwitterHandle } = betData;
 
                     if (status !== 'pending_acceptance') throw new Error(`Bet ${betId} is not pending acceptance.`);
                     if (challengerId === recipientId) throw new Error('User cannot accept their own bet.');
