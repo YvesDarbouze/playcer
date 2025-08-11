@@ -56,7 +56,7 @@ const teamAbbreviationMap: Record<string, Record<string, string>> = {
     "Los Angeles Chargers": "LAC",
     "Los Angeles Rams": "LAR",
     "Miami Dolphins": "MIA",
-    "Minnesota Vikings": "MIN",
+    "Minnesota Timberwolves": "MIN",
     "New England Patriots": "NE",
     "New Orleans Saints": "NO",
     "New York Giants": "NYG",
