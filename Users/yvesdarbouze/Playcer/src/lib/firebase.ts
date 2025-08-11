@@ -5,12 +5,12 @@ import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
 const firebaseConfig: FirebaseOptions = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  apiKey: "AIzaSyCi9pZNU7MmgHXoYOXyS3GWJHaYQa40Etk",
   authDomain: "playcer-xbv5e.firebaseapp.com",
   projectId: "playcer-xbv5e",
   storageBucket: "playcer-xbv5e.appspot.com",
   messagingSenderId: "484911120701",
-  appId: "1:484911120701:web:be79bfd631718136511391",
+  appId: "1:484911120701:web:26fb959795a4ff8a27c554",
 };
 
 
@@ -34,3 +34,4 @@ const signOut = () => {
 // Export the initialized app instance
 export const getFirebaseApp = () => app;
 export { auth, firestore, storage, twitterProvider, signOut };
+

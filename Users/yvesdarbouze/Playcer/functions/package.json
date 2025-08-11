@@ -19,7 +19,7 @@
     "node-fetch": "^2.7.0",
     "stripe": "^16.2.0",
     "uuid": "^9.0.1",
-    "crypto": "1.0.1"
+    "crypto": "^1.0.1"
   },
   "devDependencies": {
     "@types/uuid": "^9.0.8",
@@ -27,3 +27,4 @@
     "typescript": "^5.4.5"
   }
 }
+
