@@ -33,12 +33,9 @@ type BookmakerOdds = {
     }[];
 };
 
-const OddsDisplay = ({ label, value, point }: { label: string, value: number, point?: number }) => (
+const OddsDisplay = ({ label, value, team }: { label: string, value: number, team: string }) => (
     <div className="flex justify-between items-center text-sm p-2 rounded-md hover:bg-muted">
-        <div className='flex items-center gap-1'>
-            {point !== undefined && <span className={cn("font-bold", point > 0 ? "text-green-500" : "text-red-500")}>{point > 0 ? `O ${point}` : `U ${point * -1}`}</span>}
-            <p className="text-muted-foreground">{label}</p>
-        </div>
+        <p className="text-muted-foreground">{team}</p>
         <p className="font-mono font-bold text-primary">{value > 0 ? `+${value}` : value}</p>
     </div>
 )
@@ -46,7 +43,6 @@ const OddsDisplay = ({ label, value, point }: { label: string, value: number, po
 
 export function GameCard({ game }: GameCardProps) {
     const [isModalOpen, setIsModalOpen] = React.useState(false);
-    const [isExpanded, setIsExpanded] = React.useState(false);
     const { user, loading } = useAuth();
     const router = useRouter();
     const [gameTime, setGameTime] = React.useState<Date | null>(null);
@@ -56,11 +52,6 @@ export function GameCard({ game }: GameCardProps) {
 
     React.useEffect(() => {
         setGameTime(new Date(game.commence_time));
-
-        if (!user) {
-            setLoadingOdds(false);
-            return;
-        };
 
         const db = getFirestore(getFirebaseApp());
         const oddsQuery = query(collection(db, `games/${game.id}/bookmaker_odds`), limit(1));
@@ -78,10 +69,10 @@ export function GameCard({ game }: GameCardProps) {
 
         return () => unsubscribe();
 
-    }, [game.commence_time, game.id, user]);
+    }, [game.commence_time, game.id]);
 
     const handleCreateBetClick = (e: React.MouseEvent) => {
-        e.stopPropagation(); // Prevent card from toggling expansion
+        e.stopPropagation(); 
         if (!user && !loading) {
             router.push('/signin');
         } else if (user) {
@@ -93,8 +84,8 @@ export function GameCard({ game }: GameCardProps) {
     const awayLogo = getTeamLogoUrl(game.away_team, game.sport_key);
 
     const h2hMarket = odds?.markets.find(m => m.key === 'h2h');
-    const spreadsMarket = odds?.markets.find(m => m.key === 'spreads');
-    const totalsMarket = odds?.markets.find(m => m.key === 'totals');
+    const awayTeamOdds = h2hMarket?.outcomes.find(o => o.name === game.away_team);
+    const homeTeamOdds = h2hMarket?.outcomes.find(o => o.name === game.home_team);
 
     const handleCardClick = () => {
        if (user) {
@@ -107,33 +98,35 @@ export function GameCard({ game }: GameCardProps) {
     return (
         <>
             <Card 
-                className="hover:shadow-lg transition-all duration-300 flex flex-col overflow-hidden cursor-pointer aspect-square"
+                className="hover:shadow-lg transition-all duration-300 flex flex-col overflow-hidden cursor-pointer"
                 onClick={handleCardClick}
             >
                 <CardContent className="p-4 flex-grow flex flex-col items-center justify-center transition-all duration-300">
-                    <div className="flex flex-col items-center justify-center text-center w-full flex-grow space-y-2">
+                     {gameTime && (
+                         <div className="text-center text-muted-foreground text-sm w-full">
+                            <p>{format(gameTime, "EEE, MMM d, h:mm a")}</p>
+                        </div>
+                    )}
+                    <div className="flex items-center justify-around text-center w-full flex-grow space-x-2 my-4">
                         <div className="flex flex-col items-center text-center">
-                            <Image src={awayLogo} alt={`${game.away_team} logo`} width={80} height={80} className="h-20 w-auto transition-all"/>
-                            <p className="font-bold text-xl mt-1">{game.away_team}</p>
+                            <Image src={awayLogo} alt={`${game.away_team} logo`} width={80} height={80} className="h-16 w-auto transition-all"/>
+                            <p className="font-bold text-lg mt-1">{game.away_team}</p>
+                            {awayTeamOdds && <p className="font-mono text-sm">{awayTeamOdds.price > 0 ? `+${awayTeamOdds.price}` : awayTeamOdds.price}</p>}
                         </div>
                         <div className="text-muted-foreground font-bold text-xl">@</div>
                         <div className="flex flex-col items-center text-center">
-                            <Image src={homeLogo} alt={`${game.home_team} logo`} width={80} height={80} className="h-20 w-auto transition-all"/>
-                            <p className="font-bold text-xl mt-1">{game.home_team}</p>
+                            <Image src={homeLogo} alt={`${game.home_team} logo`} width={80} height={80} className="h-16 w-auto transition-all"/>
+                            <p className="font-bold text-lg mt-1">{game.home_team}</p>
+                             {homeTeamOdds && <p className="font-mono text-sm">{homeTeamOdds.price > 0 ? `+${homeTeamOdds.price}` : homeTeamOdds.price}</p>}
                         </div>
                     </div>
-
-                    {gameTime && (
-                         <div className="text-center text-muted-foreground text-sm mt-4">
-                            <p>{format(gameTime, "EEE, MMM d")}</p>
-                            <p className="font-semibold">{format(gameTime, "h:mm a")}</p>
-                        </div>
-                    )}
-                    
                 </CardContent>
 
                 <div className='p-2 bg-muted/50 text-center cursor-pointer' onClick={handleCardClick}>
-                    <Button variant="ghost" className="w-full font-headline text-2xl h-14">Bet</Button>
+                    <Button variant="ghost" className="w-full font-bold h-12 text-base">
+                        <Swords className="mr-2" />
+                        Create Challenge
+                    </Button>
                 </div>
             </Card>
             {gameTime && (
@@ -148,5 +141,3 @@ export function GameCard({ game }: GameCardProps) {
         </>
     );
 }
-
-    

@@ -34,10 +34,6 @@ const teamAbbreviationMap: Record<string, Record<string, string>> = {
     "Toronto Raptors": "TOR",
     "Utah Jazz": "UTA",
     "Washington Wizards": "WSH",
-    "Lakers": "LAL",
-    "Clippers": "LAC",
-    "Celtics": "BOS",
-    "Warriors": "GSW",
   },
   nfl: {
     "Arizona Cardinals": "ARI",
@@ -72,10 +68,6 @@ const teamAbbreviationMap: Record<string, Record<string, string>> = {
     "Tampa Bay Buccaneers": "TB",
     "Tennessee Titans": "TEN",
     "Washington Commanders": "WAS",
-    "Rams": "LAR",
-    "49ers": "SF",
-    "Chiefs": "KC",
-    "Eagles": "PHI",
   },
   mlb: {
     "Arizona Diamondbacks": "ARI",
@@ -130,7 +122,11 @@ const getLeaguePath = (mappedSportKey: string): string => {
 export const getTeamLogoUrl = (teamName: string, sportKey: string): string => {
   const mappedSportKey = getSportKeyForMapping(sportKey);
   const league = getLeaguePath(mappedSportKey);
-  const abbreviation = teamAbbreviationMap[mappedSportKey]?.[teamName];
+  
+  // Find the key in the map that includes the team name from the API
+  const abbreviations = teamAbbreviationMap[mappedSportKey] || {};
+  const teamKey = Object.keys(abbreviations).find(key => key.includes(teamName)) || teamName;
+  const abbreviation = abbreviations[teamKey];
 
   if (abbreviation) {
     return `https://a.espncdn.com/i/teamlogos/${league}/500/${abbreviation}.png`;
