@@ -117,7 +117,7 @@ export const getAlgoliaSearchKey = onCall((request) => {
         throw new HttpsError('unauthenticated', 'You must be logged in to search.');
     }
     
-    const searchKey = algoliaClient.generateSecuredApiKey(
+    const searchKey = algoliasearch.generateSecuredApiKey(
         process.env.ALGOLIA_SEARCH_ONLY_API_KEY!,
         {
              filters: 'status:pending_acceptance'
@@ -833,7 +833,3 @@ export const kycWebhook = functions.https.onRequest(async (request, response) =>
 
     response.status(200).send({ received: true });
 });
-
-    
-
-    

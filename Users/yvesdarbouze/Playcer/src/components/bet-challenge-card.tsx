@@ -117,6 +117,7 @@ export function BetChallengeCard({
           return;
       }
       
+      // The backend webhook will handle the rest. We just give feedback to the user.
       if (paymentIntent && paymentIntent.status === 'requires_capture') {
            toast({
               title: "Challenge Accepted!",
@@ -212,5 +213,3 @@ export function BetChallengeCard({
     </Card>
   );
 }
-
-    

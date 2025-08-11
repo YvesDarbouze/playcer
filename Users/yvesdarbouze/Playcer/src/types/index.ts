@@ -83,7 +83,7 @@ export type Bet = {
   gameDetails: {
     home_team: string;
     away_team: string;
-    commence_time: Date;
+    commence_time: string;
     sport_key: string;
   };
   challengerId: string;
@@ -144,5 +144,3 @@ export type Dispute = {
   } | null;
   createdAt: Timestamp;
 };
-
-    

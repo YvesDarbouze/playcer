@@ -25,11 +25,11 @@ const convertToBet = (docSnap: any): Bet => {
     ...data,
     gameDetails: {
       ...data.gameDetails,
-      commence_time: (data.gameDetails.commence_time as Timestamp).toDate(),
+      commence_time: (data.gameDetails.commence_time as Timestamp).toDate().toISOString(),
     },
     createdAt: (data.createdAt as Timestamp).toDate(),
     settledAt: data.settledAt ? (data.settledAt as Timestamp).toDate() : null,
-  } as Bet;
+  } as unknown as Bet;
 }
 
 
@@ -141,5 +141,3 @@ export default function BetChallengePage() {
     </main>
   );
 }
-
-    
