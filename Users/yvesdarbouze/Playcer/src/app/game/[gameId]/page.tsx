@@ -32,7 +32,7 @@ export default function GameDetailsPage({ params }: { params: { gameId: string }
   const router = useRouter();
 
   const [game, setGame] = useState<Game | null>(null);
-  const [odds, setOdds] = useState<BookmakerOdds | null>(null);
+  const [odds, setOdds] = useState<BookmakerOdds[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingOdds, setLoadingOdds] = useState(true);
   const [gameTime, setGameTime] = useState<Date | null>(null);
@@ -60,10 +60,10 @@ export default function GameDetailsPage({ params }: { params: { gameId: string }
     fetchGameDetails();
 
     const db = getFirebaseApp();
-    const oddsQuery = query(collection(db, `games/${gameId}/bookmaker_odds`), limit(1));
+    const oddsQuery = query(collection(db, `games/${gameId}/bookmaker_odds`));
     const unsubscribe = onSnapshot(oddsQuery, (snapshot) => {
         if (!snapshot.empty) {
-            setOdds(snapshot.docs[0].data() as BookmakerOdds);
+            setOdds(snapshot.docs.map(d => d.data() as BookmakerOdds));
         }
         setLoadingOdds(false);
     }, (error) => {
@@ -109,7 +109,29 @@ export default function GameDetailsPage({ params }: { params: { gameId: string }
     return <p className="text-center p-8">Game not found.</p>;
   }
   
-  const h2hOdds = odds?.markets.find(m => m.key === 'h2h');
+  const bestOdds = {
+      h2h: { home: -999, away: -999, homeBookie: '', awayBookie: '' },
+      spread: { home: -999, away: -999, homePoint: 0, awayPoint: 0, homeBookie: '', awayBookie: '' },
+      totals: { over: -999, under: -999, point: 0, overBookie: '', underBookie: '' },
+  };
+
+  odds.forEach(bookmaker => {
+      bookmaker.markets.forEach(market => {
+          if (market.key === 'h2h') {
+              const home = market.outcomes.find(o => o.name === game.home_team);
+              const away = market.outcomes.find(o => o.name === game.away_team);
+              if (home && home.price > bestOdds.h2h.home) {
+                  bestOdds.h2h.home = home.price;
+                  bestOdds.h2h.homeBookie = bookmaker.title;
+              }
+              if (away && away.price > bestOdds.h2h.away) {
+                  bestOdds.h2h.away = away.price;
+                  bestOdds.h2h.awayBookie = bookmaker.title;
+              }
+          }
+      })
+  })
+
 
   return (
     <>
@@ -137,47 +159,46 @@ export default function GameDetailsPage({ params }: { params: { gameId: string }
             </Button>
         </header>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="font-bold">Head-to-Head Odds</CardTitle>
-            <CardDescription>Odds from a representative sportsbook. Odds update in real-time.</CardDescription>
-          </CardHeader>
-          <CardContent>
-              {loadingOdds ? (
-                 <div className="space-y-2">
-                    <Skeleton className="h-12 w-full" />
-                    <Skeleton className="h-12 w-full" />
-                </div>
-              ) : h2hOdds ? (
-                  <Table>
-                      <TableHeader>
-                          <TableRow>
-                              <TableHead className="text-center">{game.away_team}</TableHead>
-                              <TableHead className="text-center">{game.home_team}</TableHead>
-                          </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                          <TableRow>
-                              <TableCell className="text-center font-bold text-lg">{h2hOdds.outcomes.find(o => o.name === game.away_team)?.price}</TableCell>
-                              <TableCell className="text-center font-bold text-lg">{h2hOdds.outcomes.find(o => o.name === game.home_team)?.price}</TableCell>
-                          </TableRow>
-                      </TableBody>
-                  </Table>
-              ) : (
-                  <p className="text-muted-foreground text-center p-8">No odds available for this game yet.</p>
-              )}
-          </CardContent>
-        </Card>
+        <div className="grid md:grid-cols-3 gap-8">
+            <Card className="md:col-span-3">
+                <CardHeader>
+                    <CardTitle className="font-bold">Best Available Odds</CardTitle>
+                    <CardDescription>Best odds from available sportsbooks. Odds update in real-time.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {loadingOdds ? <Skeleton className="h-24" /> : (
+                         <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Market</TableHead>
+                                    <TableHead className="text-center">{game.away_team}</TableHead>
+                                    <TableHead className="text-center">{game.home_team}</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                             <TableBody>
+                                <TableRow>
+                                    <TableCell className="font-medium">Moneyline</TableCell>
+                                    <TableCell className="text-center font-mono font-bold text-lg">{bestOdds.h2h.away > 0 ? `+${bestOdds.h2h.away}` : bestOdds.h2h.away}</TableCell>
+                                    <TableCell className="text-center font-mono font-bold text-lg">{bestOdds.h2h.home > 0 ? `+${bestOdds.h2h.home}` : bestOdds.h2h.home}</TableCell>
+                                </TableRow>
+                             </TableBody>
+                        </Table>
+                    )}
+                </CardContent>
+            </Card>
+        </div>
       </main>
       {gameTime && (
           <BetCreationModal 
             isOpen={isModalOpen}
             onOpenChange={setIsModalOpen}
             game={game}
-            odds={odds}
+            odds={odds[0]}
             loadingOdds={loadingOdds}
           />
       )}
     </>
   );
 }
+
+    
