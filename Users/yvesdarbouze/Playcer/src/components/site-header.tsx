@@ -3,6 +3,7 @@
 
 import Link from "next/link";
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { Logo } from "./icons";
 import { LoginButton } from "./login-button";
 import { Button } from "./ui/button";
@@ -10,6 +11,15 @@ import { Search } from "lucide-react";
 import { Input } from "./ui/input";
 
 export function SiteHeader() {
+  const router = useRouter();
+  const [searchTerm, setSearchTerm] = React.useState("");
+
+  const handleSearchSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+      e.preventDefault();
+      if (searchTerm.trim()) {
+          router.push(`/search?q=${encodeURIComponent(searchTerm.trim())}`);
+      }
+  }
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -41,14 +51,16 @@ export function SiteHeader() {
         </div>
         
         <div className="flex flex-1 items-center justify-end space-x-2">
-            <div className="relative w-full max-w-sm hidden md:block">
+            <form onSubmit={handleSearchSubmit} className="relative w-full max-w-sm hidden md:block">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                 <Input
                     type="search"
                     placeholder="Search for events, teams, users..."
                     className="pl-10"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
                 />
-            </div>
+            </form>
             <LoginButton />
         </div>
       </div>
