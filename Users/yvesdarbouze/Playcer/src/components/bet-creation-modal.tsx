@@ -66,8 +66,8 @@ const betSchema = z.object({
     teamSelection: z.string().min(1, "Please select a team or option."),
     stake: z.coerce.number().min(1, "Stake must be at least $1."),
     line: z.coerce.number().optional(),
-    opponentTwitter: z.string().optional().refine(val => !val || val.startsWith('@'), {
-        message: "Twitter handle must start with @"
+    opponentTwitter: z.string().optional().refine(val => !val || val.startsWith('@') || /^[a-zA-Z0-9_]{1,15}$/.test(val!), {
+        message: "Invalid Twitter handle."
     }),
 }).refine((data) => {
     if (data.betType === 'spread' || data.betType === 'totals') {
@@ -373,9 +373,12 @@ export function BetCreationModal(props: BetCreationModalProps) {
     if (!props.isOpen) {
         return null;
     }
+    
+    // The options object is empty because the clientSecret will be passed to the Elements provider later
+    const stripeOptions = {};
 
     return (
-        <Elements stripe={stripePromise} options={{}}>
+        <Elements stripe={stripePromise} options={stripeOptions}>
             <BetCreationModalInternal {...props} />
         </Elements>
     )

@@ -106,8 +106,6 @@ export type Bet = {
   createdAt: Date;
   settledAt: Date | null;
   isPublic: boolean;
-  creatorUsername: string; 
-  creatorPhotoURL: string;
   recipientUsername?: string; 
   recipientPhotoURL?: string; 
 };

@@ -71,8 +71,10 @@ export function BetChallengeCard({
   const [isFinalizing, setIsFinalizing] = React.useState(false);
 
   const isChallenger = currentUser && currentUser.uid === bet.challengerId;
+  const isRecipient = currentUser && bet.recipientTwitterHandle && (currentUser.providerData[0]?.uid === bet.recipientTwitterHandle || currentUser.displayName?.toLowerCase().replace(/\s/g, '') === bet.recipientTwitterHandle.toLowerCase());
 
-  const canAccept = currentUser && bet.status === 'pending_acceptance' && !isChallenger && (bet.isPublic || (bet.recipientTwitterHandle && currentUser.providerData[0]?.uid === bet.recipientTwitterHandle));
+
+  const canAccept = currentUser && bet.status === 'pending_acceptance' && !isChallenger && (bet.isPublic || isRecipient);
 
 
   const handleShareBet = () => {
@@ -123,7 +125,8 @@ export function BetChallengeCard({
             });
            router.push('/dashboard');
       } else {
-          toast({ title: "Authorization Pending", description: "Your payment authorization is processing.", variant: "default"});
+          toast({ title: "Authorization Pending", description: "Your payment authorization is processing. The bet will activate once confirmed.", variant: "default"});
+          router.push('/dashboard');
       }
 
       setIsFinalizing(false);
