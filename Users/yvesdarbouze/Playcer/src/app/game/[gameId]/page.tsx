@@ -181,4 +181,3 @@ export default function GameDetailsPage({ params }: { params: { gameId: string }
     </>
   );
 }
-
