@@ -378,7 +378,6 @@ export const processBetOutcomes = onCall(async (request) => {
                 if (winnerId) {
                     const loserId = winnerId === betData.challengerId ? betData.recipientId : betData.challengerId;
                     const winnerPaymentIntentId = winnerId === betData.challengerId ? betData.challengerPaymentIntentId : betData.recipientPaymentIntentId;
-                    const loserPaymentIntentId = loserId === betData.challengerId ? betData.challengerPaymentIntentId : betData.recipientPaymentIntentId;
 
                     // The charge for the loser is already captured when the bet becomes active.
                     // Here we refund the winner's stake.
@@ -405,9 +404,6 @@ export const processBetOutcomes = onCall(async (request) => {
                         functions.logger.error(`Could not issue Stripe refund for push on bet ${betId}. Manual intervention required.`, refundError.message);
                     }
                     
-                    // Since funds were never deducted from wallet balances in this model,
-                    // we just need to update the bet status. If the model involved deducting
-                    // from wallets upon bet acceptance, we would re-add the funds here.
                     await betDoc.ref.update({ status: 'completed', settledAt: Timestamp.now(), winnerId: null });
                     processedCount++;
                 }

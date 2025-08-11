@@ -204,7 +204,7 @@ export function BetChallengeCard({
             <div className="space-y-2">
                 <BetDetail label="Challenger's Pick" value={getBetValueDisplay()} />
                 <BetDetail label="Wager" value={`$${bet.wagerAmount.toFixed(2)}`} />
-                <BetDetail label="Potential Payout" value={`$${(bet.wagerAmount * 2).toFixed(2)}`} />
+                <BetDetail label="Potential Payout" value={`$${(bet.wagerAmount * 1.955).toFixed(2)}`} />
             </div>
        </div>
       </CardContent>
