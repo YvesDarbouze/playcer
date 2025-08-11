@@ -56,7 +56,7 @@ export function SignUpForm() {
           Join Playcer with Twitter to challenge your friends.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent>
          <Button 
             variant="outline" 
             className="w-full" 

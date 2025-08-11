@@ -55,8 +55,8 @@ export function SignInForm() {
           Sign in with Twitter to access your dashboard.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
-         <Button 
+      <CardContent>
+        <Button 
             variant="outline" 
             className="w-full"
             onClick={handleSocialSignIn} 
