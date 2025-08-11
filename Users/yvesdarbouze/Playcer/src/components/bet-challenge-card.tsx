@@ -116,15 +116,14 @@ export function BetChallengeCard({
           return;
       }
       
-      // The backend webhook will handle the rest. We just give feedback to the user.
-      if (paymentIntent && paymentIntent.status === 'requires_capture') {
+      if (paymentIntent && (paymentIntent.status === 'requires_capture' || paymentIntent.status === 'succeeded')) {
            toast({
               title: "Challenge Accepted!",
               description: "The bet is now active. Good luck!",
             });
            router.push('/dashboard');
       } else {
-          toast({ title: "Authorization Failed", description: "Your card could not be authorized.", variant: "destructive"});
+          toast({ title: "Authorization Pending", description: "Your payment authorization is processing.", variant: "default"});
       }
 
       setIsFinalizing(false);
@@ -189,7 +188,7 @@ export function BetChallengeCard({
       <CardContent className="p-6">
        <div className={cn(clientSecret && "hidden")}>
             <div className="grid grid-cols-3 items-center text-center mb-6">
-                <UserDisplay username={bet.creatorUsername} photoURL={bet.creatorPhotoURL}/>
+                <UserDisplay username={bet.challengerUsername} photoURL={bet.challengerPhotoURL}/>
                 <div className="flex flex-col items-center">
                     <Swords className="text-muted-foreground my-2 size-8" />
                     <span className="font-bold text-xl">${bet.wagerAmount.toFixed(2)}</span>

@@ -76,14 +76,12 @@ export default function BetChallengePage() {
     setIsAccepting(true);
 
     const functions = getFunctions(getFirebaseApp());
-    // This function will now also handle creating the payment intent for the acceptor
     const acceptBetFn = httpsCallable(functions, "acceptBet"); 
 
     try {
       const result: any = await acceptBetFn({ betId: bet.id });
-      if (result.data.success) {
+      if (result.data.success && result.data.clientSecret) {
         setClientSecret(result.data.clientSecret);
-        // The UI will now show the Stripe payment element
         toast({
           title: "Authorize Payment",
           description: "Please confirm your payment to finalize the bet.",
@@ -98,7 +96,6 @@ export default function BetChallengePage() {
         description: err.message || "An unexpected error occurred.",
         variant: "destructive",
       });
-    } finally {
       setIsAccepting(false);
     }
   };

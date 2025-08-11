@@ -254,7 +254,8 @@ export const createBet = onCall(async (request) => {
             },
             challengerId: challengerId,
             recipientId: null,
-            challengerTwitterHandle: userData.username,
+            challengerUsername: userData.username,
+            challengerPhotoURL: userData.photoURL,
             recipientTwitterHandle: recipientTwitterHandle ? (recipientTwitterHandle.startsWith('@') ? recipientTwitterHandle.substring(1) : recipientTwitterHandle) : null,
             wagerAmount,
             betType,
@@ -266,8 +267,6 @@ export const createBet = onCall(async (request) => {
             createdAt: Timestamp.now(),
             settledAt: null,
             isPublic: isPublic,
-
-            // Denormalized data for display purposes
             creatorUsername: userData.username,
             creatorPhotoURL: userData.photoURL,
         };
@@ -386,23 +385,8 @@ export const processBetOutcomes = onCall(async (request) => {
                     functions.logger.log(`Bet ${betId} resulted in a push/tie. Refunding users.`);
                     const { challengerId, recipientId, wagerAmount, challengerPaymentIntentId, recipientPaymentIntentId } = betData;
                     // Refund Stripe payments
-                    await stripe.refunds.create({ payment_intent: challengerPaymentIntentId });
-                    await stripe.refunds.create({ payment_intent: recipientPaymentIntentId });
-                    
-                    // Update user wallets and log transactions
-                    const challengerRef = db.collection('users').doc(challengerId);
-                    const recipientRef = db.collection('users').doc(recipientId);
-
-                    await db.runTransaction(async (transaction) => {
-                        transaction.update(challengerRef, { walletBalance: FieldValue.increment(wagerAmount) });
-                        transaction.update(recipientRef, { walletBalance: FieldValue.increment(wagerAmount) });
-
-                        const tx1Ref = db.collection('transactions').doc();
-                        transaction.set(tx1Ref, { userId: challengerId, type: 'bet_payout', amount: wagerAmount, status: 'completed', relatedBetId: betId, createdAt: Timestamp.now(), notes: 'Bet push/tie refund.' });
-
-                        const tx2Ref = db.collection('transactions').doc();
-                        transaction.set(tx2Ref, { userId: recipientId, type: 'bet_payout', amount: wagerAmount, status: 'completed', relatedBetId: betId, createdAt: Timestamp.now(), notes: 'Bet push/tie refund.' });
-                    });
+                    if (challengerPaymentIntentId) await stripe.refunds.create({ payment_intent: challengerPaymentIntentId });
+                    if (recipientPaymentIntentId) await stripe.refunds.create({ payment_intent: recipientPaymentIntentId });
                     
                     await betDoc.ref.update({ status: 'completed', settledAt: Timestamp.now() });
                 }
@@ -445,10 +429,6 @@ async function processPayout(data: { betId: string, winnerId: string, loserId: s
             userId: winnerId, type: 'bet_payout', amount: payoutToWinner, status: 'completed', relatedBetId: betId, createdAt: Timestamp.now()
         });
     });
-    
-    // In a real Stripe Connect platform model, this might trigger a Payout from the platform's balance
-    // to the winner's connected Stripe account. For this implementation, we handle it internally
-    // as a wallet balance update.
 
     functions.logger.log(`Payout for bet ${betId} processed for winner ${winnerId}.`);
 }
@@ -716,8 +696,6 @@ export const stripeWebhook = functions.https.onRequest(async (request, response)
             break;
 
         case 'payment_intent.requires_capture':
-            // This is the key event for finalizing a bet.
-            // It indicates the recipient has successfully authorized their card.
             const piToCapture = event.data.object as Stripe.PaymentIntent;
             const { userId: recipientId, betId } = piToCapture.metadata;
             if (betId && recipientId) {
@@ -748,7 +726,7 @@ export const stripeWebhook = functions.https.onRequest(async (request, response)
 
                     // Capture both payments
                     await stripe.paymentIntents.capture(betData.challengerPaymentIntentId);
-                    await stripe.paymentIntents.capture(piToCapture.id); // The recipient's intent
+                    await stripe.paymentIntents.capture(piToCapture.id);
 
                     // Update Bet Document
                     transaction.update(betDocRef, {
@@ -758,16 +736,6 @@ export const stripeWebhook = functions.https.onRequest(async (request, response)
                         recipientPhotoURL: recipientData.photoURL,
                         recipientPaymentIntentId: piToCapture.id,
                     });
-
-                    // Log transactions for both users
-                    const challengerDocRef = db.collection('users').doc(challengerId);
-                    const challengerTxRef = db.collection('transactions').doc();
-                    transaction.set(challengerTxRef, { userId: challengerId, type: 'bet_stake', amount: -wagerAmount, status: 'completed', relatedBetId: betId, createdAt: Timestamp.now() });
-                    transaction.update(challengerDocRef, { walletBalance: FieldValue.increment(-wagerAmount) });
-
-                    const recipientTxRef = db.collection('transactions').doc();
-                    transaction.set(recipientTxRef, { userId: recipientId, type: 'bet_stake', amount: -wagerAmount, status: 'completed', relatedBetId: betId, createdAt: Timestamp.now() });
-                    transaction.update(recipientDocRef, { walletBalance: FieldValue.increment(-wagerAmount) });
                 });
                 functions.logger.log(`Bet ${betId} successfully activated.`);
             }
@@ -784,10 +752,6 @@ export const stripeWebhook = functions.https.onRequest(async (request, response)
 export const kycWebhook = functions.https.onRequest(async (request, response) => {
     const kycWebhookSecret = process.env.KYC_WEBHOOK_SECRET;
 
-    // --- STEP 1: Verify the webhook signature (CRITICAL FOR SECURITY) ---
-    // This is a placeholder for the specific signature verification method
-    // of your chosen KYC provider (e.g., checking an HMAC signature).
-    // You MUST implement this correctly using your provider's documentation.
     const signature = request.headers['x-kyc-provider-signature'];
     if (kycWebhookSecret) {
          const expectedSignature = crypto
@@ -803,12 +767,10 @@ export const kycWebhook = functions.https.onRequest(async (request, response) =>
     } else {
         functions.logger.warn("KYC_WEBHOOK_SECRET not set. Skipping signature verification. THIS IS NOT SAFE FOR PRODUCTION.");
     }
-    // --- End of verification ---
-
     const { event, data } = request.body;
 
     if (event === 'verification.completed') {
-        const { userId, status, details } = data; // Assumes this payload structure
+        const { userId, status, details } = data; 
         
         if (!userId) {
             functions.logger.error("Received KYC webhook without a userId.");
@@ -828,11 +790,10 @@ export const kycWebhook = functions.https.onRequest(async (request, response) =>
 
             await userDocRef.update({ 
                 kycStatus: newKycStatus,
-                kycDetails: details // Store additional details if provided
+                kycDetails: details 
             });
 
             functions.logger.log(`Successfully updated KYC status for user ${userId} to ${newKycStatus}.`);
-            // TODO: Send a notification to the user about their status change.
 
         } catch(error) {
             functions.logger.error(`Error updating KYC status for user ${userId}:`, error);
