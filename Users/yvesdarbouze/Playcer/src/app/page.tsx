@@ -1,69 +1,39 @@
 
-import { collection, getDocs, query, orderBy, Timestamp } from "firebase/firestore";
-import { firestore as getFirestore } from "@/lib/firebase-admin";
-import { GameList } from "@/components/game-list";
-import type { Game } from "@/types";
+import { Button } from "@/components/ui/button";
+import { Search } from 'lucide-react';
+import Image from 'next/image';
+import Link from "next/link";
 
-export const dynamic = 'force-dynamic';
-
-async function getGames(): Promise<Game[]> {
-  try {
-    const firestore = getFirestore();
-    if (!firestore) {
-      console.log("Firestore not initialized, returning mock data.");
-      // Return mock data if Firestore isn't available on the server
-      return [
-        { id: 'nfl_1', commence_time: new Date(Date.now() + 3600000).toISOString(), home_team: 'Los Angeles Rams', away_team: 'San Francisco 49ers', sport_key: 'americanfootball_nfl', sport_title: "NFL" } as Game,
-        { id: 'nfl_2', commence_time: new Date(Date.now() + 86400000).toISOString(), home_team: 'Kansas City Chiefs', away_team: 'Philadelphia Eagles', sport_key: 'americanfootball_nfl', sport_title: "NFL" } as Game,
-        { id: 'nba_1', commence_time: new Date(Date.now() + 172800000).toISOString(), home_team: 'Los Angeles Lakers', away_team: 'Los Angeles Clippers', sport_key: 'basketball_nba', sport_title: "NBA" } as Game,
-        { id: 'mlb_1', commence_time: new Date(Date.now() + 259200000).toISOString(), home_team: 'New York Yankees', away_team: 'Boston Red Sox', sport_key: 'baseball_mlb', sport_title: "MLB" } as Game,
-      ];
-    }
-
-    const gamesRef = collection(firestore, "games");
-    const q = query(
-      gamesRef,
-      orderBy("commence_time", "asc")
-    );
-    const querySnapshot = await getDocs(q);
-
-    if (querySnapshot.empty) {
-        console.log("No games in Firestore, returning mock data.");
-        return [
-           { id: 'nfl_1', commence_time: new Date(Date.now() + 3600000).toISOString(), home_team: 'Los Angeles Rams', away_team: 'San Francisco 49ers', sport_key: 'americanfootball_nfl', sport_title: "NFL" } as Game,
-           { id: 'nfl_2', commence_time: new Date(Date.now() + 86400000).toISOString(), home_team: 'Kansas City Chiefs', away_team: 'Philadelphia Eagles', sport_key: 'americanfootball_nfl', sport_title: "NFL" } as Game,
-           { id: 'nba_1', commence_time: new Date(Date.now() + 172800000).toISOString(), home_team: 'Los Angeles Lakers', away_team: 'Los Angeles Clippers', sport_key: 'basketball_nba', sport_title: "NBA" } as Game,
-           { id: 'mlb_1', commence_time: new Date(Date.now() + 259200000).toISOString(), home_team: 'New York Yankees', away_team: 'Boston Red Sox', sport_key: 'baseball_mlb', sport_title: "MLB" } as Game,
-        ];
-    }
-    
-    return querySnapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        ...data,
-        commence_time: (data.commence_time as Timestamp).toDate().toISOString(),
-      } as unknown as Game;
-    });
-
-  } catch (error) {
-    console.error("Error fetching games:", error);
-    // Return mock data on any error
-    return [
-       { id: 'nfl_1', commence_time: new Date(Date.now() + 3600000).toISOString(), home_team: 'Los Angeles Rams', away_team: 'San Francisco 49ers', sport_key: 'americanfootball_nfl', sport_title: "NFL" } as Game,
-       { id: 'nfl_2', commence_time: new Date(Date.now() + 86400000).toISOString(), home_team: 'Kansas City Chiefs', away_team: 'Philadelphia Eagles', sport_key: 'americanfootball_nfl', sport_title: "NFL" } as Game,
-       { id: 'nba_1', commence_time: new Date(Date.now() + 172800000).toISOString(), home_team: 'Los Angeles Lakers', away_team: 'Los Angeles Clippers', sport_key: 'basketball_nba', sport_title: "NBA" } as Game,
-       { id: 'mlb_1', commence_time: new Date(Date.now() + 259200000).toISOString(), home_team: 'New York Yankees', away_team: 'Boston Red Sox', sport_key: 'baseball_mlb', sport_title: "MLB" } as Game,
-    ];
-  }
-}
-
-
-export default async function HomePage() {
-  const games = await getGames();
+export default function HomePage() {
   return (
     <main>
-      <GameList initialGames={games} />
+      <header className="relative bg-secondary text-white py-20 md:py-32 text-center overflow-hidden">
+        <div className="absolute inset-0">
+          <Image
+            src="https://placehold.co/1920x1080.png"
+            alt="Background image of a sports stadium"
+            fill
+            className="object-cover opacity-20"
+            data-ai-hint="stadium lights"
+            priority
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-secondary via-secondary/80 to-secondary/50"></div>
+        </div>
+        
+        <div className="container mx-auto relative z-10">
+          <h1 className="text-5xl md:text-7xl lg:text-8xl font-headline font-black uppercase tracking-tighter text-primary">
+            Challenge Friends, Not The House
+          </h1>
+          <p className="mt-4 text-lg md:text-xl text-white/90 max-w-2xl mx-auto">
+            Welcome to Playcer, the peer-to-peer betting exchange where the competition is personal.
+          </p>
+          <div className="mt-8">
+              <Link href="/marketplace">
+                <Button size="lg">Explore Betting Events</Button>
+              </Link>
+          </div>
+        </div>
+      </header>
     </main>
   );
 }
