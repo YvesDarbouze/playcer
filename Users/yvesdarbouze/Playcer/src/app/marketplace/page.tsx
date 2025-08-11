@@ -22,7 +22,7 @@ async function getOpenBets(): Promise<Bet[]> {
     const q = query(
       betsRef,
       where("isPublic", "==", true),
-      where("status", "==", "open"),
+      where("status", "==", "pending"),
       orderBy("eventDate", "asc")
     );
 
@@ -79,3 +79,5 @@ export default async function MarketplacePage() {
     </main>
   );
 }
+
+    

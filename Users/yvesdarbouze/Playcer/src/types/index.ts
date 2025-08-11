@@ -24,13 +24,15 @@ export type Court = {
 export type User = {
   id: string; // This is the UID from Firebase Auth
   displayName: string;
-  username: string; // This is the Twitter handle
+  username: string;
   photoURL: string;
   email?: string;
   createdAt: Timestamp;
   walletBalance: number;
   wins: number;
   losses: number;
+  totalBets: number;
+  rankingScore: number;
   kycStatus: "pending" | "verified" | "rejected" | "in_review";
   responsibleGamingLimits: {
     deposit: {
@@ -79,39 +81,31 @@ export type Game = {
 
 export type Bet = {
   id: string;
-  gameId: string;
-  gameDetails: {
-    home_team: string;
-    away_team: string;
-    commence_time: string; // Should be string for serialization
-    sport_key: string;
-  };
-  challengerId: string;
-  recipientId: string | null;
-  challengerUsername: string;
-  challengerPhotoURL: string;
-  recipientTwitterHandle: string | null;
-  wagerAmount: number;
+  eventId: string;
+  eventDate: string;
+  homeTeam: string;
+  awayTeam: string;
+  creatorId: string;
+  takerId: string | null;
+  creatorUsername: string;
+  creatorPhotoURL: string;
+  takerUsername: string | null;
+  takerPhotoURL: string | null;
+  stakeAmount: number;
   betType: "moneyline" | "spread" | "totals";
-  betValue: {
-    team?: string; // For moneyline or spread
-    points?: number; // For spread
-    over_under?: "over" | "under"; // For totals
-    total?: number; // for totals
-  };
-  status: "pending_acceptance" | "active" | "completed" | "declined" | "expired" | 'void';
-  challengerPaymentIntentId: string;
-  recipientPaymentIntentId: string | null;
-  winnerId: string | null;
-  createdAt: Date;
-  settledAt: Date | null;
+  chosenOption: string;
+  status: "pending" | "accepted" | "resolved" | "cancelled";
   isPublic: boolean;
-  recipientUsername?: string; 
-  recipientPhotoURL?: string; 
+  twitterShareUrl: string | null;
+  outcome: 'win' | 'loss' | 'draw' | null;
+  winnerId: string | null;
+  loserId: string | null;
+  createdAt: string;
+  settledAt: string | null;
 };
 
 export type UserBet = {
-  betRef: string; // In Firestore, this is a DocumentReference, but we use its path string in the app
+  betRef: string; 
   role: "creator" | "taker";
   createdAt: Timestamp;
 };
@@ -124,7 +118,7 @@ export type Transaction = {
   status: "pending" | "completed" | "failed";
   relatedBetId?: string;
   gatewayTransactionId?: string;
-  createdAt: Date;
+  createdAt: string;
 };
 
 export type Dispute = {
@@ -140,5 +134,7 @@ export type Dispute = {
   } | null;
   createdAt: Timestamp;
 };
+
+    
 
     

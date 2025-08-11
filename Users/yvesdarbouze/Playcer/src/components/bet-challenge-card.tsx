@@ -67,37 +67,21 @@ export function BetChallengeCard({
   const elements = useElements();
   const router = useRouter();
   const { toast } = useToast();
-  const eventTime = new Date(bet.gameDetails.commence_time);
+  const eventTime = new Date(bet.eventDate);
   const [isFinalizing, setIsFinalizing] = React.useState(false);
 
-  const isChallenger = currentUser && currentUser.uid === bet.challengerId;
-  const isRecipient = currentUser && bet.recipientTwitterHandle && (currentUser.providerData[0]?.uid === bet.recipientTwitterHandle || currentUser.displayName?.toLowerCase().replace(/\s/g, '') === bet.recipientTwitterHandle.toLowerCase());
+  const isCreator = currentUser && currentUser.uid === bet.creatorId;
 
-
-  const canAccept = currentUser && bet.status === 'pending_acceptance' && !isChallenger && (bet.isPublic || isRecipient);
-
+  const canAccept = currentUser && bet.status === 'pending' && !isCreator;
 
   const handleShareBet = () => {
-    const challengeLink = window.location.href;
-    const tweetText = bet.recipientTwitterHandle
-        ? encodeURIComponent(`@${bet.recipientTwitterHandle} I challenge you to a bet on Playcer! ${bet.gameDetails.away_team} @ ${bet.gameDetails.home_team}`)
-        : encodeURIComponent(`I just posted a public challenge on Playcer for ${bet.gameDetails.away_team} @ ${bet.gameDetails.home_team}. Who wants to accept?`);
-    const tweetUrl = `https://twitter.com/intent/tweet?text=${tweetText}&url=${challengeLink}`;
+    const tweetUrl = bet.twitterShareUrl || `https://twitter.com/intent/tweet?text=${encodeURIComponent(`I just posted a public challenge on Playcer for ${bet.awayTeam} @ ${bet.homeTeam}. Who wants to accept?`)}`;
     window.open(tweetUrl, '_blank');
   };
 
   const getBetValueDisplay = () => {
-      const { betValue, betType } = bet;
-      if (betType === 'moneyline') {
-          return `${betValue.team} to win`;
-      }
-      if (betType === 'spread') {
-          return `${betValue.team} ${betValue.points! > 0 ? `+${betValue.points}` : betValue.points}`;
-      }
-      if (betType === 'totals') {
-          return `Total ${betValue.over_under} ${betValue.total}`;
-      }
-      return '';
+      const { chosenOption, betType } = bet;
+      return chosenOption;
   }
 
   const handleFinalizeAcceptance = async () => {
@@ -158,7 +142,7 @@ export function BetChallengeCard({
         </Button>
       );
     }
-    if (isChallenger && bet.status === 'pending_acceptance') {
+    if (isCreator && bet.status === 'pending') {
       return (
         <Button onClick={handleShareBet} className="w-full" size="lg" variant="secondary">
           <Twitter className="mr-2" />
@@ -166,11 +150,11 @@ export function BetChallengeCard({
         </Button>
       );
     }
-    if (bet.status === 'active') {
+    if (bet.status === 'accepted') {
          return <Badge className="text-lg" variant="default">Bet is Active!</Badge>
     }
-    if (bet.status === 'completed') {
-         return <Badge className="text-lg" variant="secondary">Bet Completed</Badge>
+    if (bet.status === 'resolved') {
+         return <Badge className="text-lg" variant="secondary">Bet Resolved</Badge>
     }
     return null; 
   };
@@ -178,11 +162,11 @@ export function BetChallengeCard({
   return (
     <Card className="w-full max-w-2xl shadow-2xl">
       <CardHeader className="text-center bg-muted/30 p-4">
-        <Badge variant={bet.status === 'pending_acceptance' ? 'default' : 'secondary'} className="mx-auto w-fit mb-2">
+        <Badge variant={bet.status === 'pending' ? 'default' : 'secondary'} className="mx-auto w-fit mb-2">
             {bet.status.replace(/_/g, ' ').toUpperCase()}
         </Badge>
         <CardTitle className="font-bold text-lg">
-            {bet.gameDetails.away_team} @ {bet.gameDetails.home_team}
+            {bet.awayTeam} @ {bet.homeTeam}
         </CardTitle>
         <CardDescription>
             {format(eventTime, "EEE, MMM d, yyyy 'at' h:mm a")}
@@ -191,20 +175,20 @@ export function BetChallengeCard({
       <CardContent className="p-6">
        <div className={cn(clientSecret && "hidden")}>
             <div className="grid grid-cols-3 items-center text-center mb-6">
-                <UserDisplay username={bet.challengerUsername} photoURL={bet.challengerPhotoURL}/>
+                <UserDisplay username={bet.creatorUsername} photoURL={bet.creatorPhotoURL}/>
                 <div className="flex flex-col items-center">
                     <Swords className="text-muted-foreground my-2 size-8" />
-                    <span className="font-bold text-xl">${bet.wagerAmount.toFixed(2)}</span>
+                    <span className="font-bold text-xl">${bet.stakeAmount.toFixed(2)}</span>
                 </div>
-                <UserDisplay username={bet.recipientUsername || bet.recipientTwitterHandle} photoURL={bet.recipientPhotoURL}/>
+                <UserDisplay username={bet.takerUsername} photoURL={bet.takerPhotoURL}/>
             </div>
 
             <Separator className="my-4" />
 
             <div className="space-y-2">
                 <BetDetail label="Challenger's Pick" value={getBetValueDisplay()} />
-                <BetDetail label="Wager" value={`$${bet.wagerAmount.toFixed(2)}`} />
-                <BetDetail label="Potential Payout" value={`$${(bet.wagerAmount * 1.955).toFixed(2)}`} />
+                <BetDetail label="Wager" value={`$${bet.stakeAmount.toFixed(2)}`} />
+                <BetDetail label="Potential Payout" value={`$${(bet.stakeAmount * 1.955).toFixed(2)}`} />
             </div>
        </div>
       </CardContent>
@@ -214,3 +198,5 @@ export function BetChallengeCard({
     </Card>
   );
 }
+
+    
