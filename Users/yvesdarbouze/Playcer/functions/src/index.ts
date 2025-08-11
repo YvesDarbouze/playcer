@@ -376,26 +376,33 @@ export const processBetOutcomes = onCall(async (request) => {
                 }
                 
                 if (winnerId) {
+                    const loserId = winnerId === betData.challengerId ? betData.recipientId : betData.challengerId;
+                    const winnerPaymentIntentId = winnerId === betData.challengerId ? betData.challengerPaymentIntentId : betData.recipientPaymentIntentId;
+                    const loserPaymentIntentId = loserId === betData.challengerId ? betData.challengerPaymentIntentId : betData.recipientPaymentIntentId;
+
+                    // The charge for the loser is already captured when the bet becomes active.
+                    // Here we refund the winner's stake.
+                    await stripe.refunds.create({ payment_intent: winnerPaymentIntentId });
+
                     await processPayout({ 
                         betId, 
                         winnerId, 
                         stake: betData.wagerAmount, 
-                        loserId: winnerId === betData.challengerId ? betData.recipientId : betData.challengerId,
+                        loserId,
                     });
                     await betDoc.ref.update({ status: 'completed', winnerId, settledAt: Timestamp.now() });
                     processedCount++;
                 } else {
                     // This is a PUSH. We need to refund both users.
                     functions.logger.log(`Bet ${betId} resulted in a push/tie. Refunding users.`);
-                    const { challengerId, recipientId, wagerAmount, challengerPaymentIntentId, recipientPaymentIntentId } = betData;
+                    const { challengerPaymentIntentId, recipientPaymentIntentId } = betData;
                     
-                    // Refund Stripe payments if they exist
                     try {
                         if (challengerPaymentIntentId) await stripe.refunds.create({ payment_intent: challengerPaymentIntentId });
                         if (recipientPaymentIntentId) await stripe.refunds.create({ payment_intent: recipientPaymentIntentId });
+                         functions.logger.log(`Refunds for push on bet ${betId} processed successfully.`);
                     } catch (refundError: any) {
                         functions.logger.error(`Could not issue Stripe refund for push on bet ${betId}. Manual intervention required.`, refundError.message);
-                        // Continue to update wallets regardless, as this is the source of truth for the user.
                     }
                     
                     // Since funds were never deducted from wallet balances in this model,
@@ -421,11 +428,10 @@ async function processPayout(data: { betId: string, winnerId: string, loserId: s
     const winnerDocRef = db.collection('users').doc(winnerId);
     
     const commission = stake * PLATFORM_COMMISSION_RATE;
-    const totalPot = stake * 2;
-    const payoutToWinner = totalPot - commission; 
+    const payoutToWinner = stake - commission; // Winner receives the loser's stake, minus commission.
 
     await db.runTransaction(async (transaction) => {
-        // 1. Credit winner's wallet with the full pot (minus commission) & increment win count
+        // 1. Credit winner's wallet with the payout & increment win count
         transaction.update(winnerDocRef, { 
             walletBalance: FieldValue.increment(payoutToWinner),
             wins: FieldValue.increment(1)
@@ -437,7 +443,7 @@ async function processPayout(data: { betId: string, winnerId: string, loserId: s
             transaction.update(loserDocRef, { losses: FieldValue.increment(1) });
         }
 
-        // 3. Log transactions for the payout and commission
+        // 3. Log transactions for the payout
         const payoutTxId = db.collection('transactions').doc().id;
         transaction.set(db.collection('transactions').doc(payoutTxId), {
             userId: winnerId, type: 'bet_payout', amount: payoutToWinner, status: 'completed', relatedBetId: betId, createdAt: Timestamp.now()
