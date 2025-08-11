@@ -380,8 +380,6 @@ export const processBetOutcomes = onCall(async (request) => {
                     const winnerPaymentIntentId = winnerId === betData.challengerId ? betData.challengerPaymentIntentId : betData.recipientPaymentIntentId;
                     const loserPaymentIntentId = loserId === betData.challengerId ? betData.challengerPaymentIntentId : betData.recipientPaymentIntentId;
 
-                    // Capture the loser's payment. The winner's was already captured.
-                    // We just need to refund the winner now.
                     await stripe.paymentIntents.capture(loserPaymentIntentId);
                     await stripe.refunds.create({ payment_intent: winnerPaymentIntentId });
 
@@ -822,5 +820,3 @@ export const kycWebhook = functions.https.onRequest(async (request, response) =>
 
     response.status(200).send({ received: true });
 });
-
-    
