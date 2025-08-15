@@ -5,7 +5,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signInWithPopup } from "firebase/auth";
-import { auth, twitterAuthProvider } from "@/lib/firebase";
+import { auth, twitterProvider } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 
 import { Button } from "@/components/ui/button";
@@ -32,8 +32,8 @@ export function SignUpForm() {
   const handleSocialSignIn = async () => {
     setIsLoading(true);
     try {
-      await signInWithPopup(auth, twitterAuthProvider);
-      router.push("/");
+      await signInWithPopup(auth, twitterProvider);
+      router.push("/dashboard");
     } catch (error: any) {
        toast({
         title: "Sign-up Failed",
