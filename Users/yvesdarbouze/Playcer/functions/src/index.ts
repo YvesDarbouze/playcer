@@ -62,7 +62,7 @@ const sportsDataAPI = {
             const homeScore = parseInt(eventResult.scores.find((s: any) => s.name === eventResult.home_team)?.score || '0');
             const awayScore = parseInt(eventResult.scores.find((s: any) => s.name === eventResult.away_team)?.score || '0');
 
-            return { home_score: homeScore, away_score: awayScore, status: 'Final' };
+            return { home_score: homeScore, away_score: away_score, status: 'Final' };
 
         } catch (error) {
             functions.logger.error(`Exception fetching event result for ${eventId}:`, error);
@@ -776,3 +776,5 @@ export const kycWebhook = functions.https.onRequest(async (request, response) =>
 
     response.status(200).send({ received: true });
 });
+
+    
