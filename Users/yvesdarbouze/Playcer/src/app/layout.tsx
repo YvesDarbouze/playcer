@@ -14,6 +14,9 @@ const montserrat = Montserrat({ subsets: ["latin"], weight: ["900"], variable: "
 export const metadata: Metadata = {
   title: "Playcer",
   description: "Peer to peer sports betting.",
+  icons: {
+    icon: "/favicon.ico",
+  },
 };
 
 export default function RootLayout({
