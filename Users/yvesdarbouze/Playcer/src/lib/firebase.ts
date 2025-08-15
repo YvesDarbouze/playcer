@@ -6,7 +6,7 @@ import { getStorage } from "firebase/storage";
 
 const firebaseConfig: FirebaseOptions = {
   apiKey: "AIzaSyCi9pZNU7MmgHXoYOXyS3GWJHaYQa40Etk",
-  authDomain: "playcer-xbv5e.firebaseapp.com",
+  authDomain: "playcer.app",
   projectId: "playcer-xbv5e",
   storageBucket: "playcer-xbv5e.appspot.com",
   messagingSenderId: "484911120701",
@@ -34,3 +34,4 @@ const signOut = () => {
 // Export the initialized app instance
 export const getFirebaseApp = () => app;
 export { auth, firestore, storage, twitterProvider, signOut };
+
