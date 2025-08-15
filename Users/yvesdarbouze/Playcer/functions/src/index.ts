@@ -62,7 +62,7 @@ const sportsDataAPI = {
             const homeScore = parseInt(eventResult.scores.find((s: any) => s.name === eventResult.home_team)?.score || '0');
             const awayScore = parseInt(eventResult.scores.find((s: any) => s.name === eventResult.away_team)?.score || '0');
 
-            return { home_score: homeScore, away_score: away_score, status: 'Final' };
+            return { home_score: homeScore, away_score: awayScore, status: 'Final' };
 
         } catch (error) {
             functions.logger.error(`Exception fetching event result for ${eventId}:`, error);
@@ -78,7 +78,10 @@ export const onusercreate = onUserCreate(async (event) => {
   const user = event.data;
   const {uid, displayName, photoURL, email} = user;
 
-  const username = user.providerData.find(p => p.providerId === 'twitter.com')?.screenName || displayName?.replace(/\s+/g, '_').toLowerCase() || `user_${uid.substring(0, 5)}`;
+  const twitterProvider = user.providerData.find(p => p.providerId === 'twitter.com');
+  // @ts-ignore
+  const username = twitterProvider?.screenName || displayName?.replace(/\s+/g, '_').toLowerCase() || `user_${uid.substring(0, 5)}`;
+
 
   const userDocRef = db.collection("users").doc(uid);
 
@@ -776,5 +779,7 @@ export const kycWebhook = functions.https.onRequest(async (request, response) =>
 
     response.status(200).send({ received: true });
 });
+
+    
 
     
