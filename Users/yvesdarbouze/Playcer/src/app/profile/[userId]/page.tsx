@@ -52,7 +52,7 @@ async function getSettledBets(userId: string): Promise<Bet[]> {
             ),
             or(
                 where("creatorId", "==", userId),
-                where("challengerId", "==", userId)
+                where("takerId", "==", userId)
             )
         ),
         orderBy("settledAt", "desc"),
