@@ -5,7 +5,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signInWithPopup } from "firebase/auth";
-import { auth, googleProvider } from "@/lib/firebase";
+import { auth, twitterProvider } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 
 import { Button } from "@/components/ui/button";
@@ -18,15 +18,11 @@ import {
 } from "@/components/ui/card";
 import { Logo } from "./icons";
 
-// Placeholder icon for Google
-const GoogleIcon = (props: React.SVGProps<SVGSVGElement>) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-        <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/>
-        <path d="M12 15a6 6 0 0 0 6-6H6a6 6 0 0 0 6 6z"/>
-        <path d="M12 2v3M12 22v-3M4.93 4.93l2.12 2.12M16.95 16.95l2.12 2.12M2 12h3M22 12h-3M4.93 19.07l2.12-2.12M16.95 7.05l2.12-2.12"/>
+const TwitterIcon = (props: React.SVGProps<SVGSVGElement>) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" {...props}>
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
     </svg>
-);
-
+)
 
 export function SignUpForm() {
   const [isLoading, setIsLoading] = useState(false);
@@ -36,8 +32,8 @@ export function SignUpForm() {
   const handleSocialSignIn = async () => {
     setIsLoading(true);
     try {
-      await signInWithPopup(auth, googleProvider);
-      router.push("/");
+      await signInWithPopup(auth, twitterProvider);
+      router.push("/dashboard");
     } catch (error: any) {
        toast({
         title: "Sign-up Failed",
@@ -57,16 +53,16 @@ export function SignUpForm() {
         </div>
         <CardTitle className="font-bold">Create an Account</CardTitle>
         <CardDescription>
-          Join Playcer today to challenge your friends.
+          Join Playcer with Twitter to challenge your friends.
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <Button 
+         <Button 
             variant="outline" 
             className="w-full" 
             onClick={handleSocialSignIn} 
             disabled={isLoading}>
-            {isLoading ? ( "Redirecting to Google..." ) : ( <> <GoogleIcon className="mr-2" /> Sign up with Google </> )}
+            {isLoading ? ( "Redirecting to Twitter..." ) : ( <> <TwitterIcon className="mr-2" /> Sign up with Twitter </> )}
         </Button>
         
         <div className="mt-4 text-center text-sm">
@@ -79,5 +75,3 @@ export function SignUpForm() {
     </Card>
   );
 }
-
-    
