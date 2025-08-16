@@ -6,12 +6,14 @@ import { useRouter } from "next/navigation";
 import { signInWithPopup } from "firebase/auth";
 import { auth, twitterProvider } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
+import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -23,7 +25,11 @@ const TwitterIcon = (props: React.SVGProps<SVGSVGElement>) => (
     </svg>
 )
 
-export function SignInForm() {
+interface SignInFormProps {
+    onSignInSuccess?: () => void;
+}
+
+export function SignInForm({ onSignInSuccess }: SignInFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
@@ -32,7 +38,15 @@ export function SignInForm() {
     setIsLoading(true);
     try {
       await signInWithPopup(auth, twitterProvider);
-      router.push("/dashboard");
+      toast({
+          title: "Sign-in Successful",
+          description: "Welcome back!",
+      });
+      if(onSignInSuccess) {
+          onSignInSuccess();
+      } else {
+        router.push("/dashboard");
+      }
     } catch (error: any) {
        toast({
         title: "Sign-in Failed",
@@ -45,17 +59,7 @@ export function SignInForm() {
   };
 
   return (
-    <Card className="w-full max-w-sm">
-      <CardHeader className="text-center">
-        <div className="flex justify-center mb-4">
-          <Logo/>
-        </div>
-        <CardTitle className="font-bold">Welcome Back</CardTitle>
-        <CardDescription>
-          Sign in with Twitter to access your dashboard.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+    <div className="w-full">
         <Button 
             variant="outline" 
             className="w-full"
@@ -64,7 +68,12 @@ export function SignInForm() {
         >
           {isLoading ? ( "Redirecting to Twitter..." ) : ( <> <TwitterIcon className="mr-2" /> Sign in with Twitter </> )}
         </Button>
-      </CardContent>
-    </Card>
+        <div className="mt-4 text-center text-sm">
+          No account?{" "}
+          <Link href="/signup" className="underline">
+            Sign up
+          </Link>
+        </div>
+    </div>
   );
 }

@@ -17,11 +17,13 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LogOut, User, Shield } from "lucide-react";
+import { LoginModal } from "./login-modal";
 
 
 export function LoginButton() {
   const { user, loading, claims, signOut } = useAuth();
   const router = useRouter();
+  const [isLoginModalOpen, setIsLoginModalOpen] = React.useState(false);
 
   const handleSignOut = async () => {
     await signOut();
@@ -34,9 +36,10 @@ export function LoginButton() {
 
   if (!user) {
     return (
-      <Link href="/signin" passHref>
-        <Button>Login</Button>
-      </Link>
+      <>
+        <Button onClick={() => setIsLoginModalOpen(true)}>Login</Button>
+        <LoginModal isOpen={isLoginModalOpen} onOpenChange={setIsLoginModalOpen} />
+      </>
     );
   }
 
