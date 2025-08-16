@@ -8,24 +8,6 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(userId)).data.selfExclusion.isActive == true;
     }
 
-    // Rules for the 'games' collection and its subcollections
-    match /games/{gameId} {
-      // Allow any authenticated user to read game documents.
-      allow read: if request.auth != null;
-
-      // Rules for the 'bookmaker_odds' subcollection inside each game
-      match /bookmaker_odds/{bookmakerId} {
-        // Allow any authenticated user to read the odds from bookmakers.
-        allow read: if request.auth != null;
-
-        // Do not allow client-side writes to odds. This should be managed by a secure backend process.
-        allow write: if false;
-      }
-      
-      // Disallow writing to the main game document from the client.
-      allow write: if false;
-    }
-
     match /users/{userId} {
       // Users can read their own document.
       // Admins can read any user document.
@@ -47,9 +29,23 @@ service cloud.firestore {
       allow write: if request.auth.token.admin == true;
     }
 
+    match /games/{gameId} {
+      // Any authenticated user can read game documents.
+      allow read: if request.auth != null;
+      allow write: if false; // Game data managed by backend.
+
+      // Rule for the subcollection containing bookmaker odds.
+      match /bookmaker_odds/{bookmakerId} {
+         // Allow any authenticated user to read odds documents.
+        allow read: if request.auth != null;
+        // Disallow writing to odds from the client-side for security.
+        allow write: if false;
+      }
+    }
+
     match /bets/{betId} {
       // Anyone can read public bets.
-      allow read: if resource.data.isPublic == true;
+      allow read: if resource.data.isPublic == true || request.auth.uid == resource.data.creatorId || request.auth.uid == resource.data.takerId;
 
       // Authenticated users can create bets if they are NOT self-excluded.
       allow create: if request.auth != null && 
@@ -58,10 +54,10 @@ service cloud.firestore {
 
       // Allow updates for specific state transitions if the user is NOT self-excluded.
       allow update: if request.auth != null && isUserSelfExcluded(request.auth.uid) == false && (
-                      // Matching a bet (challenger)
-                      (resource.data.status == 'open' && request.resource.data.status == 'matched' && request.resource.data.challengerId == request.auth.uid) ||
+                      // Accepting a bet (taker)
+                      (resource.data.status == 'pending' && request.resource.data.status == 'accepted' && request.resource.data.takerId == request.auth.uid) ||
                       // Disputing a bet
-                      (resource.data.status == 'matched' && request.resource.data.status == 'disputed')
+                      (resource.data.status == 'accepted' && request.resource.data.status == 'disputed')
                     ) ||
                     // Admins can update any bet.
                     request.auth.token.admin == true;
@@ -83,13 +79,13 @@ service cloud.firestore {
         // Only involved parties or admins can read a dispute.
         allow read: if request.auth.uid == resource.data.disputingUserId ||
                        get(/databases/$(database)/documents/bets/$(resource.data.betId)).data.creatorId == request.auth.uid ||
-                       get(/databases/$(database)/documents/bets/$(resource.data.betId)).data.challengerId == request.auth.uid ||
+                       get(/databases/$(database)/documents/bets/$(resource.data.betId)).data.takerId == request.auth.uid ||
                        request.auth.token.admin == true;
 
         // Only involved parties can create a dispute.
         allow create: if request.auth != null && request.resource.data.disputingUserId == request.auth.uid &&
                          (get(/databases/$(database)/documents/bets/$(request.resource.data.betId)).data.creatorId == request.auth.uid ||
-                          get(/databases/$(database)/documents/bets/$(request.resource.data.betId)).data.challengerId == request.auth.uid);
+                          get(/databases/$(database)/documents/bets/$(request.resource.data.betId)).data.takerId == request.auth.uid);
 
         // Disputes are resolved by admins via Cloud Functions, not updated from client.
         allow update: if false;
