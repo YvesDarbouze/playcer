@@ -38,9 +38,9 @@ export function GameList({ initialGames }: GameListProps) {
                         loop
                         muted
                         playsInline
-                        className="object-cover w-full h-full opacity-20"
+                        className="object-cover w-full h-full"
                      />
-                    <div className="absolute inset-0 bg-secondary/80"></div>
+                    <div className="absolute inset-0 bg-secondary/80 video-overlay"></div>
                 </div>
                 
                 <div className="container mx-auto relative">
