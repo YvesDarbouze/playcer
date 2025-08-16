@@ -32,14 +32,14 @@ export function GameList({ initialGames }: GameListProps) {
         <div>
             <header className="relative bg-secondary text-foreground py-20 md:py-32 text-center overflow-hidden">
                 <div className="absolute inset-0">
-                     <Image
-                        src="https://placehold.co/1920x1080.png"
-                        alt="Background image of a sports stadium"
-                        fill
-                        className="object-cover opacity-20"
-                        data-ai-hint="stadium lights"
-                        priority
-                    />
+                     <video
+                        src="https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4"
+                        autoPlay
+                        loop
+                        muted
+                        playsInline
+                        className="object-cover w-full h-full opacity-20"
+                     />
                     <div className="absolute inset-0 bg-secondary/80"></div>
                 </div>
                 
