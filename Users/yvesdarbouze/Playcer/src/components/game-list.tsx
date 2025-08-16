@@ -33,7 +33,7 @@ export function GameList({ initialGames }: GameListProps) {
             <header className="relative bg-secondary text-foreground py-20 md:py-32 text-center overflow-hidden">
                 <div className="absolute inset-0">
                      <video
-                        src="https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4"
+                        src="https://firebasestorage.googleapis.com/v0/b/playcer-xbv5e.firebasestorage.app/o/2_the_simplifier_202508150826.mp4?alt=media&token=f2cfef79-14a9-42e8-810d-86c5b14614a3"
                         autoPlay
                         loop
                         muted
