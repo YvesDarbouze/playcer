@@ -28,10 +28,16 @@ export function GameList({ initialGames }: GameListProps) {
         );
     }, [initialGames, searchTerm]);
 
+    const PlayIcon = (props: React.SVGProps<SVGSVGElement>) => (
+        <svg {...props} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M8 5v14l11-7z" />
+        </svg>
+    );
+
     return (
         <div>
-            <header className="relative bg-secondary text-foreground py-20 md:py-32 text-center overflow-hidden">
-                <div className="absolute inset-0">
+            <header className="relative flex items-center justify-center h-[60vh] md:h-[80vh] text-center overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-full">
                      <video
                         src="https://firebasestorage.googleapis.com/v0/b/playcer-xbv5e.firebasestorage.app/o/2_the_simplifier_202508150826.mp4?alt=media&token=f2cfef79-14a9-42e8-810d-86c5b14614a3"
                         autoPlay
@@ -40,10 +46,13 @@ export function GameList({ initialGames }: GameListProps) {
                         playsInline
                         className="object-cover w-full h-full"
                      />
-                    <div className="absolute inset-0 bg-secondary/80 video-overlay"></div>
+                    <div className="absolute inset-0 bg-secondary/80"></div>
+                     <div className="absolute inset-0 flex items-center justify-center">
+                        <PlayIcon className="w-24 h-24 text-white/30" />
+                    </div>
                 </div>
                 
-                <div className="container mx-auto relative">
+                <div className="container mx-auto relative z-10">
                     <h1 className="text-5xl md:text-7xl font-headline font-black uppercase tracking-tighter text-white">Stop Arguing. Start Winning.</h1>
                     <p className="mt-4 text-lg md:text-xl text-muted-foreground">Peer to Peer Betting that makes sports betting personal</p>
                     <div className="mt-8 max-w-2xl mx-auto">
