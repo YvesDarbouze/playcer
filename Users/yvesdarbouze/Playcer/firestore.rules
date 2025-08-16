@@ -9,44 +9,40 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if request.auth.uid == userId || request.auth.token.admin == true;
+      
       allow update: if request.auth.uid == userId &&
                        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
                          'displayName', 'username', 'photoURL', 
                          'responsibleGamingLimits', 'selfExclusion'
                        ]);
+                       
       allow create: if false;
+
       allow write: if request.auth.token.admin == true;
     }
 
-    match /games/{gameId} {
-      // Allow any authenticated user to read game documents.
-      allow read: if request.auth != null;
-      
-      // Odds are a subcollection of games.
-      match /bookmaker_odds/{bookmakerId} {
-        // Allow any authenticated user to read odds.
-        allow read: if request.auth != null;
-        // Nobody can write to odds from the client.
-        allow write: if false;
-      }
-    }
-
     match /bets/{betId} {
-      allow read: if resource.data.isPublic == true || 
-                     request.auth.uid == resource.data.creatorId || 
-                     request.auth.uid == resource.data.takerId ||
-                     request.auth.token.admin == true;
+      allow read: if resource.data.isPublic == true || request.auth.uid == resource.data.creatorId || request.auth.uid == resource.data.challengerId || request.auth.token.admin == true;
 
       allow create: if request.auth != null && 
                        isUserSelfExcluded(request.auth.uid) == false &&
                        request.resource.data.creatorId == request.auth.uid;
 
       allow update: if request.auth != null && isUserSelfExcluded(request.auth.uid) == false && (
-                      (resource.data.status == 'pending' && request.resource.data.status == 'accepted' && request.resource.data.takerId == request.auth.uid)
+                      (resource.data.status == 'open' && request.resource.data.status == 'matched' && request.resource.data.challengerId == request.auth.uid) ||
+                      (resource.data.status == 'matched' && request.resource.data.status == 'disputed')
                     ) ||
                     request.auth.token.admin == true;
 
       allow delete: if false;
+    }
+
+    match /games/{gameId} {
+        allow read: if request.auth != null;
+
+        match /bookmaker_odds/{bookmakerId} {
+            allow read: if request.auth != null;
+        }
     }
 
     match /transactions/{transactionId} {
@@ -57,12 +53,12 @@ service cloud.firestore {
     match /disputes/{disputeId} {
         allow read: if request.auth.uid == resource.data.disputingUserId ||
                        get(/databases/$(database)/documents/bets/$(resource.data.betId)).data.creatorId == request.auth.uid ||
-                       get(/databases/$(database)/documents/bets/$(resource.data.betId)).data.takerId == request.auth.uid ||
+                       get(/databases/$(database)/documents/bets/$(resource.data.betId)).data.challengerId == request.auth.uid ||
                        request.auth.token.admin == true;
 
         allow create: if request.auth != null && request.resource.data.disputingUserId == request.auth.uid &&
                          (get(/databases/$(database)/documents/bets/$(request.resource.data.betId)).data.creatorId == request.auth.uid ||
-                          get(/databases/$(database)/documents/bets/$(request.resource.data.betId)).data.takerId == request.auth.uid);
+                          get(/databases/$(database)/documents/bets/$(request.resource.data.betId)).data.challengerId == request.auth.uid);
 
         allow update: if false;
         allow delete: if false;
