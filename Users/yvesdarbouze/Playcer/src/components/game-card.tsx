@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import * as React from 'react';
@@ -15,7 +16,6 @@ import Link from 'next/link';
 
 interface GameCardProps {
     game: Game;
-    onCardClick: (game: Game) => void;
 }
 
 type BookmakerOdds = {
@@ -28,7 +28,7 @@ type BookmakerOdds = {
     }[];
 };
 
-export function GameCard({ game, onCardClick }: GameCardProps) {
+export function GameCard({ game }: GameCardProps) {
     const [odds, setOdds] = React.useState<BookmakerOdds | null>(null);
 
     React.useEffect(() => {
@@ -57,7 +57,6 @@ export function GameCard({ game, onCardClick }: GameCardProps) {
 
     return (
         <Card 
-            onClick={() => onCardClick(game)}
             className="hover:shadow-lg transition-all duration-300 flex flex-col overflow-hidden cursor-pointer h-full"
         >
             <CardContent className="p-4 flex-grow flex flex-col items-center justify-center transition-all duration-300">

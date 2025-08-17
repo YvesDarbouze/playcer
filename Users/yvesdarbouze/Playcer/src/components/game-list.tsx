@@ -11,6 +11,7 @@ import { Button } from './ui/button';
 import type { Game } from '@/types';
 import { LoginButton } from './login-button';
 import { GameDetailsModal } from './game-details-modal';
+import { useRouter } from 'next/navigation';
 
 interface GameListProps {
     initialGames: Game[];
@@ -18,7 +19,7 @@ interface GameListProps {
 
 export function GameList({ initialGames }: GameListProps) {
     const [searchTerm, setSearchTerm] = useState('');
-    const [selectedGame, setSelectedGame] = useState<Game | null>(null);
+    const router = useRouter();
 
     const filteredGames = useMemo(() => {
         if (!searchTerm) {
@@ -35,10 +36,6 @@ export function GameList({ initialGames }: GameListProps) {
             <path d="M8 5v14l11-7z" />
         </svg>
     );
-    
-    const handleModalClose = () => {
-        setSelectedGame(null);
-    }
 
     return (
         <>
@@ -80,7 +77,9 @@ export function GameList({ initialGames }: GameListProps) {
                     {filteredGames.length > 0 ? (
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                             {filteredGames.map(game => (
-                                <GameCard key={game.id} game={game} onCardClick={setSelectedGame} />
+                                <Link href={`/game/${game.id}`} key={game.id} passHref>
+                                    <GameCard game={game} />
+                                </Link>
                             ))}
                         </div>
                     ) : (
@@ -93,17 +92,6 @@ export function GameList({ initialGames }: GameListProps) {
                     )}
                 </div>
             </div>
-            {selectedGame && (
-                <GameDetailsModal
-                    game={selectedGame}
-                    isOpen={!!selectedGame}
-                    onOpenChange={(isOpen) => {
-                        if (!isOpen) {
-                            handleModalClose();
-                        }
-                    }}
-                />
-            )}
         </>
     );
 }

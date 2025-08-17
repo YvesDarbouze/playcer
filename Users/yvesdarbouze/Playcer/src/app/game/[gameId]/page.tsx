@@ -33,12 +33,13 @@ type BookmakerOdds = {
     }[];
 };
 
-interface GameDetailsModalProps {
-    game: Game;
-    isOpen: boolean;
-    onOpenChange: (isOpen: boolean) => void;
+type SelectedBet = {
+    betType: "moneyline" | "spread" | "totals";
+    chosenOption: string;
+    line?: number;
+    odds: number;
+    bookmakerKey: string;
 }
-
 
 export default function GameDetailsPage({ params }: { params: { gameId: string } }) {
   const { gameId } = params;
@@ -49,6 +50,7 @@ export default function GameDetailsPage({ params }: { params: { gameId: string }
   const [odds, setOdds] = useState<BookmakerOdds[]>([]);
   const [loading, setLoading] = useState(true);
   const [isBetModalOpen, setIsBetModalOpen] = useState(false);
+  const [selectedBet, setSelectedBet] = useState<SelectedBet | null>(null);
 
   useEffect(() => {
     if (!gameId) return;
@@ -85,10 +87,11 @@ export default function GameDetailsPage({ params }: { params: { gameId: string }
     return () => unsubscribe();
   }, [gameId]);
   
-  const handleCreateBetClick = () => {
+  const handleCreateBetClick = (betDetails: SelectedBet) => {
     if (!user) {
         router.push('/signin');
     } else {
+        setSelectedBet(betDetails);
         setIsBetModalOpen(true);
     }
   }
@@ -119,49 +122,28 @@ export default function GameDetailsPage({ params }: { params: { gameId: string }
   if (!game) {
     return <p className="text-center p-8">Game not found.</p>;
   }
-  
-  const h2hOdds = odds.map(bookmaker => {
-    const h2hMarket = bookmaker.markets.find(m => m.key === 'h2h');
-    const homeOutcome = h2hMarket?.outcomes.find(o => o.name === game.home_team);
-    const awayOutcome = h2hMarket?.outcomes.find(o => o.name === game.away_team);
-    return {
-        key: bookmaker.key,
-        title: bookmaker.title,
-        homePrice: homeOutcome?.price,
-        awayPrice: awayOutcome?.price,
-    }
-  }).filter(o => o.homePrice && o.awayPrice);
 
-  const spreadOdds = odds.map(bookmaker => {
-    const spreadMarket = bookmaker.markets.find(m => m.key === 'spreads');
-    if (!spreadMarket) return null;
-    const homeOutcome = spreadMarket.outcomes.find(o => o.name === game.home_team);
-    const awayOutcome = spreadMarket.outcomes.find(o => o.name === game.away_team);
-    return {
-        key: bookmaker.key,
-        title: bookmaker.title,
-        homePoint: homeOutcome?.point,
-        homePrice: homeOutcome?.price,
-        awayPoint: awayOutcome?.point,
-        awayPrice: awayOutcome?.price,
-    }
-  }).filter(o => o && o.homePrice && o.awayPrice);
-
-  const totalOdds = odds.map(bookmaker => {
-    const totalMarket = bookmaker.markets.find(m => m.key === 'totals');
-    if (!totalMarket) return null;
-    const overOutcome = totalMarket.outcomes.find(o => o.name === 'Over');
-    const underOutcome = totalMarket.outcomes.find(o => o.name === 'Under');
-    return {
-        key: bookmaker.key,
-        title: bookmaker.title,
-        overPoint: overOutcome?.point,
-        overPrice: overOutcome?.price,
-        underPoint: underOutcome?.point,
-        underPrice: underOutcome?.price,
-    }
-  }).filter(o => o && o.overPrice && o.underPrice);
-
+  const renderOddsButton = (outcome: any, betType: SelectedBet['betType'], bookmakerKey: string) => {
+      if(!outcome || !outcome.price) return <TableCell className="text-center">-</TableCell>;
+      return (
+          <TableCell className="text-center">
+              <Button 
+                variant="outline"
+                className="w-full font-bold"
+                onClick={() => handleCreateBetClick({
+                    betType,
+                    chosenOption: outcome.name,
+                    line: outcome.point,
+                    odds: outcome.price,
+                    bookmakerKey
+                })}
+              >
+                {outcome.point && <span className="text-muted-foreground mr-2">{outcome.point > 0 ? `+${outcome.point}`: outcome.point}</span>}
+                {outcome.price > 0 ? `+${outcome.price}` : outcome.price}
+              </Button>
+          </TableCell>
+      )
+  }
 
   return (
     <>
@@ -183,7 +165,7 @@ export default function GameDetailsPage({ params }: { params: { gameId: string }
             <Card>
                 <CardHeader>
                 <CardTitle className="font-bold">Moneyline</CardTitle>
-                <CardDescription>Odds to win the game outright. Updates in real-time.</CardDescription>
+                <CardDescription>Odds to win the game outright. Click an odd to place a bet.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     {loading ? <Skeleton className="h-24" /> : (
@@ -196,96 +178,104 @@ export default function GameDetailsPage({ params }: { params: { gameId: string }
                                 </TableRow>
                             </TableHeader>
                              <TableBody>
-                                {h2hOdds.map(bookie => (
-                                    <TableRow key={bookie.key}>
-                                        <TableCell className="font-medium">{bookie.title}</TableCell>
-                                        <TableCell className="text-center font-bold">{bookie.awayPrice}</TableCell>
-                                        <TableCell className="text-center font-bold">{bookie.homePrice}</TableCell>
-                                    </TableRow>
-                                ))}
+                                {odds.map(bookie => {
+                                    const h2hMarket = bookie.markets.find(m => m.key === 'h2h');
+                                    const awayOutcome = h2hMarket?.outcomes.find(o => o.name === game.away_team);
+                                    const homeOutcome = h2hMarket?.outcomes.find(o => o.name === game.home_team);
+                                    return (
+                                        <TableRow key={`h2h-${bookie.key}`}>
+                                            <TableCell className="font-medium">{bookie.title}</TableCell>
+                                            {renderOddsButton(awayOutcome, "moneyline", bookie.key)}
+                                            {renderOddsButton(homeOutcome, "moneyline", bookie.key)}
+                                        </TableRow>
+                                    )
+                                })}
                              </TableBody>
                         </Table>
                     )}
                 </CardContent>
             </Card>
 
-            {spreadOdds.length > 0 && (
-                <Card>
-                    <CardHeader>
-                    <CardTitle className="font-bold">Point Spread</CardTitle>
-                    <CardDescription>Odds based on the margin of victory.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        {loading ? <Skeleton className="h-24" /> : (
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Bookmaker</TableHead>
-                                        <TableHead className="text-center">{game.away_team}</TableHead>
-                                        <TableHead className="text-center">{game.home_team}</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {spreadOdds.map(bookie => (
-                                        <TableRow key={bookie.key}>
+            <Card>
+                <CardHeader>
+                <CardTitle className="font-bold">Point Spread</CardTitle>
+                <CardDescription>Odds based on the margin of victory.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {loading ? <Skeleton className="h-24" /> : (
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Bookmaker</TableHead>
+                                    <TableHead className="text-center">{game.away_team}</TableHead>
+                                    <TableHead className="text-center">{game.home_team}</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {odds.map(bookie => {
+                                    const spreadMarket = bookie.markets.find(m => m.key === 'spreads');
+                                    if (!spreadMarket) return null;
+                                    const awayOutcome = spreadMarket.outcomes.find(o => o.name === game.away_team);
+                                    const homeOutcome = spreadMarket.outcomes.find(o => o.name === game.home_team);
+                                    return (
+                                        <TableRow key={`spread-${bookie.key}`}>
                                             <TableCell className="font-medium">{bookie.title}</TableCell>
-                                            <TableCell className="text-center font-bold">{bookie.awayPoint} ({bookie.awayPrice})</TableCell>
-                                            <TableCell className="text-center font-bold">{bookie.homePoint} ({bookie.homePrice})</TableCell>
+                                            {renderOddsButton(awayOutcome, "spread", bookie.key)}
+                                            {renderOddsButton(homeOutcome, "spread", bookie.key)}
                                         </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        )}
-                    </CardContent>
-                </Card>
-            )}
+                                    )
+                                })}
+                            </TableBody>
+                        </Table>
+                    )}
+                </CardContent>
+            </Card>
 
-             {totalOdds.length > 0 && (
-                <Card>
-                    <CardHeader>
-                    <CardTitle className="font-bold">Totals (Over/Under)</CardTitle>
-                    <CardDescription>Odds based on the total points scored in the game.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        {loading ? <Skeleton className="h-24" /> : (
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Bookmaker</TableHead>
-                                        <TableHead className="text-center">Over</TableHead>
-                                        <TableHead className="text-center">Under</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {totalOdds.map(bookie => (
-                                        <TableRow key={bookie.key}>
+             <Card>
+                <CardHeader>
+                <CardTitle className="font-bold">Totals (Over/Under)</CardTitle>
+                <CardDescription>Odds based on the total points scored in the game.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {loading ? <Skeleton className="h-24" /> : (
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Bookmaker</TableHead>
+                                    <TableHead className="text-center">Over</TableHead>
+                                    <TableHead className="text-center">Under</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {odds.map(bookie => {
+                                    const totalMarket = bookie.markets.find(m => m.key === 'totals');
+                                    if (!totalMarket) return null;
+                                    const overOutcome = totalMarket.outcomes.find(o => o.name === 'Over');
+                                    const underOutcome = totalMarket.outcomes.find(o => o.name === 'Under');
+                                    return (
+                                        <TableRow key={`totals-${bookie.key}`}>
                                             <TableCell className="font-medium">{bookie.title}</TableCell>
-                                            <TableCell className="text-center font-bold">{bookie.overPoint} ({bookie.overPrice})</TableCell>
-                                            <TableCell className="text-center font-bold">{bookie.underPoint} ({bookie.underPrice})</TableCell>
+                                            {renderOddsButton({ ...overOutcome, name: 'Over'}, "totals", bookie.key)}
+                                            {renderOddsButton({ ...underOutcome, name: 'Under'}, "totals", bookie.key)}
                                         </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        )}
-                    </CardContent>
-                </Card>
-            )}
-        </div>
-        <div className="mt-8">
-            <Button size="lg" onClick={handleCreateBetClick} disabled={authLoading} className="w-full">
-                <PlusCircle className="mr-2" />
-                Create Challenge
-            </Button>
+                                    )
+                                })}
+                            </TableBody>
+                        </Table>
+                    )}
+                </CardContent>
+            </Card>
         </div>
       </main>
       
-      {game && (
+      {game && selectedBet && (
           <BetCreationModal 
             isOpen={isBetModalOpen}
             onOpenChange={setIsBetModalOpen}
             game={game}
             odds={odds}
             loadingOdds={loading}
+            selectedBet={selectedBet}
           />
       )}
     </>

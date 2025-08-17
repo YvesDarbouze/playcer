@@ -23,13 +23,6 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -54,31 +47,28 @@ interface BookmakerOdds {
     }[];
 };
 
+type SelectedBet = {
+    betType: "moneyline" | "spread" | "totals";
+    chosenOption: string;
+    line?: number;
+    odds: number;
+    bookmakerKey: string;
+}
+
 interface BetCreationModalProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   game: Game;
   odds: BookmakerOdds[];
   loadingOdds: boolean;
+  selectedBet: SelectedBet | null;
 }
 
 const betSchema = z.object({
-    betType: z.enum(["moneyline", "spread", "totals"]),
-    chosenOption: z.string().min(1, "Please select a team or option."),
     stake: z.coerce.number().min(1, "Stake must be at least $1."),
-    line: z.coerce.number().optional(),
     opponentTwitter: z.string().optional().refine(val => !val || val.startsWith('@') || /^[a-zA-Z0-9_]{1,15}$/.test(val!), {
         message: "Invalid Twitter handle."
     }),
-    bookmakerKey: z.string().min(1, "Please select a bookmaker.")
-}).refine((data) => {
-    if (data.betType === 'spread' || data.betType === 'totals') {
-        return data.line !== undefined && data.line !== null;
-    }
-    return true;
-}, {
-    message: "Line is required for spread and total bets.",
-    path: ["line"],
 });
 
 
@@ -91,8 +81,8 @@ const TeamDisplay = ({ team, logoUrl }: { team: string, logoUrl: string }) => (
     </div>
 )
 
-const OddsInfo = ({ label, value }: { label: string, value: string }) => (
-    <div className="flex justify-between text-sm">
+const OddsInfo = ({ label, value }: { label: string, value: React.ReactNode }) => (
+    <div className="flex justify-between items-center text-sm">
         <p className="text-muted-foreground">{label}</p>
         <p className="font-bold">{value}</p>
     </div>
@@ -100,7 +90,7 @@ const OddsInfo = ({ label, value }: { label: string, value: string }) => (
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
-function BetCreationModalInternal({ isOpen, onOpenChange, game, odds, loadingOdds }: BetCreationModalProps) {
+function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, odds }: BetCreationModalProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const stripe = useStripe();
@@ -111,42 +101,35 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, odds, loadingOdd
   const [betId, setBetId] = React.useState<string | null>(null);
   const [step, setStep] = React.useState(1);
   const [clientSecret, setClientSecret] = React.useState<string | null>(null);
-  const [selectedBookmaker, setSelectedBookmaker] = React.useState<BookmakerOdds | null>(odds.length > 0 ? odds[0] : null);
-
-
+  
   const form = useForm<BetFormData>({
     resolver: zodResolver(betSchema),
     defaultValues: {
       stake: 20,
-      betType: "moneyline",
-      bookmakerKey: odds.length > 0 ? odds[0].key : undefined
     },
   });
-  
-  const betType = form.watch("betType");
+
   const opponentTwitter = form.watch("opponentTwitter");
-  const bookmakerKey = form.watch("bookmakerKey");
-
-  React.useEffect(() => {
-    const newSelectedBookmaker = odds.find(o => o.key === bookmakerKey) || null;
-    setSelectedBookmaker(newSelectedBookmaker);
-  }, [bookmakerKey, odds]);
+  const stakeAmount = form.watch("stake");
   
-  React.useEffect(() => {
-    form.clearErrors();
-    form.setValue('chosenOption', ''); // Reset pick on type change
-    const spreadMarket = selectedBookmaker?.markets.find(m => m.key === 'spreads');
-    const totalsMarket = selectedBookmaker?.markets.find(m => m.key === 'totals');
-
-    if (betType === 'spread' && spreadMarket) {
-        form.setValue('line', spreadMarket.outcomes[0].point);
-    } else if (betType === 'totals' && totalsMarket) {
-        form.setValue('line', totalsMarket.outcomes[0].point);
-    } else {
-        form.setValue('line', undefined);
+  const handleModalClose = (open: boolean) => {
+    if (!open) {
+        form.reset({ stake: 20 });
+        setIsSuccess(false);
+        setStep(1);
+        setClientSecret(null);
     }
-  }, [betType, selectedBookmaker, form]);
+    onOpenChange(open);
+  }
+  
+  if (!selectedBet) {
+      handleModalClose(false);
+      return null;
+  }
 
+  const { betType, chosenOption, line, bookmakerKey } = selectedBet;
+  const bookmaker = odds.find(o => o.key === bookmakerKey)?.title || 'Unknown Bookmaker';
+  const price = selectedBet.odds;
 
   const onSubmit = async (data: BetFormData) => {
     if (!user) return toast({ title: "Not Authenticated", variant: "destructive" });
@@ -169,31 +152,19 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, odds, loadingOdd
         const functions = getFunctions(getFirebaseApp());
         const createBet = httpsCallable(functions, 'createBet');
         
-        const markets = selectedBookmaker?.markets || [];
-        const market = markets.find(m => {
-            if (data.betType === 'spread') return m.key === 'spreads';
-            if (data.betType === 'totals') return m.key === 'totals';
-            return m.key === 'h2h';
-        });
-
-        const outcome = market?.outcomes.find(o => {
-            if (data.betType === 'totals') return o.name.toLowerCase() === data.chosenOption;
-            return o.name === data.chosenOption;
-        });
-        
         const betPayload = {
           eventId: game.id,
           eventDate: game.commence_time,
           homeTeam: game.home_team,
           awayTeam: game.away_team,
-          betType: data.betType,
+          betType: betType,
           stakeAmount: data.stake,
-          chosenOption: data.chosenOption,
-          line: data.line,
+          chosenOption: chosenOption,
+          line: line,
           isPublic: !data.opponentTwitter,
           twitterShareUrl: data.opponentTwitter ? `https://twitter.com/intent/tweet?text=${encodeURIComponent(`@${data.opponentTwitter.replace('@','')} I challenge you to a bet on Playcer!`)}` : null,
-          bookmakerKey: data.bookmakerKey,
-          odds: outcome?.price || 0,
+          bookmakerKey: bookmakerKey,
+          odds: price,
           period: 'game', // Defaulting to full game for now
         };
 
@@ -237,22 +208,19 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, odds, loadingOdd
           setIsLoading(false);
       }
   }
-  
-  const handleModalClose = (open: boolean) => {
-    if (!open) {
-        form.reset({ stake: 20, betType: "moneyline" });
-        setIsSuccess(false);
-        setStep(1);
-        setClientSecret(null);
-    }
-    onOpenChange(open);
-  }
-  
-  const spreadMarket = selectedBookmaker?.markets.find(m => m.key === 'spreads');
-  const totalsMarket = selectedBookmaker?.markets.find(m => m.key === 'totals');
 
-  const homeLogo = getTeamLogoUrl(game.home_team, game.sport_key);
-  const awayLogo = getTeamLogoUrl(game.away_team, game.sport_key);
+  const getBetValueDisplay = () => {
+    if (betType === 'moneyline') {
+      return chosenOption;
+    }
+    if (betType === 'spread') {
+      return `${chosenOption} ${line! > 0 ? `+${line}` : line}`;
+    }
+    if (betType === 'totals') {
+      return `Total ${chosenOption} ${line}`;
+    }
+    return chosenOption;
+  }
 
   const renderStepContent = () => {
       switch(step) {
@@ -260,68 +228,15 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, odds, loadingOdd
               return (
                 <Form {...form}>
                     <form id="bet-details-form" className="space-y-4">
+                        <div className="p-4 rounded-lg bg-muted border border-primary/20">
+                            <h3 className="font-bold text-lg">Your Pick</h3>
+                            <div className="flex justify-between items-baseline">
+                                <span className="text-xl font-bold text-primary">{getBetValueDisplay()}</span>
+                                <span className="text-xl font-bold">{price > 0 ? `+${price}` : price}</span>
+                            </div>
+                            <p className="text-xs text-muted-foreground">Odds from {bookmaker}</p>
+                        </div>
                        
-                        <FormField
-                            control={form.control}
-                            name="bookmakerKey"
-                            render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Bookmaker</FormLabel>
-                                <Select onValueChange={field.onChange} defaultValue={field.value} disabled={loadingOdds}>
-                                    <FormControl>
-                                        <SelectTrigger><SelectValue placeholder="Select a bookmaker" /></SelectTrigger>
-                                    </FormControl>
-                                    <SelectContent>
-                                        {odds.map(o => <SelectItem key={o.key} value={o.key}>{o.title}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                                <FormMessage />
-                            </FormItem>
-                            )}
-                        />
-                        
-                        <FormField
-                            control={form.control}
-                            name="betType"
-                            render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Bet Type</FormLabel>
-                                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                    <FormControl>
-                                        <SelectTrigger><SelectValue placeholder="Select a bet type" /></SelectTrigger>
-                                    </FormControl>
-                                    <SelectContent>
-                                        <SelectItem value="moneyline">Moneyline</SelectItem>
-                                        <SelectItem value="spread" disabled={!spreadMarket}>Point Spread</SelectItem>
-                                        <SelectItem value="totals" disabled={!totalsMarket}>Totals (O/U)</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                                <FormMessage />
-                            </FormItem>
-                            )}
-                        />
-
-                        {(betType === 'spread' || betType === 'totals') && (
-                             <FormField control={form.control} name="line" render={({ field }) => (
-                                <FormItem><FormLabel>{betType === 'spread' ? 'Point Spread' : 'Total (O/U)'}</FormLabel>
-                                <FormControl><Input type="number" step="0.5" {...field} readOnly /></FormControl>
-                                <FormMessage /></FormItem>
-                                )}
-                            />
-                        )}
-                        
-                        <FormField control={form.control} name="chosenOption" render={({ field }) => (
-                            <FormItem><FormLabel>Your Pick</FormLabel>
-                                 <Select onValueChange={field.onChange} value={field.value}>
-                                    <FormControl><SelectTrigger><SelectValue placeholder="Select your team/side" /></SelectTrigger></FormControl>
-                                    <SelectContent>
-                                      {betType !== 'totals' && (<><SelectItem value={game.home_team}>{game.home_team} {spreadMarket && `(${spreadMarket.outcomes.find(o => o.name === game.home_team)?.point})`}</SelectItem><SelectItem value={game.away_team}>{game.away_team} {spreadMarket && `(${spreadMarket.outcomes.find(o => o.name === game.away_team)?.point})`}</SelectItem></>)}
-                                      {betType === 'totals' && <><SelectItem value="over">Over</SelectItem><SelectItem value="under">Under</SelectItem></>}
-                                    </SelectContent>
-                                </Select><FormMessage />
-                            </FormItem>)}
-                        />
-                        
                         <div className="grid grid-cols-2 gap-4">
                             <FormField control={form.control} name="stake" render={({ field }) => (
                                 <FormItem><FormLabel>Wager ($)</FormLabel>
@@ -336,6 +251,13 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, odds, loadingOdd
                                 )}
                             />
                         </div>
+
+                         <div className="p-4 rounded-lg bg-muted text-sm">
+                            <OddsInfo label="Wager" value={`$${stakeAmount.toFixed(2)}`} />
+                            <OddsInfo label="Potential Payout" value={`$${(stakeAmount * 1.955).toFixed(2)}`} />
+                            <p className="text-xs text-muted-foreground mt-2">Payout is an estimate. Final payout depends on final odds upon match.</p>
+                         </div>
+
                     </form>
                     <DialogFooter className="pt-4">
                         <Button onClick={handleNextToPayment} disabled={isLoading} className="w-full" size="lg">{isLoading ? <Loader2 className="animate-spin" /> : "Next"}</Button>
@@ -381,24 +303,14 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, odds, loadingOdd
 
   return (
     <Dialog open={isOpen} onOpenChange={handleModalClose}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="font-bold">Create Your Challenge</DialogTitle>
-          <DialogDescription>Set the terms for your bet on this matchup.</DialogDescription>
+          <DialogTitle className="font-bold text-center text-2xl">Place Your Bet</DialogTitle>
+           <DialogDescription className="text-center">
+            {game.away_team} @ {game.home_team}
+          </DialogDescription>
         </DialogHeader>
-        <div className="my-4 p-4 bg-muted rounded-lg">
-            <div className="grid grid-cols-2 items-center text-center">
-                <TeamDisplay team={game.away_team} logoUrl={awayLogo} />
-                <TeamDisplay team={game.home_team} logoUrl={homeLogo} />
-            </div>
-            {loadingOdds ? <p className="text-center text-xs mt-2">Loading odds...</p> : selectedBookmaker && (
-                <div className="mt-4 space-y-1 border-t pt-2">
-                    {spreadMarket && <OddsInfo label="Point Spread" value={`${spreadMarket.outcomes[0].point} / ${spreadMarket.outcomes[1].point}`} />}
-                    {totalsMarket && <OddsInfo label="Total (O/U)" value={`${totalsMarket.outcomes[0].point}`} />}
-                </div>
-            )}
-        </div>
-        <Separator className="my-6" />
+        <Separator />
         {step === 2 && clientSecret ? (
             <Elements stripe={stripePromise} options={{clientSecret}}>
                 {renderStepContent()}
