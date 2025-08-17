@@ -10,6 +10,7 @@ import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getFirebaseApp } from '@/lib/firebase';
 import { collection, getDocs, query, orderBy, Timestamp } from "firebase/firestore";
 import type { Game } from '@/types';
+import { format } from "date-fns";
 
 
 const getGames = async (): Promise<Game[]> => {
@@ -88,7 +89,7 @@ export default function OddsCheckerPage() {
                                 {games.map(game => (
                                     <TableRow key={game.id}>
                                         <TableCell className="font-medium">{game.away_team} @ {game.home_team}</TableCell>
-                                        <TableCell>{new Date(game.commence_time).toLocaleString()}</TableCell>
+                                        <TableCell>{format(new Date(game.commence_time), "PPpp")}</TableCell>
                                         <TableCell>{game.sport_title}</TableCell>
                                     </TableRow>
                                 ))}
@@ -100,5 +101,3 @@ export default function OddsCheckerPage() {
         </main>
     );
 }
-
-    

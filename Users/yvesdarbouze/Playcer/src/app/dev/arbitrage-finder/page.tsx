@@ -15,6 +15,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { format } from "date-fns";
 
 
 type ArbitrageOpportunity = {
@@ -103,7 +104,7 @@ export default function ArbitrageFinderPage() {
                                         <TableCell>
                                             <div className="font-medium">{opp.event.name}</div>
                                             <div className="text-sm text-muted-foreground">
-                                                {new Date(opp.event.startTime).toLocaleString()}
+                                                {format(new Date(opp.event.startTime), "PPpp")}
                                             </div>
                                         </TableCell>
                                         <TableCell>
@@ -133,6 +134,3 @@ export default function ArbitrageFinderPage() {
         </main>
     );
 }
-
-
-    

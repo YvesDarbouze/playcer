@@ -169,7 +169,7 @@ export function BetChallengeCard({
             {bet.awayTeam} @ {bet.homeTeam}
         </CardTitle>
         <CardDescription>
-            {format(eventTime, "EEE, MMM d, yyyy 'at' h:mm a")}
+            {format(eventTime, "EEEE, MMM d, yyyy 'at' h:mm a")}
         </CardDescription>
       </CardHeader>
       <CardContent className="p-6">
@@ -198,5 +198,3 @@ export function BetChallengeCard({
     </Card>
   );
 }
-
-    

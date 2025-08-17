@@ -145,5 +145,3 @@ export function UserBetsTable({ bets, currentUserId }: UserBetsTableProps) {
     </Card>
   );
 }
-
-    

@@ -30,12 +30,9 @@ type BookmakerOdds = {
 
 export function GameCard({ game }: GameCardProps) {
     const router = useRouter();
-    const [gameTime, setGameTime] = React.useState<Date | null>(null);
     const [odds, setOdds] = React.useState<BookmakerOdds | null>(null);
 
     React.useEffect(() => {
-        setGameTime(new Date(game.commence_time));
-
         const db = getFirestore(getFirebaseApp());
         const oddsQuery = query(collection(db, `games/${game.id}/bookmaker_odds`), limit(1));
         
@@ -50,7 +47,7 @@ export function GameCard({ game }: GameCardProps) {
 
         return () => unsubscribe();
 
-    }, [game.commence_time, game.id]);
+    }, [game.id]);
 
     const homeLogo = getTeamLogoUrl(game.home_team, game.sport_key);
     const awayLogo = getTeamLogoUrl(game.away_team, game.sport_key);
@@ -63,9 +60,9 @@ export function GameCard({ game }: GameCardProps) {
         <Link href={`/game/${game.id}`} passHref>
             <Card className="hover:shadow-lg transition-all duration-300 flex flex-col overflow-hidden cursor-pointer h-full">
                 <CardContent className="p-4 flex-grow flex flex-col items-center justify-center transition-all duration-300">
-                     {gameTime && (
+                     {game.commence_time && (
                          <div className="text-center text-muted-foreground text-sm w-full">
-                            <p>{format(gameTime, "EEE, MMM d, h:mm a")}</p>
+                            <p>{format(new Date(game.commence_time), "EEE, MMM d, h:mm a")}</p>
                         </div>
                     )}
                     <div className="flex items-center justify-around text-center w-full flex-grow space-x-2 my-4">

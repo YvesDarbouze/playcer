@@ -35,7 +35,6 @@ export default function GameDetailsPage({ params }: { params: { gameId: string }
   const [odds, setOdds] = useState<BookmakerOdds[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingOdds, setLoadingOdds] = useState(true);
-  const [gameTime, setGameTime] = useState<Date | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
@@ -52,7 +51,6 @@ export default function GameDetailsPage({ params }: { params: { gameId: string }
           commence_time: (data.commence_time as Timestamp).toDate().toISOString(),
         } as unknown as Game;
         setGame(gameData);
-        setGameTime(new Date(gameData.commence_time));
       }
       setLoading(false);
     };
@@ -133,9 +131,9 @@ export default function GameDetailsPage({ params }: { params: { gameId: string }
                 </Button>
                 </Link>
                 <h1 className="text-4xl font-headline font-black">{game.away_team} @ {game.home_team}</h1>
-                {gameTime ? (
+                {game.commence_time ? (
                 <p className="text-muted-foreground">
-                    {format(gameTime, "EEEE, MMMM d, yyyy 'at' h:mm a")}
+                    {format(new Date(game.commence_time), "EEEE, MMMM d, yyyy 'at' h:mm a")}
                 </p>
                 ) : (
                 <Skeleton className="h-6 w-72 mt-1" />
@@ -178,7 +176,7 @@ export default function GameDetailsPage({ params }: { params: { gameId: string }
             </Card>
         </div>
       </main>
-      {gameTime && (
+      {game && (
           <BetCreationModal 
             isOpen={isModalOpen}
             onOpenChange={setIsModalOpen}

@@ -100,7 +100,7 @@ export default async function SportPage({ params }: { params: { sport_key: strin
                                   {game.home_team} {game.is_complete && <span className="font-extrabold">{game.home_score}</span>}
                                 </p>
                                 <p className="text-sm text-muted-foreground">
-                                    {game.is_complete ? "Final" : format(new Date(game.commence_time), "h:mm a")}
+                                    {game.is_complete ? "Final" : format(new Date(game.commence_time), "p")}
                                 </p>
                             </div>
                             <Button variant={game.is_complete ? "ghost" : "secondary"} disabled={game.is_complete}>
