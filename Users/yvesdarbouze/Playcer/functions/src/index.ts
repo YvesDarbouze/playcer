@@ -333,11 +333,13 @@ export const processBetOutcomes = onCall(async (request) => {
                 const { homeTeam } = betData;
 
                 if (betData.betType === 'moneyline') {
-                    const winningTeamName = home_score > away_score ? homeTeam : betData.awayTeam;
-                    if (betData.chosenOption === winningTeamName) {
-                        winnerId = betData.creatorId;
+                    if (home_score === away_score) {
+                        // This is a push, no winner.
+                        winnerId = null;
                     } else {
-                        winnerId = betData.takerId;
+                        const winningTeamName = home_score > away_score ? homeTeam : betData.awayTeam;
+                        // The user who picked the winning team is the winner.
+                        winnerId = betData.chosenOption === winningTeamName ? betData.creatorId : betData.takerId;
                     }
                 } 
                 
@@ -352,6 +354,7 @@ export const processBetOutcomes = onCall(async (request) => {
                     await betDoc.ref.update({ status: 'resolved', winnerId, loserId, outcome: 'win', settledAt: Timestamp.now() });
                     processedCount++;
                 } else {
+                    // This is a PUSH. Handle refunding both parties.
                      await processPayout({ 
                         betId, 
                         winnerId: null, 
@@ -377,6 +380,7 @@ async function processPayout(data: { betId: string, winnerId: string | null, los
     
     await db.runTransaction(async (transaction) => {
         if(winnerId && loserId) {
+            // Standard win/loss scenario
             const winnerDocRef = db.collection('users').doc(winnerId);
             const loserDocRef = db.collection('users').doc(loserId);
             const commission = stake * PLATFORM_COMMISSION_RATE;
@@ -397,13 +401,27 @@ async function processPayout(data: { betId: string, winnerId: string | null, los
                 userId: winnerId, type: 'bet_payout', amount: payoutToWinner, status: 'completed', relatedBetId: betId, createdAt: Timestamp.now()
             });
         } else {
-            // This is a PUSH. Refund both users.
+            // This is a PUSH (tie/draw). Refund both users.
             const betDoc = await transaction.get(db.collection('bets').doc(betId));
+            if (!betDoc.exists) return; // Should not happen in this flow
             const betData = betDoc.data()!;
+            
             const creatorDocRef = db.collection('users').doc(betData.creatorId);
             const takerDocRef = db.collection('users').doc(betData.takerId);
+            
+            // Increment wallet balances for both users by the stake amount
             transaction.update(creatorDocRef, { walletBalance: FieldValue.increment(stake), totalBets: FieldValue.increment(1) });
             transaction.update(takerDocRef, { walletBalance: FieldValue.increment(stake), totalBets: FieldValue.increment(1) });
+            
+            // Log the refund transactions
+            const creatorTxId = db.collection('transactions').doc().id;
+            const takerTxId = db.collection('transactions').doc().id;
+             transaction.set(db.collection('transactions').doc(creatorTxId), {
+                userId: betData.creatorId, type: 'bet_payout', amount: stake, status: 'completed', relatedBetId: betId, createdAt: Timestamp.now()
+            });
+             transaction.set(db.collection('transactions').doc(takerTxId), {
+                userId: betData.takerId, type: 'bet_payout', amount: stake, status: 'completed', relatedBetId: betId, createdAt: Timestamp.now()
+            });
         }
     });
 
