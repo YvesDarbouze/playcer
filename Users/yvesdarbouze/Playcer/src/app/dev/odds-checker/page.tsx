@@ -65,7 +65,7 @@ export default function OddsCheckerPage() {
                 <CardHeader>
                     <CardTitle>Developer: Firestore Game Checker</CardTitle>
                     <CardDescription>
-                        This page fetches the game data directly from your Firestore database to verify ingestion from The Odds API is working.
+                        This page fetches the game data directly from your Firestore database to verify ingestion from the SportsGameOdds API is working.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -101,3 +101,5 @@ export default function OddsCheckerPage() {
         </main>
     );
 }
+
+    
