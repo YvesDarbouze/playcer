@@ -438,6 +438,13 @@ export const ingestUpcomingGames = onCall(async (request) => {
         throw new HttpsError('internal', 'The RapidAPI key is not configured.');
     }
 
+    // Hardcoded competition keys as per instructions
+    const competitionKeys = {
+        'nfl': 'd791-wddv-30fU', // Replace with actual NFL key if different
+        'nba': 'd791-wddv-30fU',
+        'mlb': 'H2nG-wddv-NZsP', // Replace with actual MLB key
+    };
+
     const options = {
         method: 'GET',
         headers: {
@@ -445,53 +452,100 @@ export const ingestUpcomingGames = onCall(async (request) => {
             'x-rapidapi-host': 'sportsbook-api2.p.rapidapi.com'
         }
     };
-    
-    const url = 'https://sportsbook-api2.p.rapidapi.com/v0/sports/nfl/events'; // Example: Fetching NFL events
 
-    try {
-        const response = await fetch(url, options);
-        if (!response.ok) {
-            const errorBody = await response.text();
-            throw new HttpsError('internal', `Failed to fetch events from RapidAPI. Status: ${response.status}, Body: ${errorBody}`);
+    let allEvents: any[] = [];
+
+    // Step 1: Fetch events for each competition
+    for (const [sport, competitionKey] of Object.entries(competitionKeys)) {
+        const eventsUrl = `https://sportsbook-api2.p.rapidapi.com/v0/competitions/${competitionKey}/events`;
+        try {
+            const response = await fetch(eventsUrl, options);
+            if (!response.ok) {
+                functions.logger.error(`Failed to fetch events for ${sport}. Status: ${response.status}`);
+                continue;
+            }
+            const data: any = await response.json();
+            if (data?.events) {
+                allEvents = [...allEvents, ...data.events];
+            }
+        } catch (error) {
+            functions.logger.error(`Error fetching events for ${sport}:`, error);
         }
-        
-        const data: any = await response.json();
-        const events = data?.data?.events;
-
-        if (!events || events.length === 0) {
-            functions.logger.log("No upcoming events found from RapidAPI.");
-            return { success: true, gamesIngested: 0 };
-        }
-        
-        const batch = db.batch();
-        let gamesIngested = 0;
-
-        for (const event of events) {
-            const gameRef = db.collection('events').doc(event.event_id);
-            const gameDoc = {
-                apiEventId: event.event_id,
-                sport: event.sport_key,
-                league: event.sport_name,
-                date: Timestamp.fromDate(new Date(event.start_timestamp * 1000)),
-                time: new Date(event.start_timestamp * 1000).toTimeString(),
-                homeTeam: event.home_team,
-                awayTeam: event.away_team,
-                status: 'upcoming',
-                last_update: Timestamp.now()
-            };
-            batch.set(gameRef, gameDoc, { merge: true });
-            gamesIngested++;
-        }
-
-        await batch.commit();
-        functions.logger.log(`Successfully ingested/updated ${gamesIngested} games from RapidAPI.`);
-        return { success: true, gamesIngested };
-
-    } catch (error) {
-        functions.logger.error("Error ingesting upcoming games from RapidAPI:", error);
-        if (error instanceof HttpsError) throw error;
-        throw new HttpsError('internal', 'An internal error occurred during game ingestion.');
     }
+
+    if (allEvents.length === 0) {
+        functions.logger.log("No upcoming events found from RapidAPI.");
+        return { success: true, gamesIngested: 0, oddsIngested: 0 };
+    }
+
+    // Step 2: Batch fetch detailed event odds
+    const eventKeys = allEvents.map(e => e.key);
+    const batchSize = 50;
+    let oddsIngested = 0;
+    
+    for (let i = 0; i < eventKeys.length; i += batchSize) {
+        const batchKeys = eventKeys.slice(i, i + batchSize);
+        const eventKeysQuery = batchKeys.map(key => `eventKeys=${key}`).join('&');
+        const oddsUrl = `https://sportsbook-api2.p.rapidapi.com/v0/events?${eventKeysQuery}`;
+
+        try {
+            const response = await fetch(oddsUrl, options);
+             if (!response.ok) {
+                const errorBody = await response.text();
+                functions.logger.error(`Failed to fetch event details. Status: ${response.status}, Body: ${errorBody}`);
+                continue;
+            }
+            const data: any = await response.json();
+            const detailedEvents = data?.events;
+
+            if (!detailedEvents || detailedEvents.length === 0) continue;
+
+            const batch = db.batch();
+            for (const event of detailedEvents) {
+                const homeParticipant = event.participants.find((p: any) => p.key === event.homeParticipantKey);
+                const awayParticipant = event.participants.find((p: any) => p.key !== event.homeParticipantKey);
+                
+                if (!homeParticipant || !awayParticipant) continue;
+                
+                const gameRef = db.collection('games').doc(event.key);
+                const gameDoc = {
+                    id: event.key,
+                    sport_key: homeParticipant.sport.toLowerCase(),
+                    sport_title: homeParticipant.sport,
+                    commence_time: Timestamp.fromDate(new Date(event.startTime)),
+                    home_team: homeParticipant.name,
+                    away_team: awayParticipant.name,
+                    is_complete: false,
+                    last_update: Timestamp.now()
+                };
+                batch.set(gameRef, gameDoc, { merge: true });
+
+                // Ingest odds into a subcollection
+                if (event.markets) {
+                    for (const market of event.markets) {
+                        for (const [bookmaker, outcomes] of Object.entries(market.outcomes)) {
+                             const oddsRef = db.collection('games').doc(event.key).collection('bookmaker_odds').doc(bookmaker);
+                             const bookmakerOdds = {
+                                 key: bookmaker,
+                                 title: bookmaker,
+                                 last_update: Timestamp.now(),
+                                 markets: [market] // Storing the whole market object for simplicity
+                             };
+                             batch.set(oddsRef, bookmakerOdds, { merge: true });
+                             oddsIngested++;
+                        }
+                    }
+                }
+            }
+            await batch.commit();
+
+        } catch(error) {
+            functions.logger.error(`Error fetching or processing batch ${i/batchSize + 1}:`, error);
+        }
+    }
+    
+    functions.logger.log(`Successfully ingested/updated ${allEvents.length} games and ${oddsIngested} odds from RapidAPI.`);
+    return { success: true, gamesIngested: allEvents.length, oddsIngested };
 });
 
 
@@ -783,9 +837,3 @@ export const kycWebhook = functions.https.onRequest(async (request, response) =>
 
     response.status(200).send({ received: true });
 });
-
-    
-
-    
-
-    

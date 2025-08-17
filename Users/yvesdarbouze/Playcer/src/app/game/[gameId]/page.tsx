@@ -193,12 +193,10 @@ export default function GameDetailsPage({ params }: { params: { gameId: string }
             isOpen={isModalOpen}
             onOpenChange={setIsModalOpen}
             game={game}
-            odds={odds[0]}
+            odds={odds.length > 0 ? odds[0] : null}
             loadingOdds={loadingOdds}
           />
       )}
     </>
   );
 }
-
-    
