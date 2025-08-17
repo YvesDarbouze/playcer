@@ -11,6 +11,7 @@ import { generateBetImage } from "../../ai/flows/generate-bet-image";
 import fetch from "node-fetch";
 import Stripe from "stripe";
 import * as crypto from "crypto";
+import { startStreaming } from "./stream";
 
 
 // Initialize Algolia client
@@ -28,6 +29,9 @@ const auth = getAuth();
 const stripe = new Stripe(process.env.STRIPE_API_KEY!, {
     apiVersion: '2024-06-20',
 });
+
+// Start the real-time event streaming service
+startStreaming();
 
 
 // --- THIRD-PARTY SERVICES ---
@@ -401,82 +405,6 @@ async function processPayout(data: { betId: string, winnerId: string | null, los
 
     functions.logger.log(`Payout for bet ${betId} processed.`);
 }
-
-export const ingestUpcomingGames = functions.pubsub.schedule('every 24 hours').onRun(async (context) => {
-    functions.logger.log("Starting to ingest upcoming games from SportsGameOdds API.");
-    const apiKey = "7ee3cc9f9898b050512990bd2baadddf";
-
-    if (!apiKey) {
-        throw new HttpsError('internal', 'The API key is not configured.');
-    }
-    
-    const options = {
-        method: 'GET',
-        headers: {
-            'X-Api-Key': apiKey
-        }
-    };
-
-    try {
-        const sportsUrl = 'https://api.sportsgameodds.com/v2/sports/';
-        const sportsResponse = await fetch(sportsUrl, options);
-        if(!sportsResponse.ok) {
-            throw new HttpsError('internal', `Failed to fetch sports list. Status: ${sportsResponse.status}`);
-        }
-        const sportsData: any = await sportsResponse.json();
-        const sports = sportsData.data;
-        
-        const batch = db.batch();
-        let gamesIngested = 0;
-        
-        const competitionKeys = ["americanfootball_nfl", "americanfootball_ncaaf", "baseball_mlb", "basketball_nba", "basketball_ncaab", "icehockey_nhl"];
-
-        for (const sport of sports) {
-            if (!competitionKeys.includes(sport.sport_key)) continue;
-
-            let nextCursor = null;
-            do {
-                const oddIDs = 'h2h,spreads,totals';
-                const eventsUrl = `https://api.sportsgameodds.com/v2/events?leagueID=${sport.sport_key}&oddIDs=${oddIDs}&includeOpposingOddIDs=true${nextCursor ? `&cursor=${nextCursor}`: ''}`;
-                const eventsResponse = await fetch(eventsUrl, options);
-                if (!eventsResponse.ok) {
-                     functions.logger.warn(`Could not fetch events for sport ${sport.sport_key}. Status: ${eventsResponse.status}`);
-                     break;
-                }
-                const eventsData:any = await eventsResponse.json();
-                const events = eventsData.data;
-                nextCursor = eventsData.nextCursor;
-
-                for (const event of events) {
-                    const gameRef = db.collection('games').doc(event.id);
-                     const gameDoc = {
-                        id: event.id,
-                        sport_key: event.sport_key,
-                        sport_title: event.sport_title,
-                        commence_time: Timestamp.fromDate(new Date(event.commence_time)),
-                        home_team: event.home_team,
-                        away_team: event.away_team,
-                        is_complete: false,
-                        last_update: Timestamp.now()
-                    };
-                    batch.set(gameRef, gameDoc, { merge: true });
-                    gamesIngested++;
-                }
-            } while (nextCursor);
-        }
-
-
-        await batch.commit();
-        functions.logger.log(`Successfully ingested/updated ${gamesIngested} games.`);
-        return { success: true, gamesIngested };
-
-    } catch (error) {
-        functions.logger.error("Error ingesting upcoming games:", error);
-        if (error instanceof HttpsError) throw error;
-        throw new HttpsError('internal', 'An internal error occurred during game ingestion.');
-    }
-});
-
 
 export const generateBetImage = onCall(async (request) => {
     if (!request.auth) {
