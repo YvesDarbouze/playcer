@@ -64,6 +64,10 @@ export function SiteHeader() {
                          <Bot className="mr-2 h-4 w-4" />
                         <span>Arbitrage Finder</span>
                     </DropdownMenuItem>
+                     <DropdownMenuItem onClick={() => router.push('/dev/consensus-checker')}>
+                         <Bot className="mr-2 h-4 w-4" />
+                        <span>Consensus Checker</span>
+                    </DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>
             <Link

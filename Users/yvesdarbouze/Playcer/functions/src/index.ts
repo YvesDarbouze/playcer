@@ -596,6 +596,43 @@ export const kycWebhook = functions.https.onRequest(async (request, response) =>
 
     response.status(200).send({ received: true });
 });
+
+export const getConsensusOdds = onCall(async (request) => {
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'You must be logged in to perform this action.');
+    }
+    const { gameId } = request.data;
+    if (!gameId) {
+        throw new HttpsError('invalid-argument', 'A gameId must be provided.');
+    }
+    
+    const API_KEY = process.env.ODDS_API_KEY || '7ee3cc9f9898b050512990bd2baadddf';
+    const API_BASE_URL = 'https://api.sportsgameodds.com/v2';
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/events?eventIDs=${gameId}`, {
+             headers: { 'x-api-key': API_KEY },
+        });
+
+        if (!response.ok) {
+            throw new HttpsError('internal', `Failed to fetch event data. Status: ${response.status}`);
+        }
+        
+        const eventData = await response.json();
+
+        if (!eventData.success || !eventData.data || eventData.data.length === 0) {
+            throw new HttpsError('not-found', 'Could not find event data for the given ID.');
+        }
+
+        return { success: true, data: eventData.data[0] };
+    } catch(e: any) {
+        functions.logger.error(`Error fetching consensus odds for game ${gameId}:`, e);
+        if (e instanceof HttpsError) {
+            throw e;
+        }
+        throw new HttpsError('internal', 'An unexpected error occurred while fetching consensus odds.');
+    }
+});
     
     
 

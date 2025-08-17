@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import { collection, doc, getDoc, onSnapshot, Timestamp, query } from "firebase/firestore";
 import { getFirebaseApp } from "@/lib/firebase";
+import { getFunctions, httpsCallable } from "firebase/functions";
 import type { Game } from "@/types";
 import { format } from "date-fns";
 import {
@@ -22,6 +23,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
 import { BetCreationModal } from "@/components/bet-creation-modal";
 import { useRouter } from "next/navigation";
+import { ConsensusOddsDisplay } from "@/components/consensus-odds-display";
 
 type BookmakerOdds = {
     key: string;
@@ -48,7 +50,9 @@ export default function GameDetailsPage({ params }: { params: { gameId: string }
 
   const [game, setGame] = useState<Game | null>(null);
   const [odds, setOdds] = useState<BookmakerOdds[]>([]);
+  const [consensusData, setConsensusData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingConsensus, setLoadingConsensus] = useState(true);
   const [isBetModalOpen, setIsBetModalOpen] = useState(false);
   const [selectedBet, setSelectedBet] = useState<SelectedBet | null>(null);
 
@@ -56,6 +60,7 @@ export default function GameDetailsPage({ params }: { params: { gameId: string }
     if (!gameId) return;
 
     const db = getFirebaseApp();
+    const functions = getFunctions(db.app);
 
     const fetchGameDetails = async () => {
       const gameRef = doc(db, "games", gameId);
@@ -73,7 +78,23 @@ export default function GameDetailsPage({ params }: { params: { gameId: string }
       setLoading(false);
     };
 
+    const fetchConsensusOdds = async () => {
+        setLoadingConsensus(true);
+        const getConsensusOddsFn = httpsCallable(functions, 'getConsensusOdds');
+        try {
+            const result: any = await getConsensusOddsFn({ gameId });
+            if (result.data.success) {
+                setConsensusData(result.data.data);
+            }
+        } catch (error) {
+            console.error("Error fetching consensus odds:", error);
+        } finally {
+            setLoadingConsensus(false);
+        }
+    }
+
     fetchGameDetails();
+    fetchConsensusOdds();
 
     const oddsQuery = query(collection(db, `games/${gameId}/bookmaker_odds`));
     const unsubscribe = onSnapshot(oddsQuery, (snapshot) => {
@@ -160,6 +181,10 @@ export default function GameDetailsPage({ params }: { params: { gameId: string }
             {format(new Date(game.commence_time), "EEEE, MMMM d, yyyy 'at' h:mm a zzz")}
         </p>
       </header>
+
+       <div className="mb-8">
+           <ConsensusOddsDisplay consensusData={consensusData} loading={loadingConsensus} />
+       </div>
 
        <div className="grid md:grid-cols-1 gap-8">
             <Card>
