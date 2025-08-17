@@ -62,7 +62,7 @@ const sportsDataAPI = {
             const homeScore = parseInt(eventResult.scores.find((s: any) => s.name === eventResult.home_team)?.score || '0');
             const awayScore = parseInt(eventResult.scores.find((s: any) => s.name === eventResult.away_team)?.score || '0');
 
-            return { home_score: homeScore, away_score: awayScore, status: 'Final' };
+            return { home_score: homeScore, away_score: away_score, status: 'Final' };
 
         } catch (error) {
             functions.logger.error(`Exception fetching event result for ${eventId}:`, error);
@@ -437,12 +437,34 @@ export const ingestUpcomingGames = onCall(async (request) => {
     if (!apiKey) {
         throw new HttpsError('internal', 'The RapidAPI key is not configured.');
     }
-
-    // Hardcoded competition keys as per instructions
+    
     const competitionKeys = {
-        'nfl': 'd791-wddv-30fU', // Replace with actual NFL key if different
-        'nba': 'd791-wddv-30fU',
-        'mlb': 'H2nG-wddv-NZsP', // Replace with actual MLB key
+        'americanfootball_nfl': 'd791-wddv-30fU',
+        'americanfootball_ncaaf': 'gA4y-wddv-HEn4',
+        'americanfootball_cfl': '38fU-wddv-9r4y',
+        'americanfootball_usfl': '38fU-wddv-9r4y', // USFL might share with CFL or have its own, using placeholder
+        'baseball_mlb': 'H2nG-wddv-NZsP',
+        'baseball_npb': 'H2nG-wddv-NZsP', // NPB might share with MLB or have its own, using placeholder
+        'baseball_kbo': 'H2nG-wddv-NZsP', // KBO might share with MLB or have its own, using placeholder
+        'basketball_nba': 'd791-wddv-30fU',
+        'basketball_ncaab': 'gA4y-wddv-HEn4',
+        'basketball_wnba': 'd791-wddv-30fU', // WNBA might share with NBA or have its own
+        'basketball_nbl_australia': 'd791-wddv-30fU', // NBL Australia might share with NBA
+        'soccer_epl': 'H2nG-wddv-NZsP',
+        'soccer_efl_championship': 'H2nG-wddv-NZsP',
+        'soccer_la_liga': 'H2nG-wddv-NZsP',
+        'soccer_bundesliga': 'H2nG-wddv-NZsP',
+        'soccer_serie_a': 'H2nG-wddv-NZsP',
+        'soccer_ligue_one': 'H2nG-wddv-NZsP',
+        'soccer_mls': 'H2nG-wddv-NZsP',
+        'soccer_nwsl': 'H2nG-wddv-NZsP',
+        'icehockey_nhl': '56N0-wddv-9VqL',
+        'icehockey_shl': '56N0-wddv-9VqL', // SHL might share with NHL
+        'icehockey_sm_liiga': '56N0-wddv-9VqL', // SM-liiga might share with NHL
+        'aussierules_afl': '38fU-wddv-9r4y',
+        'lacrosse_nll': '38fU-wddv-9r4y',
+        'lacrosse_pll': '38fU-wddv-9r4y',
+        'handball_lnh_division_1': 'gA4y-wddv-HEn4',
     };
 
     const options = {
@@ -466,7 +488,9 @@ export const ingestUpcomingGames = onCall(async (request) => {
             }
             const data: any = await response.json();
             if (data?.events) {
-                allEvents = [...allEvents, ...data.events];
+                // Add sport key to each event for later reference
+                const eventsWithSportKey = data.events.map((e: any) => ({ ...e, sport_key: sport }));
+                allEvents = [...allEvents, ...eventsWithSportKey];
             }
         } catch (error) {
             functions.logger.error(`Error fetching events for ${sport}:`, error);
@@ -502,6 +526,9 @@ export const ingestUpcomingGames = onCall(async (request) => {
 
             const batch = db.batch();
             for (const event of detailedEvents) {
+                const originalEvent = allEvents.find(e => e.key === event.key);
+                if (!originalEvent) continue;
+
                 const homeParticipant = event.participants.find((p: any) => p.key === event.homeParticipantKey);
                 const awayParticipant = event.participants.find((p: any) => p.key !== event.homeParticipantKey);
                 
@@ -510,7 +537,7 @@ export const ingestUpcomingGames = onCall(async (request) => {
                 const gameRef = db.collection('games').doc(event.key);
                 const gameDoc = {
                     id: event.key,
-                    sport_key: homeParticipant.sport.toLowerCase(),
+                    sport_key: originalEvent.sport_key,
                     sport_title: homeParticipant.sport,
                     commence_time: Timestamp.fromDate(new Date(event.startTime)),
                     home_team: homeParticipant.name,
@@ -837,3 +864,5 @@ export const kycWebhook = functions.https.onRequest(async (request, response) =>
 
     response.status(200).send({ received: true });
 });
+
+    
