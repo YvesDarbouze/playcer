@@ -95,6 +95,7 @@ export type Bet = {
   stakeAmount: number;
   betType: "moneyline" | "spread" | "totals";
   chosenOption: string;
+  line?: number;
   status: "pending" | "accepted" | "resolved" | "cancelled";
   isPublic: boolean;
   twitterShareUrl: string | null;
@@ -141,3 +142,4 @@ export type Dispute = {
     
 
     
+
