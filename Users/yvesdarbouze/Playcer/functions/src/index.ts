@@ -1,4 +1,5 @@
 
+
 import {initializeApp} from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import {getFirestore, Timestamp, FieldValue} from "firebase-admin/firestore";
@@ -196,6 +197,7 @@ export const createBet = onCall(async (request) => {
         betType,
         stakeAmount,
         chosenOption,
+        line,
         isPublic,
         twitterShareUrl,
         bookmakerKey,
@@ -245,6 +247,7 @@ export const createBet = onCall(async (request) => {
             stakeAmount,
             betType,
             chosenOption,
+            line: line ?? null,
             status: 'pending',
             isPublic: isPublic,
             twitterShareUrl: twitterShareUrl || null,
@@ -332,22 +335,19 @@ export const processBetOutcomes = onCall(async (request) => {
             if (result.status === 'Final') {
                 let winnerId: string | null = null;
                 const { home_score, away_score } = result;
-                const { homeTeam, awayTeam } = betData;
+                const { homeTeam, awayTeam, creatorId, takerId, chosenOption } = betData;
 
                 if (betData.betType === 'moneyline') {
-                    if (home_score === away_score) {
-                        // This is a push, no winner.
-                        winnerId = null;
-                    } else {
-                        const winningTeamName = home_score > away_score ? homeTeam : awayTeam;
-                        // The user who picked the winning team is the winner.
-                        const creatorPickedWinner = betData.chosenOption === winningTeamName;
-                        winnerId = creatorPickedWinner ? betData.creatorId : betData.takerId;
+                     if (home_score > away_score) { // Home team won
+                        winnerId = chosenOption === homeTeam ? creatorId : takerId;
+                    } else if (away_score > home_score) { // Away team won
+                        winnerId = chosenOption === awayTeam ? creatorId : takerId;
                     }
-                } 
+                    // if home_score === away_score, it's a push, winnerId remains null
+                }
                 
                 if (winnerId) {
-                    const loserId = winnerId === betData.creatorId ? betData.takerId : betData.creatorId;
+                    const loserId = winnerId === creatorId ? takerId : creatorId;
                     await processPayout({ 
                         betId, 
                         winnerId, 

@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import * as React from "react";
@@ -133,6 +134,7 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, odds, loadingOdd
   
   React.useEffect(() => {
     form.clearErrors();
+    form.setValue('chosenOption', ''); // Reset pick on type change
     const spreadMarket = selectedBookmaker?.markets.find(m => m.key === 'spreads');
     const totalsMarket = selectedBookmaker?.markets.find(m => m.key === 'totals');
 
@@ -140,6 +142,8 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, odds, loadingOdd
         form.setValue('line', spreadMarket.outcomes[0].point);
     } else if (betType === 'totals' && totalsMarket) {
         form.setValue('line', totalsMarket.outcomes[0].point);
+    } else {
+        form.setValue('line', undefined);
     }
   }, [betType, selectedBookmaker, form]);
 
@@ -165,10 +169,18 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, odds, loadingOdd
         const functions = getFunctions(getFirebaseApp());
         const createBet = httpsCallable(functions, 'createBet');
         
-        const selectedOutcome = selectedBookmaker?.markets
-          .find(m => m.key === (data.betType === 'totals' ? 'totals' : 'h2h'))
-          ?.outcomes.find(o => o.name === data.chosenOption);
+        const markets = selectedBookmaker?.markets || [];
+        const market = markets.find(m => {
+            if (data.betType === 'spread') return m.key === 'spreads';
+            if (data.betType === 'totals') return m.key === 'totals';
+            return m.key === 'h2h';
+        });
 
+        const outcome = market?.outcomes.find(o => {
+            if (data.betType === 'totals') return o.name.toLowerCase() === data.chosenOption;
+            return o.name === data.chosenOption;
+        });
+        
         const betPayload = {
           eventId: game.id,
           eventDate: game.commence_time,
@@ -177,10 +189,12 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, odds, loadingOdd
           betType: data.betType,
           stakeAmount: data.stake,
           chosenOption: data.chosenOption,
+          line: data.line,
           isPublic: !data.opponentTwitter,
           twitterShareUrl: data.opponentTwitter ? `https://twitter.com/intent/tweet?text=${encodeURIComponent(`@${data.opponentTwitter.replace('@','')} I challenge you to a bet on Playcer!`)}` : null,
           bookmakerKey: data.bookmakerKey,
-          odds: selectedOutcome?.price || 0,
+          odds: outcome?.price || 0,
+          period: 'game', // Defaulting to full game for now
         };
 
         try {
@@ -298,10 +312,10 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, odds, loadingOdd
                         
                         <FormField control={form.control} name="chosenOption" render={({ field }) => (
                             <FormItem><FormLabel>Your Pick</FormLabel>
-                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                 <Select onValueChange={field.onChange} value={field.value}>
                                     <FormControl><SelectTrigger><SelectValue placeholder="Select your team/side" /></SelectTrigger></FormControl>
                                     <SelectContent>
-                                      {betType !== 'totals' && (<><SelectItem value={game.home_team}>{game.home_team}</SelectItem><SelectItem value={game.away_team}>{game.away_team}</SelectItem></>)}
+                                      {betType !== 'totals' && (<><SelectItem value={game.home_team}>{game.home_team} {spreadMarket && `(${spreadMarket.outcomes.find(o => o.name === game.home_team)?.point})`}</SelectItem><SelectItem value={game.away_team}>{game.away_team} {spreadMarket && `(${spreadMarket.outcomes.find(o => o.name === game.away_team)?.point})`}</SelectItem></>)}
                                       {betType === 'totals' && <><SelectItem value="over">Over</SelectItem><SelectItem value="under">Under</SelectItem></>}
                                     </SelectContent>
                                 </Select><FormMessage />

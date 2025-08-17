@@ -91,8 +91,8 @@ export type Bet = {
   takerPhotoURL: string | null;
   stakeAmount: number;
   betType: "moneyline" | "spread" | "totals";
-  chosenOption: string;
-  line?: number;
+  chosenOption: string; // e.g., 'home_team', 'away_team', 'over', 'under'
+  line?: number; // for spreads and totals
   status: "pending" | "accepted" | "resolved" | "cancelled";
   isPublic: boolean;
   twitterShareUrl: string | null;

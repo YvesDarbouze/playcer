@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import * as React from "react";
@@ -80,8 +81,18 @@ export function BetChallengeCard({
   };
 
   const getBetValueDisplay = () => {
-      const { chosenOption, betType } = bet;
+    const { chosenOption, betType, line } = bet;
+    if (betType === 'moneyline') {
       return chosenOption;
+    }
+    if (betType === 'spread') {
+      const team = chosenOption === game.home_team ? bet.homeTeam : bet.awayTeam;
+      return `${team} ${line! > 0 ? `+${line}` : line}`;
+    }
+    if (betType === 'totals') {
+      return `Total ${chosenOption} ${line}`;
+    }
+    return chosenOption;
   }
 
   const handleFinalizeAcceptance = async () => {

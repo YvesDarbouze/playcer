@@ -1,5 +1,6 @@
 
 
+
 "use client";
 
 import {
@@ -64,7 +65,18 @@ const OutcomeBadge = ({ bet, currentUserId }: { bet: Bet, currentUserId: string 
 }
 
 const BetValueDisplay = ({ bet }: { bet: Bet }) => {
-    return <>{bet.chosenOption}</>;
+    const { chosenOption, betType, line } = bet;
+    if (betType === 'moneyline') {
+      return <>{chosenOption}</>;
+    }
+    if (betType === 'spread') {
+      const team = chosenOption;
+      return <>{`${team} ${line! > 0 ? `+${line}` : line}`}</>;
+    }
+    if (betType === 'totals') {
+      return <>{`Total ${chosenOption} ${line}`}</>;
+    }
+    return <>{chosenOption}</>;
 }
 
 export function UserBetsTable({ bets, currentUserId }: UserBetsTableProps) {
