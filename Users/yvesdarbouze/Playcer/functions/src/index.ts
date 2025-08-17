@@ -436,7 +436,8 @@ export const ingestUpcomingGames = functions.pubsub.schedule('every 24 hours').o
 
             let nextCursor = null;
             do {
-                const eventsUrl = `https://api.sportsgameodds.com/v2/events?leagueID=${sport.sport_key}${nextCursor ? `&cursor=${nextCursor}`: ''}`;
+                const oddIDs = 'h2h,spreads,totals';
+                const eventsUrl = `https://api.sportsgameodds.com/v2/events?leagueID=${sport.sport_key}&oddIDs=${oddIDs}&includeOpposingOddIDs=true${nextCursor ? `&cursor=${nextCursor}`: ''}`;
                 const eventsResponse = await fetch(eventsUrl, options);
                 if (!eventsResponse.ok) {
                      functions.logger.warn(`Could not fetch events for sport ${sport.sport_key}. Status: ${eventsResponse.status}`);
