@@ -476,122 +476,6 @@ export const ingestUpcomingGames = functions.pubsub.schedule('every 24 hours').o
     }
 });
 
-export const updateOddsAndScores = functions.pubsub.schedule('every 15 minutes').onRun(async (context) => {
-    functions.logger.log("Starting to update odds and scores from SportsGameOdds API.");
-    const apiKey = "7ee3cc9f9898b050512990bd2baadddf";
-
-    if (!apiKey) {
-        throw new HttpsError('internal', 'The API key is not configured.');
-    }
-    
-    const options = {
-        method: 'GET',
-        headers: {
-            'X-Api-Key': apiKey
-        }
-    };
-    
-    const now = new Date();
-    const sixHoursAgo = new Date(now.getTime() - 6 * 60 * 60 * 1000);
-    const fortyEightHoursFromNow = new Date(now.getTime() + 48 * 60 * 60 * 1000);
-
-    const gamesQuery = db.collection('games')
-        .where('is_complete', '!=', true)
-        .where('commence_time', '>=', Timestamp.fromDate(sixHoursAgo))
-        .where('commence_time', '<=', Timestamp.fromDate(fortyEightHoursFromNow));
-
-    const gamesSnapshot = await gamesQuery.get();
-    if (gamesSnapshot.empty) {
-        functions.logger.log("No relevant games found to update.");
-        return { success: true, message: "No games to update." };
-    }
-    
-    let updatedOddsCount = 0;
-    let updatedScoresCount = 0;
-
-    for (const gameDoc of gamesSnapshot.docs) {
-        const game = gameDoc.data();
-        try {
-            const oddsUrl = `https://api.sportsgameodds.com/v2/odds?eventID=${game.id}&market=h2h&bookmaker=draftkings`;
-            const oddsResponse = await fetch(oddsUrl, options);
-            if (!oddsResponse.ok) {
-                functions.logger.error(`Failed to fetch odds for ${game.id}:`, await oddsResponse.text());
-                continue;
-            }
-            const oddsData:any = await oddsResponse.json();
-            const batch = db.batch();
-
-            if (oddsData.data && oddsData.data.bookmakers) {
-                 for (const bookmaker of oddsData.data.bookmakers) {
-                    const oddsRef = db.collection('games').doc(game.id).collection('bookmaker_odds').doc(bookmaker.key);
-                    batch.set(oddsRef, { ...bookmaker, last_update: Timestamp.now() }, { merge: true });
-                    updatedOddsCount++;
-                }
-            }
-            await batch.commit();
-        } catch (error) {
-            functions.logger.error(`Error processing odds for ${game.id}:`, error);
-        }
-        
-        try {
-            const scoresUrl = `https://api.sportsgameodds.com/v2/events/${game.id}`;
-            const scoresResponse = await fetch(scoresUrl, options);
-            if (!scoresResponse.ok) {
-                functions.logger.error(`Failed to fetch score for ${game.id}:`, await scoresResponse.text());
-                continue;
-            }
-            const scoreData:any = await scoresResponse.json();
-            const batch = db.batch();
-
-            if (scoreData.data && scoreData.data.status === 'completed') {
-                const gameRef = db.collection('games').doc(game.id);
-                batch.update(gameRef, {
-                    home_score: scoreData.data.home_score,
-                    away_score: scoreData.data.away_score,
-                    is_complete: true,
-                    last_update: Timestamp.now()
-                });
-                updatedScoresCount++;
-            }
-            await batch.commit();
-        } catch (error) {
-            functions.logger.error(`Error processing score for ${game.id}:`, error);
-        }
-    }
-    
-    functions.logger.log(`Finished update cycle. Updated odds for ${updatedOddsCount} bookmakers and scores for ${updatedScoresCount} games.`);
-    return { success: true, updatedOddsCount, updatedScoresCount };
-});
-
-export const getArbitrageOpportunities = onCall(async (request) => {
-    functions.logger.log("Fetching arbitrage opportunities from SportsGameOdds API.");
-    const apiKey = "7ee3cc9f9898b050512990bd2baadddf";
-
-    if (!apiKey) {
-        throw new HttpsError('internal', 'The API key is not configured.');
-    }
-    
-    const options = {
-        method: 'GET',
-        headers: {
-            'X-Api-Key': apiKey
-        }
-    };
-
-    try {
-        const arbitrageUrl = 'https://api.sportsgameodds.com/v2/advantages/arbitrage?market=h2h';
-        const arbitrageResponse = await fetch(arbitrageUrl, options);
-        if(!arbitrageResponse.ok) {
-            throw new HttpsError('internal', `Failed to fetch arbitrage opportunities. Status: ${arbitrageResponse.status}`);
-        }
-        const arbitrageData = await arbitrageResponse.json();
-        return { success: true, data: arbitrageData.data };
-    } catch(e: any) {
-        functions.logger.error("Error fetching arbitrage opportunities:", e);
-        throw new HttpsError('internal', 'An internal error occurred while fetching arbitrage opportunities.');
-    }
-});
-
 
 export const generateBetImage = onCall(async (request) => {
     if (!request.auth) {
@@ -758,4 +642,5 @@ export const kycWebhook = functions.https.onRequest(async (request, response) =>
 
     response.status(200).send({ received: true });
 });
+    
     
