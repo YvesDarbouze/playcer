@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
@@ -65,7 +65,7 @@ export default function OddsCheckerPage() {
                 <CardHeader>
                     <CardTitle>Developer: Firestore Game Checker</CardTitle>
                     <CardDescription>
-                        This page fetches the game data directly from your Firestore database to verify ingestion is working.
+                        This page fetches the game data directly from your Firestore database to verify ingestion from The Odds API is working.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
