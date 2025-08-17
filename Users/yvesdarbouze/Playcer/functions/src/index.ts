@@ -431,60 +431,64 @@ async function processPayout(data: { betId: string, winnerId: string | null, los
 }
 
 export const ingestUpcomingGames = onCall(async (request) => {
-    functions.logger.log("Starting to ingest upcoming games from The Odds API.");
-    const apiKey = process.env.ODDS_API_KEY;
+    functions.logger.log("Starting to ingest upcoming games from RapidAPI Sportsbook API.");
+    const apiKey = process.env.RAPIDAPI_KEY;
 
     if (!apiKey) {
-        throw new HttpsError('internal', 'The an API key is not configured.');
+        throw new HttpsError('internal', 'The RapidAPI key is not configured.');
     }
 
-    try {
-        const sportsUrl = `https://api.the-odds-api.com/v4/sports?apiKey=${apiKey}`;
-        const sportsResponse = await fetch(sportsUrl);
-        if(!sportsResponse.ok) {
-            throw new HttpsError('internal', `Failed to fetch sports list. Status: ${sportsResponse.status}`);
+    const options = {
+        method: 'GET',
+        headers: {
+            'x-rapidapi-key': apiKey,
+            'x-rapidapi-host': 'sportsbook-api2.p.rapidapi.com'
         }
-        const sports: {key: string, title: string}[] = await sportsResponse.json();
+    };
+    
+    const url = 'https://sportsbook-api2.p.rapidapi.com/v0/sports/nfl/events'; // Example: Fetching NFL events
+
+    try {
+        const response = await fetch(url, options);
+        if (!response.ok) {
+            const errorBody = await response.text();
+            throw new HttpsError('internal', `Failed to fetch events from RapidAPI. Status: ${response.status}, Body: ${errorBody}`);
+        }
+        
+        const data: any = await response.json();
+        const events = data?.data?.events;
+
+        if (!events || events.length === 0) {
+            functions.logger.log("No upcoming events found from RapidAPI.");
+            return { success: true, gamesIngested: 0 };
+        }
         
         const batch = db.batch();
         let gamesIngested = 0;
 
-        for (const sport of sports) {
-             if (!sport.key.includes('_nfl') && !sport.key.includes('_nba') && !sport.key.includes('_mlb')) continue;
-
-            const eventsUrl = `https://api.the-odds-api.com/v4/sports/${sport.key}/events?apiKey=${apiKey}`;
-            const eventsResponse = await fetch(eventsUrl);
-            if (!eventsResponse.ok) {
-                 functions.logger.warn(`Could not fetch events for sport ${sport.key}. Status: ${eventsResponse.status}`);
-                 continue;
-            }
-            const events:any = await eventsResponse.json();
-
-            for (const event of events) {
-                const gameRef = db.collection('events').doc(event.id);
-                 const gameDoc = {
-                    apiEventId: event.id,
-                    sport: event.sport_key,
-                    league: event.sport_title,
-                    date: Timestamp.fromDate(new Date(event.commence_time)),
-                    time: new Date(event.commence_time).toTimeString(),
-                    homeTeam: event.home_team,
-                    awayTeam: event.away_team,
-                    status: 'upcoming',
-                    last_update: Timestamp.now()
-                };
-                batch.set(gameRef, gameDoc, { merge: true });
-                gamesIngested++;
-            }
+        for (const event of events) {
+            const gameRef = db.collection('events').doc(event.event_id);
+            const gameDoc = {
+                apiEventId: event.event_id,
+                sport: event.sport_key,
+                league: event.sport_name,
+                date: Timestamp.fromDate(new Date(event.start_timestamp * 1000)),
+                time: new Date(event.start_timestamp * 1000).toTimeString(),
+                homeTeam: event.home_team,
+                awayTeam: event.away_team,
+                status: 'upcoming',
+                last_update: Timestamp.now()
+            };
+            batch.set(gameRef, gameDoc, { merge: true });
+            gamesIngested++;
         }
 
-
         await batch.commit();
-        functions.logger.log(`Successfully ingested/updated ${gamesIngested} games.`);
+        functions.logger.log(`Successfully ingested/updated ${gamesIngested} games from RapidAPI.`);
         return { success: true, gamesIngested };
 
     } catch (error) {
-        functions.logger.error("Error ingesting upcoming games:", error);
+        functions.logger.error("Error ingesting upcoming games from RapidAPI:", error);
         if (error instanceof HttpsError) throw error;
         throw new HttpsError('internal', 'An internal error occurred during game ingestion.');
     }
@@ -779,6 +783,8 @@ export const kycWebhook = functions.https.onRequest(async (request, response) =>
 
     response.status(200).send({ received: true });
 });
+
+    
 
     
 
