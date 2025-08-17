@@ -442,14 +442,14 @@ export const ingestUpcomingGames = onCall(async (request) => {
         'americanfootball_nfl': 'd791-wddv-30fU',
         'americanfootball_ncaaf': 'gA4y-wddv-HEn4',
         'americanfootball_cfl': '38fU-wddv-9r4y',
-        'americanfootball_usfl': '38fU-wddv-9r4y', // USFL might share with CFL or have its own, using placeholder
+        'americanfootball_usfl': '38fU-wddv-9r4y',
         'baseball_mlb': 'H2nG-wddv-NZsP',
-        'baseball_npb': 'H2nG-wddv-NZsP', // NPB might share with MLB or have its own, using placeholder
-        'baseball_kbo': 'H2nG-wddv-NZsP', // KBO might share with MLB or have its own, using placeholder
+        'baseball_npb': 'H2nG-wddv-NZsP',
+        'baseball_kbo': 'H2nG-wddv-NZsP',
         'basketball_nba': 'd791-wddv-30fU',
         'basketball_ncaab': 'gA4y-wddv-HEn4',
-        'basketball_wnba': 'd791-wddv-30fU', // WNBA might share with NBA or have its own
-        'basketball_nbl_australia': 'd791-wddv-30fU', // NBL Australia might share with NBA
+        'basketball_wnba': 'd791-wddv-30fU',
+        'basketball_nbl_australia': 'd791-wddv-30fU',
         'soccer_epl': 'H2nG-wddv-NZsP',
         'soccer_efl_championship': 'H2nG-wddv-NZsP',
         'soccer_la_liga': 'H2nG-wddv-NZsP',
@@ -459,8 +459,8 @@ export const ingestUpcomingGames = onCall(async (request) => {
         'soccer_mls': 'H2nG-wddv-NZsP',
         'soccer_nwsl': 'H2nG-wddv-NZsP',
         'icehockey_nhl': '56N0-wddv-9VqL',
-        'icehockey_shl': '56N0-wddv-9VqL', // SHL might share with NHL
-        'icehockey_sm_liiga': '56N0-wddv-9VqL', // SM-liiga might share with NHL
+        'icehockey_shl': '56N0-wddv-9VqL',
+        'icehockey_sm_liiga': '56N0-wddv-9VqL',
         'aussierules_afl': '38fU-wddv-9r4y',
         'lacrosse_nll': '38fU-wddv-9r4y',
         'lacrosse_pll': '38fU-wddv-9r4y',
@@ -589,38 +589,6 @@ export const generateBetImage = onCall(async (request) => {
     }
 });
     
-export const getUpcomingOdds = onCall(async (request) => {
-  const apiKey = process.env.ODDS_API_KEY;
-  const sportKey = 'upcoming';
-  const regions = 'us';
-  const markets = 'h2h';
-  const oddsFormat = 'american';
-  const dateFormat = 'iso';
-
-  const apiUrl = `https://api.the-odds-api.com/v4/sports/${sportKey}/odds?apiKey=${apiKey}&regions=${regions}&markets=${markets}&oddsFormat=${oddsFormat}&dateFormat=${dateFormat}`;
-
-  functions.logger.info("Fetching odds from:", apiUrl);
-
-  try {
-    const response = await fetch(apiUrl);
-
-    if (!response.ok) {
-      const errorData = await response.text();
-      functions.logger.error(`Failed to get odds: status_code ${response.status}, response body ${errorData}`);
-      throw new HttpsError('internal', 'Failed to fetch odds.');
-    }
-
-    const oddsData = await response.json();
-    functions.logger.info("Successfully fetched odds data.");
-    
-    return oddsData;
-
-  } catch (error) {
-    functions.logger.error('Error fetching odds data:', error);
-    throw new HttpsError('unknown', 'An unknown error occurred.');
-  }
-});
-
 
 export const stripeWebhook = functions.https.onRequest(async (request, response) => {
     const signature = request.headers['stripe-signature'];

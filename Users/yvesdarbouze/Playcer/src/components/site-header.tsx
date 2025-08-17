@@ -58,7 +58,7 @@ export function SiteHeader() {
                 <DropdownMenuContent>
                     <DropdownMenuItem onClick={() => router.push('/dev/odds-checker')}>
                         <Bot className="mr-2 h-4 w-4" />
-                        <span>Odds API Checker</span>
+                        <span>Game Ingestion Checker</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => router.push('/dev/arbitrage-finder')}>
                          <Bot className="mr-2 h-4 w-4" />
@@ -92,5 +92,3 @@ export function SiteHeader() {
     </header>
   );
 }
-
-    

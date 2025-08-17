@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, doc, getDoc, onSnapshot, Timestamp, query, limit } from "firebase/firestore";
+import { collection, doc, getDoc, onSnapshot, Timestamp, query } from "firebase/firestore";
 import { getFirebaseApp } from "@/lib/firebase";
 import type { Game } from "@/types";
 import { format } from "date-fns";
@@ -109,28 +109,16 @@ export default function GameDetailsPage({ params }: { params: { gameId: string }
     return <p className="text-center p-8">Game not found.</p>;
   }
   
-  const bestOdds = {
-      h2h: { home: -999, away: -999, homeBookie: '', awayBookie: '' },
-      spread: { home: -999, away: -999, homePoint: 0, awayPoint: 0, homeBookie: '', awayBookie: '' },
-      totals: { over: -999, under: -999, point: 0, overBookie: '', underBookie: '' },
-  };
-
-  odds.forEach(bookmaker => {
-      bookmaker.markets.forEach(market => {
-          if (market.key === 'h2h') {
-              const home = market.outcomes.find(o => o.name === game.home_team);
-              const away = market.outcomes.find(o => o.name === game.away_team);
-              if (home && home.price > bestOdds.h2h.home) {
-                  bestOdds.h2h.home = home.price;
-                  bestOdds.h2h.homeBookie = bookmaker.title;
-              }
-              if (away && away.price > bestOdds.h2h.away) {
-                  bestOdds.h2h.away = away.price;
-                  bestOdds.h2h.awayBookie = bookmaker.title;
-              }
-          }
-      })
-  })
+  const h2hOdds = odds.map(bookmaker => {
+    const h2hMarket = bookmaker.markets.find(m => m.key === 'h2h');
+    const homeOutcome = h2hMarket?.outcomes.find(o => o.name === game.home_team);
+    const awayOutcome = h2hMarket?.outcomes.find(o => o.name === game.away_team);
+    return {
+        title: bookmaker.title,
+        homePrice: homeOutcome?.price,
+        awayPrice: awayOutcome?.price,
+    }
+  }).filter(o => o.homePrice && o.awayPrice);
 
 
   return (
@@ -159,28 +147,30 @@ export default function GameDetailsPage({ params }: { params: { gameId: string }
             </Button>
         </header>
 
-        <div className="grid md:grid-cols-3 gap-8">
-            <Card className="md:col-span-3">
+        <div className="grid md:grid-cols-1 gap-8">
+            <Card>
                 <CardHeader>
-                    <CardTitle className="font-bold">Best Available Odds</CardTitle>
-                    <CardDescription>Best odds from available sportsbooks. Odds update in real-time.</CardDescription>
+                <CardTitle className="font-bold">Head-to-Head Odds Comparison</CardTitle>
+                <CardDescription>Odds from various sportsbooks. Odds update in real-time.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     {loadingOdds ? <Skeleton className="h-24" /> : (
                          <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead>Market</TableHead>
+                                    <TableHead>Bookmaker</TableHead>
                                     <TableHead className="text-center">{game.away_team}</TableHead>
                                     <TableHead className="text-center">{game.home_team}</TableHead>
                                 </TableRow>
                             </TableHeader>
                              <TableBody>
-                                <TableRow>
-                                    <TableCell className="font-medium">Moneyline</TableCell>
-                                    <TableCell className="text-center font-mono font-bold text-lg">{bestOdds.h2h.away > 0 ? `+${bestOdds.h2h.away}` : bestOdds.h2h.away}</TableCell>
-                                    <TableCell className="text-center font-mono font-bold text-lg">{bestOdds.h2h.home > 0 ? `+${bestOdds.h2h.home}` : bestOdds.h2h.home}</TableCell>
-                                </TableRow>
+                                {h2hOdds.map(bookie => (
+                                    <TableRow key={bookie.title}>
+                                        <TableCell className="font-medium">{bookie.title}</TableCell>
+                                        <TableCell className="text-center font-bold">{bookie.awayPrice}</TableCell>
+                                        <TableCell className="text-center font-bold">{bookie.homePrice}</TableCell>
+                                    </TableRow>
+                                ))}
                              </TableBody>
                         </Table>
                     )}
