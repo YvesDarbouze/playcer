@@ -880,7 +880,7 @@ export const getArbitrageOpportunities = onCall(async (request) => {
         }
     };
     
-    const url = 'https://sportsbook-api2.p.rapidapi.com/v0/advantages/?type=ARBITRAGE';
+    const url = 'https://sportsbook-api2.p.rapidapi.com/v1/advantages/';
 
     try {
         const response = await fetch(url, options);
