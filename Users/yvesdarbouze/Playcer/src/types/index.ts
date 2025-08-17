@@ -79,13 +79,10 @@ export type Game = {
 
 export type Bet = {
   id: string;
-  gameId: string;
-  gameDetails: {
-    home_team: string;
-    away_team: string;
-    commence_time: string; // Should be string for serialization
-    sport_key: string;
-  };
+  eventId: string;
+  eventDate: string;
+  homeTeam: string;
+  awayTeam: string;
   creatorId: string;
   takerId: string | null;
   creatorUsername: string;
@@ -106,6 +103,7 @@ export type Bet = {
   settledAt: string | null;
   bookmakerKey: string;
   odds: number;
+  period: string;
 };
 
 export type UserBet = {
@@ -143,3 +141,6 @@ export type Dispute = {
 
     
 
+
+
+    

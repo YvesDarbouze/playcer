@@ -199,11 +199,12 @@ export const createBet = onCall(async (request) => {
         isPublic,
         twitterShareUrl,
         bookmakerKey,
-        odds
+        odds,
+        period,
     } = request.data;
     
     // Basic validation
-    if (!eventId || !eventDate || !homeTeam || !awayTeam || !betType || !chosenOption || !stakeAmount || !bookmakerKey || !odds) {
+    if (!eventId || !eventDate || !homeTeam || !awayTeam || !betType || !chosenOption || !stakeAmount || !bookmakerKey || !odds || !period) {
         throw new HttpsError('invalid-argument', 'Missing required bet information.');
     }
 
@@ -254,6 +255,7 @@ export const createBet = onCall(async (request) => {
             outcome: null,
             bookmakerKey,
             odds,
+            period,
         };
 
         const betDocRef = db.collection('bets').doc(betId);
@@ -330,16 +332,17 @@ export const processBetOutcomes = onCall(async (request) => {
             if (result.status === 'Final') {
                 let winnerId: string | null = null;
                 const { home_score, away_score } = result;
-                const { homeTeam } = betData;
+                const { homeTeam, awayTeam } = betData;
 
                 if (betData.betType === 'moneyline') {
                     if (home_score === away_score) {
                         // This is a push, no winner.
                         winnerId = null;
                     } else {
-                        const winningTeamName = home_score > away_score ? homeTeam : betData.awayTeam;
+                        const winningTeamName = home_score > away_score ? homeTeam : awayTeam;
                         // The user who picked the winning team is the winner.
-                        winnerId = betData.chosenOption === winningTeamName ? betData.creatorId : betData.takerId;
+                        const creatorPickedWinner = betData.chosenOption === winningTeamName;
+                        winnerId = creatorPickedWinner ? betData.creatorId : betData.takerId;
                     }
                 } 
                 
@@ -594,4 +597,6 @@ export const kycWebhook = functions.https.onRequest(async (request, response) =>
     response.status(200).send({ received: true });
 });
     
+    
+
     
