@@ -151,7 +151,7 @@ export function GameDetailsModal({ game, isOpen, onOpenChange }: GameDetailsModa
             isOpen={isBetModalOpen}
             onOpenChange={setIsBetModalOpen}
             game={game}
-            odds={odds.length > 0 ? odds[0] : null}
+            odds={odds}
             loadingOdds={loadingOdds}
           />
       )}

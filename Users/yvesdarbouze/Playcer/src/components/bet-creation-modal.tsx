@@ -57,18 +57,19 @@ interface BetCreationModalProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   game: Game;
-  odds: BookmakerOdds | null;
+  odds: BookmakerOdds[];
   loadingOdds: boolean;
 }
 
 const betSchema = z.object({
     betType: z.enum(["moneyline", "spread", "totals"]),
-    teamSelection: z.string().min(1, "Please select a team or option."),
+    chosenOption: z.string().min(1, "Please select a team or option."),
     stake: z.coerce.number().min(1, "Stake must be at least $1."),
     line: z.coerce.number().optional(),
     opponentTwitter: z.string().optional().refine(val => !val || val.startsWith('@') || /^[a-zA-Z0-9_]{1,15}$/.test(val!), {
         message: "Invalid Twitter handle."
     }),
+    bookmakerKey: z.string().min(1, "Please select a bookmaker.")
 }).refine((data) => {
     if (data.betType === 'spread' || data.betType === 'totals') {
         return data.line !== undefined && data.line !== null;
@@ -109,6 +110,7 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, odds, loadingOdd
   const [betId, setBetId] = React.useState<string | null>(null);
   const [step, setStep] = React.useState(1);
   const [clientSecret, setClientSecret] = React.useState<string | null>(null);
+  const [selectedBookmaker, setSelectedBookmaker] = React.useState<BookmakerOdds | null>(odds.length > 0 ? odds[0] : null);
 
 
   const form = useForm<BetFormData>({
@@ -116,23 +118,30 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, odds, loadingOdd
     defaultValues: {
       stake: 20,
       betType: "moneyline",
+      bookmakerKey: odds.length > 0 ? odds[0].key : undefined
     },
   });
-
+  
   const betType = form.watch("betType");
   const opponentTwitter = form.watch("opponentTwitter");
+  const bookmakerKey = form.watch("bookmakerKey");
+
+  React.useEffect(() => {
+    const newSelectedBookmaker = odds.find(o => o.key === bookmakerKey) || null;
+    setSelectedBookmaker(newSelectedBookmaker);
+  }, [bookmakerKey, odds]);
   
   React.useEffect(() => {
     form.clearErrors();
-    const spreadMarket = odds?.markets.find(m => m.key === 'spreads');
-    const totalsMarket = odds?.markets.find(m => m.key === 'totals');
+    const spreadMarket = selectedBookmaker?.markets.find(m => m.key === 'spreads');
+    const totalsMarket = selectedBookmaker?.markets.find(m => m.key === 'totals');
 
     if (betType === 'spread' && spreadMarket) {
         form.setValue('line', spreadMarket.outcomes[0].point);
     } else if (betType === 'totals' && totalsMarket) {
         form.setValue('line', totalsMarket.outcomes[0].point);
     }
-  }, [betType, odds, form]);
+  }, [betType, selectedBookmaker, form]);
 
 
   const onSubmit = async (data: BetFormData) => {
@@ -155,23 +164,23 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, odds, loadingOdd
     if (paymentIntent && paymentIntent.status === 'requires_capture') {
         const functions = getFunctions(getFirebaseApp());
         const createBet = httpsCallable(functions, 'createBet');
-
-        let betValue: any = {};
-        switch(data.betType) {
-            case 'moneyline': betValue = { team: data.teamSelection }; break;
-            case 'spread': betValue = { team: data.teamSelection, points: data.line }; break;
-            case 'totals': betValue = { over_under: data.teamSelection, total: data.line }; break;
-        }
+        
+        const selectedOutcome = selectedBookmaker?.markets
+          .find(m => m.key === (data.betType === 'totals' ? 'totals' : 'h2h'))
+          ?.outcomes.find(o => o.name === data.chosenOption);
 
         const betPayload = {
-          gameId: game.id,
-          gameDetails: { home_team: game.home_team, away_team: game.away_team, commence_time: game.commence_time, sport_key: game.sport_key },
-          wagerAmount: data.stake,
+          eventId: game.id,
+          eventDate: game.commence_time,
+          homeTeam: game.home_team,
+          awayTeam: game.away_team,
           betType: data.betType,
-          betValue,
-          recipientTwitterHandle: data.opponentTwitter || null,
-          stripePaymentIntentId: paymentIntent.id,
+          stakeAmount: data.stake,
+          chosenOption: data.chosenOption,
           isPublic: !data.opponentTwitter,
+          twitterShareUrl: data.opponentTwitter ? `https://twitter.com/intent/tweet?text=${encodeURIComponent(`@${data.opponentTwitter.replace('@','')} I challenge you to a bet on Playcer!`)}` : null,
+          bookmakerKey: data.bookmakerKey,
+          odds: selectedOutcome?.price || 0,
         };
 
         try {
@@ -225,8 +234,8 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, odds, loadingOdd
     onOpenChange(open);
   }
   
-  const spreadMarket = odds?.markets.find(m => m.key === 'spreads');
-  const totalsMarket = odds?.markets.find(m => m.key === 'totals');
+  const spreadMarket = selectedBookmaker?.markets.find(m => m.key === 'spreads');
+  const totalsMarket = selectedBookmaker?.markets.find(m => m.key === 'totals');
 
   const homeLogo = getTeamLogoUrl(game.home_team, game.sport_key);
   const awayLogo = getTeamLogoUrl(game.away_team, game.sport_key);
@@ -237,6 +246,26 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, odds, loadingOdd
               return (
                 <Form {...form}>
                     <form id="bet-details-form" className="space-y-4">
+                       
+                        <FormField
+                            control={form.control}
+                            name="bookmakerKey"
+                            render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Bookmaker</FormLabel>
+                                <Select onValueChange={field.onChange} defaultValue={field.value} disabled={loadingOdds}>
+                                    <FormControl>
+                                        <SelectTrigger><SelectValue placeholder="Select a bookmaker" /></SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        {odds.map(o => <SelectItem key={o.key} value={o.key}>{o.title}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
+                            </FormItem>
+                            )}
+                        />
+                        
                         <FormField
                             control={form.control}
                             name="betType"
@@ -261,13 +290,13 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, odds, loadingOdd
                         {(betType === 'spread' || betType === 'totals') && (
                              <FormField control={form.control} name="line" render={({ field }) => (
                                 <FormItem><FormLabel>{betType === 'spread' ? 'Point Spread' : 'Total (O/U)'}</FormLabel>
-                                <FormControl><Input type="number" step="0.5" {...field} /></FormControl>
+                                <FormControl><Input type="number" step="0.5" {...field} readOnly /></FormControl>
                                 <FormMessage /></FormItem>
                                 )}
                             />
                         )}
                         
-                        <FormField control={form.control} name="teamSelection" render={({ field }) => (
+                        <FormField control={form.control} name="chosenOption" render={({ field }) => (
                             <FormItem><FormLabel>Your Pick</FormLabel>
                                  <Select onValueChange={field.onChange} defaultValue={field.value}>
                                     <FormControl><SelectTrigger><SelectValue placeholder="Select your team/side" /></SelectTrigger></FormControl>
@@ -288,7 +317,7 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, odds, loadingOdd
                             />
                              <FormField control={form.control} name="opponentTwitter" render={({ field }) => (
                                 <FormItem><FormLabel>Opponent (Optional)</FormLabel>
-                                <FormControl><div className="relative"><Twitter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="@BenTheBettor or leave blank for public" className="pl-9" {...field} /></div></FormControl>
+                                <FormControl><div className="relative"><Twitter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="@BenTheBettor or public" className="pl-9" {...field} /></div></FormControl>
                                 <FormMessage /></FormItem>
                                 )}
                             />
@@ -348,7 +377,7 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, odds, loadingOdd
                 <TeamDisplay team={game.away_team} logoUrl={awayLogo} />
                 <TeamDisplay team={game.home_team} logoUrl={homeLogo} />
             </div>
-            {loadingOdds ? <p className="text-center text-xs mt-2">Loading odds...</p> : odds && (
+            {loadingOdds ? <p className="text-center text-xs mt-2">Loading odds...</p> : selectedBookmaker && (
                 <div className="mt-4 space-y-1 border-t pt-2">
                     {spreadMarket && <OddsInfo label="Point Spread" value={`${spreadMarket.outcomes[0].point} / ${spreadMarket.outcomes[1].point}`} />}
                     {totalsMarket && <OddsInfo label="Total (O/U)" value={`${totalsMarket.outcomes[0].point}`} />}

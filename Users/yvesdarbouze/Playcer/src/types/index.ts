@@ -24,15 +24,13 @@ export type Court = {
 export type User = {
   id: string; // This is the UID from Firebase Auth
   displayName: string;
-  username: string;
+  username: string; // This is the Twitter handle
   photoURL: string;
   email?: string;
   createdAt: Timestamp;
   walletBalance: number;
   wins: number;
   losses: number;
-  totalBets: number;
-  rankingScore: number;
   kycStatus: "pending" | "verified" | "rejected" | "in_review";
   responsibleGamingLimits: {
     deposit: {
@@ -81,10 +79,13 @@ export type Game = {
 
 export type Bet = {
   id: string;
-  eventId: string;
-  eventDate: string;
-  homeTeam: string;
-  awayTeam: string;
+  gameId: string;
+  gameDetails: {
+    home_team: string;
+    away_team: string;
+    commence_time: string; // Should be string for serialization
+    sport_key: string;
+  };
   creatorId: string;
   takerId: string | null;
   creatorUsername: string;
@@ -102,6 +103,8 @@ export type Bet = {
   loserId: string | null;
   createdAt: string;
   settledAt: string | null;
+  bookmakerKey: string;
+  odds: number;
 };
 
 export type UserBet = {
