@@ -575,98 +575,6 @@ export const ingestUpcomingGames = onCall(async (request) => {
     return { success: true, gamesIngested: allEvents.length, oddsIngested };
 });
 
-
-export const updateOddsAndScores = onCall(async (request) => {
-    functions.logger.log("Starting to update odds and scores.");
-    const apiKey = process.env.ODDS_API_KEY;
-
-    if (!apiKey || apiKey === '9506477182d2f2335317a695b5e875e4') {
-        throw new HttpsError('internal', 'ODDS_API_KEY is not configured.');
-    }
-
-    const now = new Date();
-    const sixHoursAgo = new Date(now.getTime() - 6 * 60 * 60 * 1000);
-    const fortyEightHoursFromNow = new Date(now.getTime() + 48 * 60 * 60 * 1000);
-
-    const gamesQuery = db.collection('events')
-        .where('status', '==', 'upcoming')
-        .where('date', '>=', Timestamp.fromDate(sixHoursAgo))
-        .where('date', '<=', Timestamp.fromDate(fortyEightHoursFromNow));
-
-    const gamesSnapshot = await gamesQuery.get();
-    if (gamesSnapshot.empty) {
-        functions.logger.log("No relevant games found to update.");
-        return { success: true, message: "No games to update." };
-    }
-
-    const gamesBySport = gamesSnapshot.docs.reduce((acc, doc) => {
-        const game = doc.data();
-        const sportKey = game.sport;
-        if (!acc[sportKey]) {
-            acc[sportKey] = [];
-        }
-        acc[sportKey].push(game);
-        return acc;
-    }, {} as Record<string, any[]>);
-
-    let updatedOddsCount = 0;
-    let updatedScoresCount = 0;
-
-    for (const sportKey in gamesBySport) {
-        try {
-            const oddsUrl = `https://api.the-odds-api.com/v4/sports/${sportKey}/odds/?regions=us&markets=h2h,spreads,totals&oddsFormat=american&apiKey=${apiKey}`;
-            const oddsResponse = await fetch(oddsUrl);
-            if (!oddsResponse.ok) {
-                functions.logger.error(`Failed to fetch odds for ${sportKey}:`, await oddsResponse.text());
-                continue;
-            }
-            const oddsData:any = await oddsResponse.json();
-            const batch = db.batch();
-
-            for (const gameOdds of oddsData) {
-                const gameRef = db.collection('events').doc(gameOdds.id);
-                batch.update(gameRef, { odds: gameOdds.bookmakers || [] });
-                updatedOddsCount++;
-            }
-            await batch.commit();
-            functions.logger.log(`Successfully updated odds for ${sportKey}.`);
-        } catch (error) {
-            functions.logger.error(`Error processing odds for ${sportKey}:`, error);
-        }
-        
-        try {
-            const scoresUrl = `https://api.the-odds-api.com/v4/sports/${sportKey}/scores/?apiKey=${apiKey}`;
-            const scoresResponse = await fetch(scoresUrl);
-            if (!scoresResponse.ok) {
-                functions.logger.error(`Failed to fetch scores for ${sportKey}:`, await scoresResponse.text());
-                continue;
-            }
-            const scoresData:any = await scoresResponse.json();
-            const batch = db.batch();
-
-            for (const gameScore of scoresData) {
-                if (gameScore.completed) {
-                    const gameRef = db.collection('events').doc(gameScore.id);
-                    batch.update(gameRef, {
-                        status: 'completed',
-                        home_score: gameScore.scores?.find((s:any) => s.name === gameScore.home_team)?.score || null,
-                        away_score: gameScore.scores?.find((s:any) => s.name === gameScore.away_team)?.score || null,
-                        last_update: Timestamp.now()
-                    });
-                    updatedScoresCount++;
-                }
-            }
-            await batch.commit();
-            functions.logger.log(`Successfully updated scores for ${sportKey}.`);
-        } catch (error) {
-            functions.logger.error(`Error processing scores for ${sportKey}:`, error);
-        }
-    }
-    
-    functions.logger.log(`Finished update cycle. Updated odds for ${updatedOddsCount} bookmakers and scores for ${updatedScoresCount} games.`);
-    return { success: true, updatedOddsCount, updatedScoresCount };
-});
-
 export const generateBetImage = onCall(async (request) => {
     if (!request.auth) {
         throw new HttpsError('unauthenticated', 'You must be logged in to generate a bet image.');
@@ -897,6 +805,8 @@ export const getArbitrageOpportunities = onCall(async (request) => {
         throw new HttpsError('unknown', 'An unknown error occurred while fetching arbitrage opportunities.');
     }
 });
+    
+
     
 
     
