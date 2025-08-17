@@ -1,14 +1,13 @@
 
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import * as functions from 'firebase-functions';
-import fetch from 'node-fetch';
+import axios from 'axios';
 import Pusher from 'pusher-js';
 
 const db = getFirestore();
 
 const API_KEY = '7ee3cc9f9898b050512990bd2baadddf';
 const API_BASE_URL = 'https://api.sportsgameodds.com/v2';
-const LEAGUE_IDS = ["NFL", "NBA", "MLB", "NHL", "NCAAF", "NCAAB"];
 
 const activeStreams: Record<string, { pusher: Pusher, channel: any }> = {};
 
@@ -16,15 +15,19 @@ async function connectToFeed(leagueID: string) {
     functions.logger.log(`[STREAM] Connecting to upcoming events for: ${leagueID}`);
 
     try {
-        const response = await fetch(`${API_BASE_URL}/stream/events?feed=events:upcoming&leagueID=${leagueID}`, {
-            headers: { 'x-api-key': API_KEY }
+        const response = await axios.get(`${API_BASE_URL}/stream/events`, {
+            headers: { 'x-api-key': API_KEY },
+            params: {
+                feed: 'events:upcoming',
+                leagueID: leagueID
+            }
         });
 
-        if (!response.ok) {
+        if (response.status !== 200 || !response.data) {
             throw new Error(`Failed to get stream config for ${leagueID}. Status: ${response.status}`);
         }
 
-        const streamInfo = await response.json() as any;
+        const streamInfo = response.data;
         const { data: initialEvents, pusherKey, pusherOptions, channel: channelName } = streamInfo;
         
         functions.logger.log(`[STREAM] Config for ${leagueID}: channel=${channelName}, initialEvents=${initialEvents.length}`);
@@ -54,15 +57,15 @@ async function connectToFeed(leagueID: string) {
             if (!eventIDs) return;
 
             try {
-                const eventDataResponse = await fetch(`${API_BASE_URL}/events?eventIDs=${eventIDs}`, {
-                     headers: { 'x-api-key': API_KEY }
+                const eventDataResponse = await axios.get(`${API_BASE_URL}/events`, {
+                     headers: { 'x-api-key': API_KEY },
+                     params: { eventIDs }
                 });
                 
-                if (!eventDataResponse.ok) {
+                if (eventDataResponse.status !== 200 || !eventDataResponse.data) {
                     throw new Error(`Failed to fetch full event data for ${leagueID}. Status: ${eventDataResponse.status}`);
                 }
-                const eventData = await eventDataResponse.json() as any;
-                await saveEventsToFirestore(eventData.data);
+                await saveEventsToFirestore(eventDataResponse.data.data);
             } catch (error) {
                 functions.logger.error(`[STREAM] Error fetching/saving updated event data for ${leagueID}:`, error);
             }
@@ -70,8 +73,8 @@ async function connectToFeed(leagueID: string) {
 
         activeStreams[leagueID] = { pusher, channel };
 
-    } catch (error) {
-        functions.logger.error(`[STREAM] Failed to connect to feed for ${leagueID}:`, error);
+    } catch (error: any) {
+        functions.logger.error(`[STREAM] Failed to connect to feed for ${leagueID}:`, error.message);
     }
 }
 
@@ -114,10 +117,42 @@ async function saveEventsToFirestore(events: any[]) {
     }
 }
 
-export function startStreaming() {
-    functions.logger.log('[STREAM] Initializing real-time event streaming for all leagues.');
-    for (const leagueID of LEAGUE_IDS) {
-        connectToFeed(leagueID);
+export async function startStreaming() {
+    functions.logger.log('[STREAM] Initializing real-time event streaming...');
+    try {
+        // 1. Fetch all available sports
+        const sportsResponse = await axios.get(`${API_BASE_URL}/sports`, { headers: { 'x-api-key': API_KEY } });
+        if (sportsResponse.status !== 200 || !sportsResponse.data.data) {
+            throw new Error("Could not fetch sports list from API.");
+        }
+        const sports = sportsResponse.data.data;
+        functions.logger.log(`[STREAM] Found ${sports.length} sports.`);
+
+        // 2. For each sport, fetch its leagues
+        for (const sport of sports) {
+            try {
+                const leaguesResponse = await axios.get(`${API_BASE_URL}/leagues`, {
+                    headers: { 'x-api-key': API_KEY },
+                    params: { sportID: sport.sportID }
+                });
+
+                if (leaguesResponse.status !== 200 || !leaguesResponse.data.data) {
+                    functions.logger.warn(`[STREAM] Could not fetch leagues for sport: ${sport.name}`);
+                    continue;
+                }
+                const leagues = leaguesResponse.data.data;
+                functions.logger.log(`[STREAM] Found ${leagues.length} leagues for sport ${sport.name}.`);
+
+                // 3. For each league, connect to the feed
+                for (const league of leagues) {
+                    await connectToFeed(league.leagueID);
+                }
+            } catch (error: any) {
+                 functions.logger.error(`[STREAM] Error processing leagues for sport ${sport.name}:`, error.message);
+            }
+        }
+    } catch (error: any) {
+        functions.logger.error('[STREAM] Fatal error during stream initialization:', error.message);
     }
 }
 
