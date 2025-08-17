@@ -1,4 +1,5 @@
 
+"use client"
 import { collection, getDocs, query, where, orderBy, Timestamp } from "firebase/firestore";
 import { firestore as getFirestore } from "@/lib/firebase-admin";
 import Link from "next/link";
@@ -9,8 +10,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { GameList } from "@/components/game-list";
 
-export const dynamic = 'force-dynamic';
 
 async function getGames(sportKey: string): Promise<Game[]> {
   try {
@@ -57,15 +58,6 @@ export default async function SportPage({ params }: { params: { sport_key: strin
 
   const sportTitle = games[0]?.sport_title || sport_key.replace(/_/g, " ").toUpperCase();
 
-  const gamesByDate = games.reduce((acc, game) => {
-    const date = format(new Date(game.commence_time), "EEEE, MMMM d, yyyy");
-    if (!acc[date]) {
-      acc[date] = [];
-    }
-    acc[date].push(game);
-    return acc;
-  }, {} as Record<string, Game[]>);
-
   return (
     <main className="container mx-auto p-4 md:p-8">
       <header className="mb-8">
@@ -78,42 +70,7 @@ export default async function SportPage({ params }: { params: { sport_key: strin
         <h1 className="text-4xl font-headline font-black">{sportTitle} Schedule</h1>
         <p className="text-muted-foreground">Upcoming games for the {sportTitle}.</p>
       </header>
-      <div className="space-y-8">
-        {Object.entries(gamesByDate).map(([date, gamesOnDate]) => (
-          <section key={date}>
-            <h2 className="text-xl font-bold mb-4">{date}</h2>
-            <div className="space-y-4">
-              {gamesOnDate.map((game) => (
-                <Link href={`/game/${game.id}`} key={game.id} passHref>
-                    <Card className={cn(
-                        "hover:border-primary transition-colors",
-                        game.is_complete && "bg-muted/50 hover:border-muted"
-                    )}>
-                        <CardContent className="p-4 flex justify-between items-center">
-                            <div>
-                                <p className={cn(
-                                    "font-bold text-lg",
-                                    game.is_complete && "text-muted-foreground"
-                                )}>
-                                  {game.away_team} {game.is_complete && <span className="font-extrabold">{game.away_score}</span>}
-                                  {' @ '} 
-                                  {game.home_team} {game.is_complete && <span className="font-extrabold">{game.home_score}</span>}
-                                </p>
-                                <p className="text-sm text-muted-foreground">
-                                    {game.is_complete ? "Final" : format(new Date(game.commence_time), "p")}
-                                </p>
-                            </div>
-                            <Button variant={game.is_complete ? "ghost" : "secondary"} disabled={game.is_complete}>
-                              {game.is_complete ? "View Results" : "View Odds"}
-                            </Button>
-                        </CardContent>
-                    </Card>
-                </Link>
-              ))}
-            </div>
-          </section>
-        ))}
-      </div>
+       <GameList initialGames={games} />
     </main>
   );
 }
