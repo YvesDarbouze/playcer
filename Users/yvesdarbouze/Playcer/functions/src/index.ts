@@ -62,7 +62,7 @@ const sportsDataAPI = {
             const homeScore = parseInt(eventResult.scores.find((s: any) => s.name === eventResult.home_team)?.score || '0');
             const awayScore = parseInt(eventResult.scores.find((s: any) => s.name === eventResult.away_team)?.score || '0');
 
-            return { home_score: homeScore, away_score: away_score, status: 'Final' };
+            return { home_score: homeScore, away_score: awayScore, status: 'Final' };
 
         } catch (error) {
             functions.logger.error(`Exception fetching event result for ${eventId}:`, error);
@@ -864,5 +864,39 @@ export const kycWebhook = functions.https.onRequest(async (request, response) =>
 
     response.status(200).send({ received: true });
 });
+
+export const getArbitrageOpportunities = onCall(async (request) => {
+    const apiKey = process.env.RAPIDAPI_KEY;
+
+    if (!apiKey) {
+        throw new HttpsError('internal', 'The RapidAPI key is not configured.');
+    }
+
+    const options = {
+        method: 'GET',
+        headers: {
+            'x-rapidapi-key': apiKey,
+            'x-rapidapi-host': 'sportsbook-api2.p.rapidapi.com'
+        }
+    };
+    
+    const url = 'https://sportsbook-api2.p.rapidapi.com/v0/advantages/?type=ARBITRAGE';
+
+    try {
+        const response = await fetch(url, options);
+        if (!response.ok) {
+            const errorBody = await response.text();
+            functions.logger.error(`Failed to fetch arbitrage opportunities. Status: ${response.status}, Body: ${errorBody}`);
+            throw new HttpsError('internal', 'Failed to fetch arbitrage data from the provider.');
+        }
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        functions.logger.error('Error fetching arbitrage opportunities:', error);
+        if (error instanceof HttpsError) throw error;
+        throw new HttpsError('unknown', 'An unknown error occurred while fetching arbitrage opportunities.');
+    }
+});
+    
 
     

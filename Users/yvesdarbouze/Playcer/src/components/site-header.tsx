@@ -7,8 +7,16 @@ import { useRouter } from "next/navigation";
 import { Logo } from "./icons";
 import { LoginButton } from "./login-button";
 import { Button } from "./ui/button";
-import { Search } from "lucide-react";
+import { Search, Bot } from "lucide-react";
 import { Input } from "./ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export function SiteHeader() {
   const router = useRouter();
@@ -41,6 +49,23 @@ export function SiteHeader() {
             >
               Dashboard
             </Link>
+             <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="transition-colors hover:text-foreground/80 text-foreground/60 px-0">
+                        Dev Tools
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                    <DropdownMenuItem onClick={() => router.push('/dev/odds-checker')}>
+                        <Bot className="mr-2 h-4 w-4" />
+                        <span>Odds API Checker</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => router.push('/dev/arbitrage-finder')}>
+                         <Bot className="mr-2 h-4 w-4" />
+                        <span>Arbitrage Finder</span>
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
             <Link
               href="/about"
               className="transition-colors hover:text-foreground/80 text-foreground/60"
@@ -67,3 +92,5 @@ export function SiteHeader() {
     </header>
   );
 }
+
+    
