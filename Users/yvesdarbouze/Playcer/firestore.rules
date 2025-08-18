@@ -1,49 +1,82 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Users can read their own profile and limited public data of others.
-    // Users can only update their own profile.
-    match /users/{userId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth.uid == userId;
-      allow update: if request.auth.uid == userId;
+    
+    // --- Helper Functions ---
+    function isSignedIn() {
+      return request.auth != null;
     }
 
-    // Games and their odds are public information, readable by anyone.
-    // Only backend services should write to this collection.
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    
+    function getUserData(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)).data;
+    }
+
+    function isKycVerified(userId) {
+        return getUserData(userId).kycStatus == 'verified';
+    }
+
+
+    // --- Collections ---
+
+    match /users/{userId} {
+      // Anyone can read a user's public profile data
+      allow get: if true;
+      // Only the user themselves can create their profile or update it
+      allow create, update: if isOwner(userId);
+      // Users cannot be deleted from the client
+      allow delete: if false;
+    }
+
     match /games/{gameId} {
-      allow read: if true;
-      allow write: if false; // Managed by backend functions
+      // All game and odds data is public
+      allow get: if true;
+      allow list: if true;
+
+      // Only backend processes can write game data
+      allow write: if false;
 
       match /bookmaker_odds/{bookmakerId} {
-        allow read: if true;
-        allow write: if false; // Managed by backend functions
+        allow get: if true;
+        allow list: if true;
+        allow write: if false;
       }
     }
 
-    // Bets have more complex rules.
     match /bets/{betId} {
-      // Allow creation by any authenticated user.
-      allow create: if request.auth != null;
-
-      // Allow reads if user is creator/taker, or if it's a public bet in the marketplace.
-      allow read: if request.auth != null && 
+      // Only signed-in users who are KYC verified can create bets
+      allow create: if isSignedIn() && isKycVerified(request.auth.uid);
+      
+      // Allow read access for creator, taker, or if the bet is public and pending
+      allow get: if isSignedIn() && 
                     (resource.data.creatorId == request.auth.uid || 
                      resource.data.takerId == request.auth.uid ||
                      (resource.data.isPublic == true && resource.data.status == 'pending'));
+                     
+      allow list: if isSignedIn();
 
-      // Allow taker to accept the bet. Other updates are handled by backend.
-      allow update: if request.auth != null &&
-                     request.auth.uid == request.resource.data.takerId &&
-                     resource.data.takerId == null; // Can only be accepted once
+      // Only the intended taker can update a bet to accept it
+      // Other status updates are handled by backend functions
+      allow update: if isSignedIn() &&
+                       request.resource.data.takerId == request.auth.uid &&
+                       resource.data.takerId == null &&
+                       resource.data.status == 'pending';
+                       
+      // Bets cannot be deleted from the client
+      allow delete: if false;
     }
 
-    // Transactions are private to each user.
     match /transactions/{transactionId} {
-      allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
+      // Users can only read their own transactions
+      allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow list: if isSignedIn() && request.query.where.size() > 0 && request.query.where[0][2] == request.auth.uid;
+      
+      // Transactions are only created by the backend
+      allow write: if false;
     }
   }
 }

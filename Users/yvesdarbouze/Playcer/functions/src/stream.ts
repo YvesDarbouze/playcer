@@ -12,6 +12,11 @@ const API_BASE_URL = 'https://api.sportsgameodds.com/v2';
 const activeStreams: Record<string, { pusher: Pusher, channel: any }> = {};
 
 async function connectToFeed(leagueID: string) {
+    if (activeStreams[leagueID]) {
+        functions.logger.log(`[STREAM] Stream for league ${leagueID} already active.`);
+        return;
+    }
+
     functions.logger.log(`[STREAM] Connecting to upcoming events for: ${leagueID}`);
 
     try {
@@ -23,7 +28,7 @@ async function connectToFeed(leagueID: string) {
             }
         });
 
-        if (response.status !== 200 || !response.data) {
+        if (response.status !== 200 || !response.data?.success) {
             throw new Error(`Failed to get stream config for ${leagueID}. Status: ${response.status}`);
         }
 
@@ -33,7 +38,9 @@ async function connectToFeed(leagueID: string) {
         functions.logger.log(`[STREAM] Config for ${leagueID}: channel=${channelName}, initialEvents=${initialEvents.length}`);
 
         // Save initial data
-        await saveEventsToFirestore(initialEvents);
+        if(initialEvents && initialEvents.length > 0) {
+            await saveEventsToFirestore(initialEvents);
+        }
         
         const pusher = new Pusher(pusherKey, pusherOptions);
         
@@ -62,7 +69,7 @@ async function connectToFeed(leagueID: string) {
                      params: { eventIDs }
                 });
                 
-                if (eventDataResponse.status !== 200 || !eventDataResponse.data) {
+                if (eventDataResponse.status !== 200 || !eventDataResponse.data?.success) {
                     throw new Error(`Failed to fetch full event data for ${leagueID}. Status: ${eventDataResponse.status}`);
                 }
                 await saveEventsToFirestore(eventDataResponse.data.data);
@@ -85,6 +92,11 @@ async function saveEventsToFirestore(events: any[]) {
     functions.logger.log(`[FIRESTORE] Saving ${events.length} events to Firestore.`);
 
     for (const event of events) {
+        if (!event.eventID || !event.league || !event.teams.home?.names?.medium || !event.teams.away?.names?.medium) {
+            functions.logger.warn("[FIRESTORE] Skipping incomplete event data:", event);
+            continue;
+        }
+
         const gameRef = db.collection('games').doc(event.eventID);
         const gameDoc = {
             id: event.eventID,
@@ -94,8 +106,8 @@ async function saveEventsToFirestore(events: any[]) {
             home_team: event.teams.home.names.medium,
             away_team: event.teams.away.names.medium,
             is_complete: event.status.finished,
-            home_score: event.scores.home,
-            away_score: event.scores.away,
+            home_score: event.scores?.home ?? null,
+            away_score: event.scores?.away ?? null,
             last_update: Timestamp.now()
         };
         batch.set(gameRef, gameDoc, { merge: true });
@@ -111,7 +123,7 @@ async function saveEventsToFirestore(events: any[]) {
 
     try {
         await batch.commit();
-        functions.logger.log(`[FIRESTORE] Successfully saved ${events.length} events.`);
+        functions.logger.log(`[FIRESTORE] Successfully saved/updated ${events.length} events.`);
     } catch(error) {
         functions.logger.error(`[FIRESTORE] Error committing batch:`, error);
     }
@@ -122,7 +134,7 @@ export async function startStreaming() {
     try {
         // 1. Fetch all available sports
         const sportsResponse = await axios.get(`${API_BASE_URL}/sports`, { headers: { 'x-api-key': API_KEY } });
-        if (sportsResponse.status !== 200 || !sportsResponse.data.data) {
+        if (sportsResponse.status !== 200 || !sportsResponse.data.success) {
             throw new Error("Could not fetch sports list from API.");
         }
         const sports = sportsResponse.data.data;
@@ -136,7 +148,7 @@ export async function startStreaming() {
                     params: { sportID: sport.sportID }
                 });
 
-                if (leaguesResponse.status !== 200 || !leaguesResponse.data.data) {
+                if (leaguesResponse.status !== 200 || !leaguesResponse.data.success) {
                     functions.logger.warn(`[STREAM] Could not fetch leagues for sport: ${sport.name}`);
                     continue;
                 }
@@ -146,6 +158,7 @@ export async function startStreaming() {
                 // 3. For each league, connect to the feed
                 for (const league of leagues) {
                     await connectToFeed(league.leagueID);
+                    await new Promise(resolve => setTimeout(resolve, 500)); // Small delay to avoid rate limiting
                 }
             } catch (error: any) {
                  functions.logger.error(`[STREAM] Error processing leagues for sport ${sport.name}:`, error.message);

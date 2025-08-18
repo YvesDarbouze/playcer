@@ -1,5 +1,4 @@
 
-
 import {initializeApp} from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import {getFirestore, Timestamp, FieldValue} from "firebase-admin/firestore";
@@ -8,7 +7,7 @@ import { HttpsError, onCall } from "firebase-functions/v2/https";
 import * as functions from "firebase-functions";
 import { v4 as uuidv4 } from "uuid";
 import * as algoliasearch from 'algoliasearch';
-import { generateBetImage } from "../../ai/flows/generate-bet-image";
+import { generateBetImage as genBetImageFlow } from "../../ai/flows/generate-bet-image";
 import fetch from "node-fetch";
 import Stripe from "stripe";
 import * as crypto from "crypto";
@@ -103,7 +102,7 @@ export const getAlgoliaSearchKey = onCall((request) => {
     const searchKey = algoliasearch.generateSecuredApiKey(
         process.env.ALGOLIA_SEARCH_ONLY_API_KEY!,
         {
-             filters: 'status:pending OR isPublic:true'
+             filters: 'status:pending'
         }
     );
 
@@ -136,7 +135,7 @@ export const createBetPaymentIntent = onCall(async (request) => {
         return { success: true, clientSecret: paymentIntent.client_secret };
     } catch (error: any) {
         functions.logger.error(`Error creating payment intent for user ${uid}:`, error);
-        throw new HttpsError('internal', error.message);
+        throw new HttpsError('internal', 'An internal error occurred while creating the payment intent.');
     }
 });
 
@@ -179,7 +178,7 @@ export const handleDeposit = onCall(async (request) => {
 
     } catch (error: any) {
         functions.logger.error(`Error handling deposit for user ${uid}:`, error);
-        throw new HttpsError('internal', error.message);
+        throw new HttpsError('internal', 'An internal error occurred while processing your deposit.');
     }
 });
 
@@ -305,7 +304,7 @@ export const acceptBet = onCall(async (request) => {
 
     } catch (error: any) {
         functions.logger.error(`Error creating recipient payment intent for bet ${betId}:`, error);
-        throw new HttpsError('internal', error.message);
+        throw new HttpsError('internal', 'An internal error occurred while creating the payment intent.');
     }
 });
 
@@ -459,7 +458,7 @@ export const generateBetImage = onCall(async (request) => {
     }
 
     try {
-        const result = await generateBetImage(request.data);
+        const result = await genBetImageFlow(request.data);
         return result;
     } catch(e: any) {
         functions.logger.error('Error generating bet image', e);
@@ -550,6 +549,8 @@ export const stripeWebhook = functions.https.onRequest(async (request, response)
                         takerUsername: takerData.username,
                         takerPhotoURL: takerData.photoURL,
                     });
+
+                    await betsIndex.partialUpdateObject({ status: 'accepted', objectID: betId });
                 });
                 functions.logger.log(`Bet ${betId} successfully activated.`);
             }

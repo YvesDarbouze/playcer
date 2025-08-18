@@ -27,7 +27,7 @@ export type User = {
   username: string; // This is the Twitter handle
   photoURL: string;
   email?: string;
-  createdAt: Timestamp;
+  createdAt: string; // ISO string
   walletBalance: number;
   wins: number;
   losses: number;
@@ -46,8 +46,8 @@ export type User = {
   };
   selfExclusion: {
     isActive: boolean;
-    startDate: Timestamp | null;
-    endDate: Timestamp | null; // null for permanent
+    startDate: string | null; // ISO string
+    endDate: string | null; // ISO string, null for permanent
   };
 };
 
@@ -55,7 +55,7 @@ export type Game = {
   id: string;
   sport_key: string;
   sport_title: string;
-  commence_time: string;
+  commence_time: string; // ISO string
   home_team: string;
   away_team: string;
   home_score?: number;
@@ -80,7 +80,7 @@ export type Game = {
 export type Bet = {
   id: string;
   eventId: string;
-  eventDate: string;
+  eventDate: string; // ISO string
   homeTeam: string;
   awayTeam: string;
   creatorId: string;
@@ -93,14 +93,14 @@ export type Bet = {
   betType: "moneyline" | "spread" | "totals";
   chosenOption: string; // e.g., 'Los Angeles Rams', 'Over', 'Under'
   line: number | null; // for spreads and totals, e.g., -7.5, 55.5
-  status: "pending" | "accepted" | "resolved" | "cancelled";
+  status: "pending" | "accepted" | "resolved" | "cancelled" | "void";
   isPublic: boolean;
   twitterShareUrl: string | null;
   outcome: 'win' | 'loss' | 'draw' | null;
   winnerId: string | null;
   loserId: string | null;
-  createdAt: string;
-  settledAt: string | null;
+  createdAt: string; // ISO string
+  settledAt: string | null; // ISO string
   bookmakerKey: string;
   odds: number;
   period: string;
@@ -121,7 +121,7 @@ export type Transaction = {
   status: "pending" | "completed" | "failed";
   relatedBetId?: string;
   gatewayTransactionId?: string;
-  createdAt: string;
+  createdAt: string; // ISO string
 };
 
 export type Dispute = {
