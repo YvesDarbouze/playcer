@@ -91,8 +91,8 @@ export type Bet = {
   takerPhotoURL: string | null;
   stakeAmount: number;
   betType: "moneyline" | "spread" | "totals";
-  chosenOption: string; // e.g., 'home_team', 'away_team', 'over', 'under'
-  line?: number; // for spreads and totals
+  chosenOption: string; // e.g., 'Los Angeles Rams', 'Over', 'Under'
+  line: number | null; // for spreads and totals, e.g., -7.5, 55.5
   status: "pending" | "accepted" | "resolved" | "cancelled";
   isPublic: boolean;
   twitterShareUrl: string | null;
@@ -105,6 +105,7 @@ export type Bet = {
   odds: number;
   period: string;
 };
+
 
 export type UserBet = {
   betRef: string; 
@@ -136,11 +137,3 @@ export type Dispute = {
   } | null;
   createdAt: Timestamp;
 };
-
-    
-
-    
-
-
-
-    

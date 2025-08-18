@@ -31,8 +31,6 @@ import type { Game } from "@/types";
 import { Twitter, Swords, Loader2 } from "lucide-react";
 import { getFirebaseApp } from "@/lib/firebase";
 import { Separator } from "./ui/separator";
-import Image from "next/image";
-import { getTeamLogoUrl } from "@/lib/team-logo-helper";
 import { useStripe, useElements, PaymentElement, Elements } from '@stripe/react-stripe-js';
 import { loadStripe } from '@stripe/stripe-js';
 
@@ -50,7 +48,7 @@ interface BookmakerOdds {
 type SelectedBet = {
     betType: "moneyline" | "spread" | "totals";
     chosenOption: string;
-    line?: number;
+    line: number | null;
     odds: number;
     bookmakerKey: string;
 }
@@ -59,8 +57,6 @@ interface BetCreationModalProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   game: Game;
-  odds: BookmakerOdds[];
-  loadingOdds: boolean;
   selectedBet: SelectedBet | null;
 }
 
@@ -74,13 +70,6 @@ const betSchema = z.object({
 
 type BetFormData = z.infer<typeof betSchema>;
 
-const TeamDisplay = ({ team, logoUrl }: { team: string, logoUrl: string }) => (
-    <div className="text-center flex flex-col items-center gap-2">
-        <Image src={logoUrl} alt={`${team} logo`} width={48} height={48} className="h-12 w-auto" />
-        <p className="font-bold text-lg">{team}</p>
-    </div>
-)
-
 const OddsInfo = ({ label, value }: { label: string, value: React.ReactNode }) => (
     <div className="flex justify-between items-center text-sm">
         <p className="text-muted-foreground">{label}</p>
@@ -90,7 +79,7 @@ const OddsInfo = ({ label, value }: { label: string, value: React.ReactNode }) =
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
-function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, odds }: BetCreationModalProps) {
+function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet }: BetCreationModalProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const stripe = useStripe();
@@ -110,11 +99,11 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, odd
   });
 
   const opponentTwitter = form.watch("opponentTwitter");
-  const stakeAmount = form.watch("stake");
+  const stakeAmount = form.watch("stake") || 0;
   
   const handleModalClose = (open: boolean) => {
     if (!open) {
-        form.reset({ stake: 20 });
+        form.reset({ stake: 20, opponentTwitter: '' });
         setIsSuccess(false);
         setStep(1);
         setClientSecret(null);
@@ -123,13 +112,11 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, odd
   }
   
   if (!selectedBet) {
-      handleModalClose(false);
+      if (isOpen) handleModalClose(false);
       return null;
   }
 
-  const { betType, chosenOption, line, bookmakerKey } = selectedBet;
-  const bookmaker = odds.find(o => o.key === bookmakerKey)?.title || 'Unknown Bookmaker';
-  const price = selectedBet.odds;
+  const { betType, chosenOption, line, odds, bookmakerKey } = selectedBet;
 
   const onSubmit = async (data: BetFormData) => {
     if (!user) return toast({ title: "Not Authenticated", variant: "destructive" });
@@ -137,13 +124,13 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, odd
     
     setIsLoading(true);
 
-    const { error, paymentIntent } = await stripe.confirmPayment({
+    const { error: confirmError, paymentIntent } = await stripe.confirmPayment({
       elements,
       redirect: 'if_required',
     });
 
-    if (error) {
-      toast({ title: "Payment Failed", description: error.message, variant: "destructive" });
+    if (confirmError) {
+      toast({ title: "Payment Failed", description: confirmError.message, variant: "destructive" });
       setIsLoading(false);
       return;
     }
@@ -164,7 +151,7 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, odd
           isPublic: !data.opponentTwitter,
           twitterShareUrl: data.opponentTwitter ? `https://twitter.com/intent/tweet?text=${encodeURIComponent(`@${data.opponentTwitter.replace('@','')} I challenge you to a bet on Playcer!`)}` : null,
           bookmakerKey: bookmakerKey,
-          odds: price,
+          odds: odds,
           period: 'game', // Defaulting to full game for now
         };
 
@@ -221,6 +208,10 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, odd
     }
     return chosenOption;
   }
+  
+  const potentialWinnings = (stakeAmount * (odds > 0 ? (odds / 100) : (100 / Math.abs(odds)))).toFixed(2);
+  const potentialPayout = (stakeAmount + parseFloat(potentialWinnings)).toFixed(2);
+
 
   const renderStepContent = () => {
       switch(step) {
@@ -232,9 +223,8 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, odd
                             <h3 className="font-bold text-lg">Your Pick</h3>
                             <div className="flex justify-between items-baseline">
                                 <span className="text-xl font-bold text-primary">{getBetValueDisplay()}</span>
-                                <span className="text-xl font-bold">{price > 0 ? `+${price}` : price}</span>
+                                <span className="text-xl font-bold">{odds > 0 ? `+${odds}` : odds}</span>
                             </div>
-                            <p className="text-xs text-muted-foreground">Odds from {bookmaker}</p>
                         </div>
                        
                         <div className="grid grid-cols-2 gap-4">
@@ -246,16 +236,17 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, odd
                             />
                              <FormField control={form.control} name="opponentTwitter" render={({ field }) => (
                                 <FormItem><FormLabel>Opponent (Optional)</FormLabel>
-                                <FormControl><div className="relative"><Twitter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="@BenTheBettor or public" className="pl-9" {...field} /></div></FormControl>
+                                <FormControl><div className="relative"><Twitter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="@handle or public" className="pl-9" {...field} /></div></FormControl>
                                 <FormMessage /></FormItem>
                                 )}
                             />
                         </div>
 
-                         <div className="p-4 rounded-lg bg-muted text-sm">
+                         <div className="p-4 rounded-lg bg-muted text-sm space-y-1">
                             <OddsInfo label="Wager" value={`$${stakeAmount.toFixed(2)}`} />
-                            <OddsInfo label="Potential Payout" value={`$${(stakeAmount * 1.955).toFixed(2)}`} />
-                            <p className="text-xs text-muted-foreground mt-2">Payout is an estimate. Final payout depends on final odds upon match.</p>
+                            <OddsInfo label="Potential Winnings" value={`$${potentialWinnings}`} />
+                            <Separator />
+                            <OddsInfo label="Potential Payout" value={`$${potentialPayout}`} />
                          </div>
 
                     </form>
@@ -268,32 +259,31 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, odd
               return (
                   <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                       <h3 className="font-bold">Authorize Payment</h3>
-                      <p className="text-sm text-muted-foreground">Confirm your payment method to place the bet. This is a temporary hold; you are only charged if you lose.</p>
+                      <p className="text-sm text-muted-foreground">Confirm your payment method. This is a temporary hold; your card is only charged if the bet is accepted and you lose.</p>
                       <PaymentElement />
-                      <DialogFooter className="pt-4">
+                      <DialogFooter className="pt-4 flex justify-between w-full">
                            <Button type="button" variant="ghost" onClick={() => setStep(1)}>Back</Button>
-                           <Button type="submit" disabled={isLoading || !stripe} className="w-full" size="lg">{isLoading ? <Loader2 className="animate-spin" /> : "Create Challenge"}</Button>
+                           <Button type="submit" disabled={isLoading || !stripe} size="lg">{isLoading ? <Loader2 className="animate-spin" /> : "Create Challenge"}</Button>
                       </DialogFooter>
                   </form>
               );
             case 3:
+                const tweetUrl = opponentTwitter 
+                    ? `https://twitter.com/intent/tweet?text=${encodeURIComponent(`@${opponentTwitter.replace('@','')} I challenge you on Playcer: ${getBetValueDisplay()} for $${stakeAmount.toFixed(2)} in the ${game.away_team} @ ${game.home_team} game!`)}&url=${window.location.origin}/bet/${betId}`
+                    : `https://twitter.com/intent/tweet?text=${encodeURIComponent(`I just posted a public challenge on Playcer: ${getBetValueDisplay()} for $${stakeAmount.toFixed(2)} in the ${game.away_team} @ ${game.home_team} game. Who wants to accept?`)}&url=${window.location.origin}/bet/${betId}`;
+
                 return (
                     <div className="space-y-4 py-8 text-center">
-                         <h3 className="font-bold text-lg">Challenge Sent!</h3>
+                         <h3 className="font-bold text-lg">Challenge Created!</h3>
                          <p className="text-sm text-muted-foreground">
                             {opponentTwitter
                                 ? "Your challenge has been created. Share it with your opponent so they can accept!"
                                 : "Your public bet is live in the marketplace! Share it with your followers."
                             }
                          </p>
-                         <Button onClick={() => {
-                             const betUrl = `${window.location.origin}/bet/${betId}`;
-                             const tweetText = opponentTwitter
-                                ? encodeURIComponent(`I challenge ${opponentTwitter} to a bet on Playcer! ${game.away_team} @ ${game.home_team}`)
-                                : encodeURIComponent(`I just posted a public challenge on Playcer for ${game.away_team} @ ${game.home_team}. Who wants to accept?`);
-                             const tweetUrl = `https://twitter.com/intent/tweet?text=${tweetText}&url=${betUrl}`;
-                             window.open(tweetUrl, '_blank');
-                         }} className="w-full" variant="outline"><Twitter className="mr-2"/>Tweet Challenge</Button>
+                         <Button asChild className="w-full" variant="outline">
+                            <a href={tweetUrl} target="_blank" rel="noopener noreferrer"><Twitter className="mr-2"/>Share on Twitter</a>
+                         </Button>
                          <Button onClick={() => handleModalClose(false)} className="w-full">Done</Button>
                     </div>
                 );

@@ -35,13 +35,16 @@ const OpponentDisplay = ({ bet, currentUserId }: { bet: Bet, currentUserId: stri
       : { id: bet.creatorId, username: bet.creatorUsername, photoURL: bet.creatorPhotoURL };
 
     if (!opponent.id) {
-        return <span className="text-muted-foreground">vs. Public</span>
+        if(bet.isPublic) {
+            return <span className="text-muted-foreground">vs. Public</span>
+        }
+        return <span className="text-muted-foreground">vs. @{bet.twitterShareUrl?.split('text=@')[1].split('%20')[0]}</span>
     }
     
     return (
         <Link href={`/profile/${opponent.id}`} className="flex items-center gap-2 hover:underline">
             <Avatar className="size-6">
-                <AvatarImage src={opponent.photoURL || undefined} alt={opponent.username} />
+                <AvatarImage src={opponent.photoURL || undefined} alt={opponent.username || ''} />
                 <AvatarFallback>{opponent.username ? opponent.username.charAt(0) : '?'}</AvatarFallback>
             </Avatar>
             <span className="font-medium">@{opponent.username}</span>
@@ -70,8 +73,7 @@ const BetValueDisplay = ({ bet }: { bet: Bet }) => {
       return <>{chosenOption}</>;
     }
     if (betType === 'spread') {
-      const team = chosenOption;
-      return <>{`${team} ${line! > 0 ? `+${line}` : line}`}</>;
+      return <>{`${chosenOption} ${line! > 0 ? `+${line}` : line}`}</>;
     }
     if (betType === 'totals') {
       return <>{`Total ${chosenOption} ${line}`}</>;
@@ -82,10 +84,10 @@ const BetValueDisplay = ({ bet }: { bet: Bet }) => {
 export function UserBetsTable({ bets, currentUserId }: UserBetsTableProps) {
   const { toast } = useToast();
 
-  const handleCopyLink = (bet: Bet) => {
-    const tweetUrl = bet.twitterShareUrl || `https://twitter.com/intent/tweet?text=${encodeURIComponent(`I just posted a public challenge on Playcer for ${bet.awayTeam} @ ${bet.homeTeam}. Who wants to accept?`)}`;
-    window.open(tweetUrl, '_blank');
-    toast({ title: "Opening Twitter to send challenge!" });
+  const handleShareLink = (bet: Bet) => {
+    const shareUrl = bet.twitterShareUrl || `https://twitter.com/intent/tweet?text=${encodeURIComponent(`I just posted a public challenge on Playcer for ${bet.awayTeam} @ ${bet.homeTeam}. Who wants to accept?`)}&url=${window.location.origin}/bet/${bet.id}`;
+    window.open(shareUrl, '_blank');
+    toast({ title: "Opening Twitter to share challenge!" });
   };
   
   if (bets.length === 0) {
@@ -139,8 +141,8 @@ export function UserBetsTable({ bets, currentUserId }: UserBetsTableProps) {
                 </TableCell>
                  <TableCell className="text-right space-x-1">
                     {bet.status === 'pending' && bet.creatorId === currentUserId && (
-                        <Button variant="ghost" size="sm" onClick={() => handleCopyLink(bet)}>
-                            <Twitter className="mr-2 h-4 w-4" /> Tweet
+                        <Button variant="ghost" size="sm" onClick={() => handleShareLink(bet)}>
+                            <Twitter className="mr-2 h-4 w-4" /> Share
                         </Button>
                     )}
                     <Link href={`/bet/${bet.id}`} passHref>

@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { Handshake, Share2, Swords, Twitter, Loader2 } from "lucide-react";
+import { Handshake, Swords, Twitter, Loader2 } from "lucide-react";
 import type { Bet } from "@/types";
 import { cn } from "@/lib/utils";
 import { LoginButton } from "./login-button";
@@ -38,12 +38,12 @@ const UserDisplay = ({
   username,
   photoURL,
 }: {
-  username?: string;
-  photoURL?: string;
+  username?: string | null;
+  photoURL?: string | null;
 }) => (
   <div className="flex flex-col items-center gap-2">
     <Avatar className="size-16 border-2 border-primary">
-      <AvatarImage src={photoURL} alt={username} />
+      <AvatarImage src={photoURL || undefined} alt={username || ''} />
       <AvatarFallback>{username ? username.charAt(0) : "?"}</AvatarFallback>
     </Avatar>
     <p className="font-bold">@{username || "???"}</p>
@@ -76,8 +76,8 @@ export function BetChallengeCard({
   const canAccept = currentUser && bet.status === 'pending' && !isCreator;
 
   const handleShareBet = () => {
-    const tweetUrl = bet.twitterShareUrl || `https://twitter.com/intent/tweet?text=${encodeURIComponent(`I just posted a public challenge on Playcer for ${bet.awayTeam} @ ${bet.homeTeam}. Who wants to accept?`)}`;
-    window.open(tweetUrl, '_blank');
+    const shareUrl = bet.twitterShareUrl || `https://twitter.com/intent/tweet?text=${encodeURIComponent(`I just posted a public challenge on Playcer for ${bet.awayTeam} @ ${bet.homeTeam}. Who wants to accept?`)}&url=${window.location.href}`;
+    window.open(shareUrl, '_blank');
   };
 
   const getBetValueDisplay = () => {
@@ -86,14 +86,16 @@ export function BetChallengeCard({
       return chosenOption;
     }
     if (betType === 'spread') {
-      const team = chosenOption === game.home_team ? bet.homeTeam : bet.awayTeam;
-      return `${team} ${line! > 0 ? `+${line}` : line}`;
+      return `${chosenOption} ${line! > 0 ? `+${line}` : line}`;
     }
     if (betType === 'totals') {
       return `Total ${chosenOption} ${line}`;
     }
     return chosenOption;
   }
+  
+  const potentialWinnings = (bet.stakeAmount * (bet.odds > 0 ? (bet.odds / 100) : (100 / Math.abs(bet.odds)))).toFixed(2);
+  const potentialPayout = (bet.stakeAmount + parseFloat(potentialWinnings)).toFixed(2);
 
   const handleFinalizeAcceptance = async () => {
       if (!stripe || !elements || !clientSecret) {
@@ -198,8 +200,10 @@ export function BetChallengeCard({
 
             <div className="space-y-2">
                 <BetDetail label="Challenger's Pick" value={getBetValueDisplay()} />
-                <BetDetail label="Wager" value={`$${bet.stakeAmount.toFixed(2)}`} />
-                <BetDetail label="Potential Payout" value={`$${(bet.stakeAmount * 1.955).toFixed(2)}`} />
+                <BetDetail label="Odds" value={bet.odds > 0 ? `+${bet.odds}`: bet.odds} />
+                <BetDetail label="Potential Winnings" value={`$${potentialWinnings}`} />
+                <Separator />
+                <BetDetail label="Total Payout" value={`$${potentialPayout}`} />
             </div>
        </div>
       </CardContent>

@@ -18,6 +18,7 @@ import { startStreaming } from "./stream";
 // Initialize Algolia client
 // Ensure you have set these environment variables in your Firebase project configuration
 const algoliaClient = algoliasearch.default(process.env.ALGOLIA_APP_ID!, process.env.ALGOLIA_API_KEY!);
+const betsIndex = algoliaClient.initIndex('bets');
 
 
 // Initialize Firebase Admin SDK
@@ -102,7 +103,7 @@ export const getAlgoliaSearchKey = onCall((request) => {
     const searchKey = algoliasearch.generateSecuredApiKey(
         process.env.ALGOLIA_SEARCH_ONLY_API_KEY!,
         {
-             filters: 'status:pending_acceptance OR isPublic:true'
+             filters: 'status:pending OR isPublic:true'
         }
     );
 
@@ -209,10 +210,6 @@ export const createBet = onCall(async (request) => {
     if (!eventId || !eventDate || !homeTeam || !awayTeam || !betType || !chosenOption || !stakeAmount || !bookmakerKey || !odds || !period) {
         throw new HttpsError('invalid-argument', 'Missing required bet information.');
     }
-
-    if (isPublic === false && !twitterShareUrl) {
-        throw new HttpsError('invalid-argument', 'A twitter handle is required for a private challenge.');
-    }
     
     if (typeof stakeAmount !== 'number' || stakeAmount <= 0) {
         throw new HttpsError('invalid-argument', 'The wager amount must be a positive number.');
@@ -263,6 +260,10 @@ export const createBet = onCall(async (request) => {
 
         const betDocRef = db.collection('bets').doc(betId);
         transaction.set(betDocRef, newBet);
+
+        if (newBet.isPublic) {
+            await betsIndex.saveObject({ ...newBet, objectID: betId });
+        }
         
         functions.logger.log(`Bet ${betId} created by user ${creatorId}`);
         return { success: true, betId };
@@ -335,15 +336,35 @@ export const processBetOutcomes = onCall(async (request) => {
             if (result.status === 'Final') {
                 let winnerId: string | null = null;
                 const { home_score, away_score } = result;
-                const { homeTeam, awayTeam, creatorId, takerId, chosenOption } = betData;
+                const { homeTeam, awayTeam, creatorId, takerId, chosenOption, line, betType } = betData;
 
-                if (betData.betType === 'moneyline') {
-                     if (home_score > away_score) { // Home team won
-                        winnerId = chosenOption === homeTeam ? creatorId : takerId;
-                    } else if (away_score > home_score) { // Away team won
-                        winnerId = chosenOption === awayTeam ? creatorId : takerId;
+                if (betType === 'moneyline') {
+                    if (home_score > away_score && chosenOption === homeTeam) {
+                        winnerId = creatorId;
+                    } else if (away_score > home_score && chosenOption === awayTeam) {
+                        winnerId = creatorId;
+                    } else if (home_score > away_score && chosenOption !== homeTeam) {
+                         winnerId = takerId;
+                    } else if (away_score > home_score && chosenOption !== awayTeam) {
+                         winnerId = takerId;
                     }
-                    // if home_score === away_score, it's a push, winnerId remains null
+                } else if (betType === 'spread') {
+                    const creatorPickedHome = chosenOption === homeTeam;
+                    if (creatorPickedHome && (home_score + line) > away_score) {
+                        winnerId = creatorId;
+                    } else if (!creatorPickedHome && (away_score + line) > home_score) {
+                        winnerId = creatorId;
+                    } else {
+                        winnerId = takerId;
+                    }
+                } else if (betType === 'totals') {
+                     const totalScore = home_score + away_score;
+                     const creatorPickedOver = chosenOption === 'Over';
+                     if ((creatorPickedOver && totalScore > line) || (!creatorPickedOver && totalScore < line)) {
+                         winnerId = creatorId;
+                     } else if (totalScore !== line) { // Don't assign winner on push
+                         winnerId = takerId;
+                     }
                 }
                 
                 if (winnerId) {
@@ -367,6 +388,7 @@ export const processBetOutcomes = onCall(async (request) => {
                     await betDoc.ref.update({ status: 'resolved', outcome: 'draw', settledAt: Timestamp.now() });
                     processedCount++;
                 }
+                 await betsIndex.deleteObject(betId);
             }
         } catch (error) {
             functions.logger.error(`Failed to process outcome for bet ${betId}:`, error);
@@ -387,7 +409,7 @@ async function processPayout(data: { betId: string, winnerId: string | null, los
             const winnerDocRef = db.collection('users').doc(winnerId);
             const loserDocRef = db.collection('users').doc(loserId);
             const commission = stake * PLATFORM_COMMISSION_RATE;
-            const payoutToWinner = stake - commission; 
+            const payoutToWinner = stake * 2 - commission; 
 
             transaction.update(winnerDocRef, { 
                 walletBalance: FieldValue.increment(payoutToWinner),
@@ -633,7 +655,3 @@ export const getConsensusOdds = onCall(async (request) => {
         throw new HttpsError('internal', 'An unexpected error occurred while fetching consensus odds.');
     }
 });
-    
-    
-
-    
