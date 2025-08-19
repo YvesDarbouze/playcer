@@ -3,15 +3,11 @@
 
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { Input } from "@/components/ui/input";
 import { GameCard } from "./game-card";
 import { Search } from 'lucide-react';
 import { Button } from './ui/button';
 import type { Game } from '@/types';
-import { LoginButton } from './login-button';
-import { GameDetailsModal } from './game-details-modal';
-import { useRouter } from 'next/navigation';
 
 interface GameListProps {
     initialGames: Game[];
@@ -19,7 +15,6 @@ interface GameListProps {
 
 export function GameList({ initialGames }: GameListProps) {
     const [searchTerm, setSearchTerm] = useState('');
-    const router = useRouter();
 
     const filteredGames = useMemo(() => {
         if (!searchTerm) {
