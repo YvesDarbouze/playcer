@@ -56,7 +56,7 @@ const teamAbbreviationMap: Record<string, Record<string, string>> = {
     "Los Angeles Chargers": "LAC",
     "Los Angeles Rams": "LAR",
     "Miami Dolphins": "MIA",
-    "Minnesota Timberwolves": "MIN",
+    "Minnesota Vikings": "MIN",
     "New England Patriots": "NE",
     "New Orleans Saints": "NO",
     "New York Giants": "NYG",
@@ -121,12 +121,16 @@ const getLeaguePath = (mappedSportKey: string): string => {
 
 export const getTeamLogoUrl = (teamName: string, sportKey: string): string => {
   const mappedSportKey = getSportKeyForMapping(sportKey);
+  if (mappedSportKey === 'default') {
+      return `https://placehold.co/500x500.png`;
+  }
+  
   const league = getLeaguePath(mappedSportKey);
+  const abbreviations = teamAbbreviationMap[mappedSportKey];
   
   // Find the key in the map that includes the team name from the API
-  const abbreviations = teamAbbreviationMap[mappedSportKey] || {};
-  const teamKey = Object.keys(abbreviations).find(key => key.includes(teamName)) || teamName;
-  const abbreviation = abbreviations[teamKey];
+  const teamKey = Object.keys(abbreviations).find(key => key === teamName);
+  const abbreviation = teamKey ? abbreviations[teamKey] : null;
 
   if (abbreviation) {
     return `https://a.espncdn.com/i/teamlogos/${league}/500/${abbreviation}.png`;
