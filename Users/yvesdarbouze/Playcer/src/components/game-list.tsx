@@ -60,6 +60,16 @@ export function GameList({ initialGames }: GameListProps) {
                         <h1 className="text-5xl md:text-7xl font-headline font-black uppercase tracking-tighter text-white">Stop Arguing. Start Winning.</h1>
                         <p className="mt-4 text-lg md:text-xl text-muted-foreground">Peer to Peer Betting that makes sports betting personal</p>
                         <div className="mt-8 max-w-2xl mx-auto">
+                             <div className="relative">
+                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                                <Input
+                                    type="text"
+                                    placeholder="find your game"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="w-full pl-12 pr-4 py-6 text-lg bg-background/20 text-white placeholder:text-muted-foreground border-2 border-transparent focus:border-primary focus:bg-background/30"
+                                />
+                            </div>
                              <p className="mt-6 text-base max-w-xl mx-auto">
                                Tired of betting against the house? Playcer is the peer-to-peer app where you bet directly against friends and other fans. You set the odds, you make the challenge. It's just mano y mano.
                             </p>
