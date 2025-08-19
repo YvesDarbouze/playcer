@@ -43,7 +43,7 @@ export function GameList({ initialGames }: GameListProps) {
                 <header className="relative flex items-center justify-center h-[60vh] md:h-[80vh] text-center overflow-hidden">
                     <div className="absolute top-0 left-0 w-full h-full">
                          <video
-                            src="https://firebasestorage.googleapis.com/v0/b/playcer-xbv5e.firebasestorage.app/o/2_the_simplifier_202508150826.mp4?alt=media&token=f2cfef79-14a9-42e8-810d-86c5b14614a3"
+                            src="https://firebasestorage.googleapis.com/v0/b/playcer-xbv5e.firebasestorage.app/o/Make_an_8_202508191324.mp?alt=media&token=435948f8-379c-4ddd-82e7-64051a84c405"
                             autoPlay
                             loop
                             muted
