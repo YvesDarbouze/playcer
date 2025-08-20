@@ -6,12 +6,19 @@ import Pusher from 'pusher-js';
 
 const db = getFirestore();
 
-const API_KEY = '7ee3cc9f9898b050512990bd2baadddf';
-const API_BASE_URL = 'https://api.sportsgameodds.com/v2';
+// THIS IS A PUBLIC KEY FOR DEMONSTRATION. 
+// In a real app, you would use a secure key management strategy.
+const API_KEY = process.env.ODDS_API_KEY || '7ee3cc9f9898b050512990bd2baadddf';
+const API_BASE_URL = 'https://api.the-odds-api.com/v2';
 
 const activeStreams: Record<string, { pusher: Pusher, channel: any }> = {};
 
 async function connectToFeed(leagueID: string) {
+    if (activeStreams[leagueID]) {
+        functions.logger.log(`[STREAM] Stream for league ${leagueID} already active.`);
+        return;
+    }
+
     functions.logger.log(`[STREAM] Connecting to upcoming events for: ${leagueID}`);
 
     try {
@@ -23,8 +30,8 @@ async function connectToFeed(leagueID: string) {
             }
         });
 
-        if (!response.data || !response.data.success) {
-            throw new Error(`Failed to get stream config for ${leagueID}.`);
+        if (response.status !== 200 || !response.data?.success) {
+            throw new Error(`Failed to get stream config for ${leagueID}. Status: ${response.status}`);
         }
 
         const streamInfo = response.data;
@@ -33,7 +40,9 @@ async function connectToFeed(leagueID: string) {
         functions.logger.log(`[STREAM] Config for ${leagueID}: channel=${channelName}, initialEvents=${initialEvents.length}`);
 
         // Save initial data
-        await saveEventsToFirestore(initialEvents);
+        if(initialEvents && initialEvents.length > 0) {
+            await saveEventsToFirestore(initialEvents);
+        }
         
         const pusher = new Pusher(pusherKey, pusherOptions);
         
@@ -62,8 +71,8 @@ async function connectToFeed(leagueID: string) {
                      params: { eventIDs }
                 });
                 
-                if (!eventDataResponse.data || !eventDataResponse.data.success) {
-                    throw new Error(`Failed to fetch full event data for ${leagueID}.`);
+                if (eventDataResponse.status !== 200 || !eventDataResponse.data?.success) {
+                    throw new Error(`Failed to fetch full event data for ${leagueID}. Status: ${eventDataResponse.status}`);
                 }
                 await saveEventsToFirestore(eventDataResponse.data.data);
             } catch (error) {
@@ -85,6 +94,11 @@ async function saveEventsToFirestore(events: any[]) {
     functions.logger.log(`[FIRESTORE] Saving ${events.length} events to Firestore.`);
 
     for (const event of events) {
+        if (!event.eventID || !event.league || !event.teams.home?.names?.medium || !event.teams.away?.names?.medium) {
+            functions.logger.warn("[FIRESTORE] Skipping incomplete event data:", event);
+            continue;
+        }
+
         const gameRef = db.collection('games').doc(event.eventID);
         const gameDoc = {
             id: event.eventID,
@@ -94,8 +108,8 @@ async function saveEventsToFirestore(events: any[]) {
             home_team: event.teams.home.names.medium,
             away_team: event.teams.away.names.medium,
             is_complete: event.status.finished,
-            home_score: event.scores.home,
-            away_score: event.scores.away,
+            home_score: event.scores?.home ?? null,
+            away_score: event.scores?.away ?? null,
             last_update: Timestamp.now()
         };
         batch.set(gameRef, gameDoc, { merge: true });
@@ -111,7 +125,7 @@ async function saveEventsToFirestore(events: any[]) {
 
     try {
         await batch.commit();
-        functions.logger.log(`[FIRESTORE] Successfully saved ${events.length} events.`);
+        functions.logger.log(`[FIRESTORE] Successfully saved/updated ${events.length} events.`);
     } catch(error) {
         functions.logger.error(`[FIRESTORE] Error committing batch:`, error);
     }
@@ -122,7 +136,7 @@ export async function startStreaming() {
     try {
         // 1. Fetch all available sports
         const sportsResponse = await axios.get(`${API_BASE_URL}/sports`, { headers: { 'x-api-key': API_KEY } });
-        if (!sportsResponse.data || !sportsResponse.data.success) {
+        if (sportsResponse.status !== 200 || !sportsResponse.data.success) {
             throw new Error("Could not fetch sports list from API.");
         }
         const sports = sportsResponse.data.data;
@@ -130,23 +144,27 @@ export async function startStreaming() {
 
         // 2. For each sport, fetch its leagues
         for (const sport of sports) {
-            const leaguesResponse = await axios.get(`${API_BASE_URL}/leagues`, {
-                headers: { 'x-api-key': API_KEY },
-                params: { sportID: sport.sportID }
-            });
+            try {
+                const leaguesResponse = await axios.get(`${API_BASE_URL}/leagues`, {
+                    headers: { 'x-api-key': API_KEY },
+                    params: { sportID: sport.sportID }
+                });
 
-            if (!leaguesResponse.data || !leaguesResponse.data.success) {
-                 functions.logger.warn(`[STREAM] Could not fetch leagues for sport: ${sport.name}`);
-                 continue;
-            }
-            const leagues = leaguesResponse.data.data;
-            functions.logger.log(`[STREAM] Found ${leagues.length} leagues for sport ${sport.name}.`);
+                if (leaguesResponse.status !== 200 || !leaguesResponse.data.success) {
+                    functions.logger.warn(`[STREAM] Could not fetch leagues for sport: ${sport.name}`);
+                    continue;
+                }
+                const leagues = leaguesResponse.data.data;
+                functions.logger.log(`[STREAM] Found ${leagues.length} leagues for sport ${sport.name}.`);
 
-            // 3. For each league, connect to the feed
-            for (const league of leagues) {
-                // To avoid hitting rate limits and to manage connections, you might add
-                // a delay or a connection pooling mechanism here in a production environment.
-                await connectToFeed(league.leagueID);
+                // 3. For each league, connect to the feed
+                for (const league of leagues) {
+                    await connectToFeed(league.leagueID);
+                    // Add a delay between connection attempts to avoid overwhelming the API
+                    await new Promise(resolve => setTimeout(resolve, 500)); 
+                }
+            } catch (error: any) {
+                 functions.logger.error(`[STREAM] Error processing leagues for sport ${sport.name}:`, error.message);
             }
         }
     } catch (error: any) {
