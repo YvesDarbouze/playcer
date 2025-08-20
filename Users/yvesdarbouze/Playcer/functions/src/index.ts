@@ -7,7 +7,7 @@ import { HttpsError, onCall } from "firebase-functions/v2/https";
 import * as functions from "firebase-functions";
 import { v4 as uuidv4 } from "uuid";
 import * as algoliasearch from 'algoliasearch';
-import { generateBetImage as genBetImageFlow } from "../../ai/flows/generate-bet-image";
+import { generateBetImage } from "../../ai/flows/generate-bet-image";
 import fetch from "node-fetch";
 import Stripe from "stripe";
 import * as crypto from "crypto";
@@ -17,7 +17,6 @@ import { startStreaming } from "./stream";
 // Initialize Algolia client
 // Ensure you have set these environment variables in your Firebase project configuration
 const algoliaClient = algoliasearch.default(process.env.ALGOLIA_APP_ID!, process.env.ALGOLIA_API_KEY!);
-const betsIndex = algoliaClient.initIndex('bets');
 
 
 // Initialize Firebase Admin SDK
@@ -102,7 +101,7 @@ export const getAlgoliaSearchKey = onCall((request) => {
     const searchKey = algoliasearch.generateSecuredApiKey(
         process.env.ALGOLIA_SEARCH_ONLY_API_KEY!,
         {
-             filters: 'status:pending'
+             filters: 'status:pending_acceptance OR isPublic:true'
         }
     );
 
@@ -135,7 +134,7 @@ export const createBetPaymentIntent = onCall(async (request) => {
         return { success: true, clientSecret: paymentIntent.client_secret };
     } catch (error: any) {
         functions.logger.error(`Error creating payment intent for user ${uid}:`, error);
-        throw new HttpsError('internal', 'An internal error occurred while creating the payment intent.');
+        throw new HttpsError('internal', error.message);
     }
 });
 
@@ -178,7 +177,7 @@ export const handleDeposit = onCall(async (request) => {
 
     } catch (error: any) {
         functions.logger.error(`Error handling deposit for user ${uid}:`, error);
-        throw new HttpsError('internal', 'An internal error occurred while processing your deposit.');
+        throw new HttpsError('internal', error.message);
     }
 });
 
@@ -197,17 +196,19 @@ export const createBet = onCall(async (request) => {
         betType,
         stakeAmount,
         chosenOption,
-        line,
         isPublic,
         twitterShareUrl,
         bookmakerKey,
-        odds,
-        period,
+        odds
     } = request.data;
     
     // Basic validation
-    if (!eventId || !eventDate || !homeTeam || !awayTeam || !betType || !chosenOption || !stakeAmount || !bookmakerKey || !odds || !period) {
+    if (!eventId || !eventDate || !homeTeam || !awayTeam || !betType || !chosenOption || !stakeAmount || !bookmakerKey || !odds) {
         throw new HttpsError('invalid-argument', 'Missing required bet information.');
+    }
+
+    if (isPublic === false && !twitterShareUrl) {
+        throw new HttpsError('invalid-argument', 'A twitter handle is required for a private challenge.');
     }
     
     if (typeof stakeAmount !== 'number' || stakeAmount <= 0) {
@@ -243,7 +244,6 @@ export const createBet = onCall(async (request) => {
             stakeAmount,
             betType,
             chosenOption,
-            line: line ?? null,
             status: 'pending',
             isPublic: isPublic,
             twitterShareUrl: twitterShareUrl || null,
@@ -254,15 +254,10 @@ export const createBet = onCall(async (request) => {
             outcome: null,
             bookmakerKey,
             odds,
-            period,
         };
 
         const betDocRef = db.collection('bets').doc(betId);
         transaction.set(betDocRef, newBet);
-
-        if (newBet.isPublic) {
-            await betsIndex.saveObject({ ...newBet, objectID: betId });
-        }
         
         functions.logger.log(`Bet ${betId} created by user ${creatorId}`);
         return { success: true, betId };
@@ -304,7 +299,7 @@ export const acceptBet = onCall(async (request) => {
 
     } catch (error: any) {
         functions.logger.error(`Error creating recipient payment intent for bet ${betId}:`, error);
-        throw new HttpsError('internal', 'An internal error occurred while creating the payment intent.');
+        throw new HttpsError('internal', error.message);
     }
 });
 
@@ -335,39 +330,19 @@ export const processBetOutcomes = onCall(async (request) => {
             if (result.status === 'Final') {
                 let winnerId: string | null = null;
                 const { home_score, away_score } = result;
-                const { homeTeam, awayTeam, creatorId, takerId, chosenOption, line, betType } = betData;
+                const { homeTeam } = betData;
 
-                if (betType === 'moneyline') {
-                    if (home_score > away_score && chosenOption === homeTeam) {
-                        winnerId = creatorId;
-                    } else if (away_score > home_score && chosenOption === awayTeam) {
-                        winnerId = creatorId;
-                    } else if (home_score > away_score && chosenOption !== homeTeam) {
-                         winnerId = takerId;
-                    } else if (away_score > home_score && chosenOption !== awayTeam) {
-                         winnerId = takerId;
-                    }
-                } else if (betType === 'spread') {
-                    const creatorPickedHome = chosenOption === homeTeam;
-                    if (creatorPickedHome && (home_score + line) > away_score) {
-                        winnerId = creatorId;
-                    } else if (!creatorPickedHome && (away_score + line) > home_score) {
-                        winnerId = creatorId;
+                if (betData.betType === 'moneyline') {
+                    const winningTeamName = home_score > away_score ? homeTeam : betData.awayTeam;
+                    if (betData.chosenOption === winningTeamName) {
+                        winnerId = betData.creatorId;
                     } else {
-                        winnerId = takerId;
+                        winnerId = betData.takerId;
                     }
-                } else if (betType === 'totals') {
-                     const totalScore = home_score + away_score;
-                     const creatorPickedOver = chosenOption === 'Over';
-                     if ((creatorPickedOver && totalScore > line) || (!creatorPickedOver && totalScore < line)) {
-                         winnerId = creatorId;
-                     } else if (totalScore !== line) { // Don't assign winner on push
-                         winnerId = takerId;
-                     }
-                }
+                } 
                 
                 if (winnerId) {
-                    const loserId = winnerId === creatorId ? takerId : creatorId;
+                    const loserId = winnerId === betData.creatorId ? betData.takerId : betData.creatorId;
                     await processPayout({ 
                         betId, 
                         winnerId, 
@@ -377,7 +352,6 @@ export const processBetOutcomes = onCall(async (request) => {
                     await betDoc.ref.update({ status: 'resolved', winnerId, loserId, outcome: 'win', settledAt: Timestamp.now() });
                     processedCount++;
                 } else {
-                    // This is a PUSH. Handle refunding both parties.
                      await processPayout({ 
                         betId, 
                         winnerId: null, 
@@ -387,7 +361,6 @@ export const processBetOutcomes = onCall(async (request) => {
                     await betDoc.ref.update({ status: 'resolved', outcome: 'draw', settledAt: Timestamp.now() });
                     processedCount++;
                 }
-                 await betsIndex.deleteObject(betId);
             }
         } catch (error) {
             functions.logger.error(`Failed to process outcome for bet ${betId}:`, error);
@@ -404,11 +377,10 @@ async function processPayout(data: { betId: string, winnerId: string | null, los
     
     await db.runTransaction(async (transaction) => {
         if(winnerId && loserId) {
-            // Standard win/loss scenario
             const winnerDocRef = db.collection('users').doc(winnerId);
             const loserDocRef = db.collection('users').doc(loserId);
             const commission = stake * PLATFORM_COMMISSION_RATE;
-            const payoutToWinner = stake * 2 - commission; 
+            const payoutToWinner = stake - commission; 
 
             transaction.update(winnerDocRef, { 
                 walletBalance: FieldValue.increment(payoutToWinner),
@@ -425,27 +397,13 @@ async function processPayout(data: { betId: string, winnerId: string | null, los
                 userId: winnerId, type: 'bet_payout', amount: payoutToWinner, status: 'completed', relatedBetId: betId, createdAt: Timestamp.now()
             });
         } else {
-            // This is a PUSH (tie/draw). Refund both users.
+            // This is a PUSH. Refund both users.
             const betDoc = await transaction.get(db.collection('bets').doc(betId));
-            if (!betDoc.exists) return; // Should not happen in this flow
             const betData = betDoc.data()!;
-            
             const creatorDocRef = db.collection('users').doc(betData.creatorId);
             const takerDocRef = db.collection('users').doc(betData.takerId);
-            
-            // Increment wallet balances for both users by the stake amount
             transaction.update(creatorDocRef, { walletBalance: FieldValue.increment(stake), totalBets: FieldValue.increment(1) });
             transaction.update(takerDocRef, { walletBalance: FieldValue.increment(stake), totalBets: FieldValue.increment(1) });
-            
-            // Log the refund transactions
-            const creatorTxId = db.collection('transactions').doc().id;
-            const takerTxId = db.collection('transactions').doc().id;
-             transaction.set(db.collection('transactions').doc(creatorTxId), {
-                userId: betData.creatorId, type: 'bet_payout', amount: stake, status: 'completed', relatedBetId: betId, createdAt: Timestamp.now()
-            });
-             transaction.set(db.collection('transactions').doc(takerTxId), {
-                userId: betData.takerId, type: 'bet_payout', amount: stake, status: 'completed', relatedBetId: betId, createdAt: Timestamp.now()
-            });
         }
     });
 
@@ -458,7 +416,7 @@ export const generateBetImage = onCall(async (request) => {
     }
 
     try {
-        const result = await genBetImageFlow(request.data);
+        const result = await generateBetImage(request.data);
         return result;
     } catch(e: any) {
         functions.logger.error('Error generating bet image', e);
@@ -549,8 +507,6 @@ export const stripeWebhook = functions.https.onRequest(async (request, response)
                         takerUsername: takerData.username,
                         takerPhotoURL: takerData.photoURL,
                     });
-
-                    await betsIndex.partialUpdateObject({ status: 'accepted', objectID: betId });
                 });
                 functions.logger.log(`Bet ${betId} successfully activated.`);
             }
@@ -619,40 +575,6 @@ export const kycWebhook = functions.https.onRequest(async (request, response) =>
 
     response.status(200).send({ received: true });
 });
-
-export const getConsensusOdds = onCall(async (request) => {
-    if (!request.auth) {
-        throw new HttpsError('unauthenticated', 'You must be logged in to perform this action.');
-    }
-    const { gameId } = request.data;
-    if (!gameId) {
-        throw new HttpsError('invalid-argument', 'A gameId must be provided.');
-    }
     
-    const API_KEY = process.env.ODDS_API_KEY || '7ee3cc9f9898b050512990bd2baadddf';
-    const API_BASE_URL = 'https://api.sportsgameodds.com/v2';
     
-    try {
-        const response = await fetch(`${API_BASE_URL}/events?eventIDs=${gameId}`, {
-             headers: { 'x-api-key': API_KEY },
-        });
 
-        if (!response.ok) {
-            throw new HttpsError('internal', `Failed to fetch event data. Status: ${response.status}`);
-        }
-        
-        const eventData = await response.json();
-
-        if (!eventData.success || !eventData.data || eventData.data.length === 0) {
-            throw new HttpsError('not-found', 'Could not find event data for the given ID.');
-        }
-
-        return { success: true, data: eventData.data[0] };
-    } catch(e: any) {
-        functions.logger.error(`Error fetching consensus odds for game ${gameId}:`, e);
-        if (e instanceof HttpsError) {
-            throw e;
-        }
-        throw new HttpsError('internal', 'An unexpected error occurred while fetching consensus odds.');
-    }
-});

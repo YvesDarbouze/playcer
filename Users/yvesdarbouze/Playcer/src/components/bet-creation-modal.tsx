@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import * as React from "react";
@@ -48,7 +47,7 @@ interface BookmakerOdds {
 type SelectedBet = {
     betType: "moneyline" | "spread" | "totals";
     chosenOption: string;
-    line: number | null;
+    line?: number;
     odds: number;
     bookmakerKey: string;
 }
@@ -246,7 +245,7 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet }: B
                             <OddsInfo label="Wager" value={`$${stakeAmount.toFixed(2)}`} />
                             <OddsInfo label="Potential Winnings" value={`$${potentialWinnings}`} />
                             <Separator />
-                            <OddsInfo label="Potential Payout" value={`$${potentialPayout}`} />
+                            <OddsInfo label="Total Payout" value={`$${potentialPayout}`} />
                          </div>
 
                     </form>
@@ -319,6 +318,7 @@ export function BetCreationModal(props: BetCreationModalProps) {
         return null;
     }
     
+    // Pass an empty object to options if you don't have specific options to set
     return (
         <Elements stripe={stripePromise} options={{}}>
             <BetCreationModalInternal {...props} />

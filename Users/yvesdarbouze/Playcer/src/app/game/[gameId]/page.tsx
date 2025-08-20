@@ -298,8 +298,6 @@ export default function GameDetailsPage({ params }: { params: { gameId: string }
             isOpen={isBetModalOpen}
             onOpenChange={setIsBetModalOpen}
             game={game}
-            odds={odds}
-            loadingOdds={loading}
             selectedBet={selectedBet}
           />
       )}

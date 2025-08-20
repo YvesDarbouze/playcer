@@ -1,5 +1,4 @@
 
-
 import type { Timestamp } from "firebase/firestore";
 
 export type Court = {
@@ -27,7 +26,7 @@ export type User = {
   username: string; // This is the Twitter handle
   photoURL: string;
   email?: string;
-  createdAt: string; // ISO string
+  createdAt: Timestamp;
   walletBalance: number;
   wins: number;
   losses: number;
@@ -46,8 +45,8 @@ export type User = {
   };
   selfExclusion: {
     isActive: boolean;
-    startDate: string | null; // ISO string
-    endDate: string | null; // ISO string, null for permanent
+    startDate: Timestamp | null;
+    endDate: Timestamp | null; // null for permanent
   };
 };
 
@@ -55,7 +54,7 @@ export type Game = {
   id: string;
   sport_key: string;
   sport_title: string;
-  commence_time: string; // ISO string
+  commence_time: string;
   home_team: string;
   away_team: string;
   home_score?: number;
@@ -79,36 +78,39 @@ export type Game = {
 
 export type Bet = {
   id: string;
-  eventId: string;
-  eventDate: string; // ISO string
-  homeTeam: string;
-  awayTeam: string;
-  creatorId: string;
-  takerId: string | null;
-  creatorUsername: string;
-  creatorPhotoURL: string;
-  takerUsername: string | null;
-  takerPhotoURL: string | null;
-  stakeAmount: number;
+  gameId: string;
+  gameDetails: {
+    home_team: string;
+    away_team: string;
+    commence_time: string; // Should be string for serialization
+    sport_key: string;
+  };
+  challengerId: string;
+  recipientId: string | null;
+  challengerUsername: string;
+  challengerPhotoURL: string;
+  recipientTwitterHandle: string | null;
+  wagerAmount: number;
   betType: "moneyline" | "spread" | "totals";
-  chosenOption: string; // e.g., 'Los Angeles Rams', 'Over', 'Under'
-  line: number | null; // for spreads and totals, e.g., -7.5, 55.5
-  status: "pending" | "accepted" | "resolved" | "cancelled" | "void";
-  isPublic: boolean;
-  twitterShareUrl: string | null;
-  outcome: 'win' | 'loss' | 'draw' | null;
+  betValue: {
+    team?: string; // For moneyline or spread
+    points?: number; // For spread
+    over_under?: "over" | "under"; // For totals
+    total?: number; // for totals
+  };
+  status: "pending_acceptance" | "active" | "completed" | "declined" | "expired" | 'void';
+  challengerPaymentIntentId: string;
+  recipientPaymentIntentId: string | null;
   winnerId: string | null;
-  loserId: string | null;
-  createdAt: string; // ISO string
-  settledAt: string | null; // ISO string
-  bookmakerKey: string;
-  odds: number;
-  period: string;
+  createdAt: Date;
+  settledAt: Date | null;
+  isPublic: boolean;
+  recipientUsername?: string; 
+  recipientPhotoURL?: string; 
 };
 
-
 export type UserBet = {
-  betRef: string; 
+  betRef: string; // In Firestore, this is a DocumentReference, but we use its path string in the app
   role: "creator" | "taker";
   createdAt: Timestamp;
 };
@@ -121,7 +123,7 @@ export type Transaction = {
   status: "pending" | "completed" | "failed";
   relatedBetId?: string;
   gatewayTransactionId?: string;
-  createdAt: string; // ISO string
+  createdAt: Date;
 };
 
 export type Dispute = {
@@ -137,3 +139,5 @@ export type Dispute = {
   } | null;
   createdAt: Timestamp;
 };
+
+    

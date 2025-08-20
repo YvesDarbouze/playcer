@@ -1,82 +1,53 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // --- Helper Functions ---
-    function isSignedIn() {
-      return request.auth != null;
-    }
 
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-    
-    function getUserData(userId) {
-      return get(/databases/$(database)/documents/users/$(userId)).data;
-    }
-
-    function isKycVerified(userId) {
-        return getUserData(userId).kycStatus == 'verified';
-    }
-
-
-    // --- Collections ---
-
+    // Users can read public profile info, but only write to their own document.
     match /users/{userId} {
-      // Anyone can read a user's public profile data
-      allow get: if true;
-      // Only the user themselves can create their profile or update it
-      allow create, update: if isOwner(userId);
-      // Users cannot be deleted from the client
-      allow delete: if false;
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId;
     }
 
+    // Game data is public, but only backend can write to it.
     match /games/{gameId} {
-      // All game and odds data is public
-      allow get: if true;
-      allow list: if true;
-
-      // Only backend processes can write game data
-      allow write: if false;
-
+      allow read: if true;
+      allow write: if false; // Only backend services can write
+      
+      // Odds data is also public
       match /bookmaker_odds/{bookmakerId} {
-        allow get: if true;
-        allow list: if true;
-        allow write: if false;
+        allow read: if true;
+        allow write: if false; // Only backend services can write
       }
     }
-
+    
     match /bets/{betId} {
-      // Only signed-in users who are KYC verified can create bets
-      allow create: if isSignedIn() && isKycVerified(request.auth.uid);
+      // Allow creation of a bet if the user is authenticated
+      allow create: if request.auth != null;
       
-      // Allow read access for creator, taker, or if the bet is public and pending
-      allow get: if isSignedIn() && 
-                    (resource.data.creatorId == request.auth.uid || 
-                     resource.data.takerId == request.auth.uid ||
-                     (resource.data.isPublic == true && resource.data.status == 'pending'));
-                     
-      allow list: if isSignedIn();
-
-      // Only the intended taker can update a bet to accept it
-      // Other status updates are handled by backend functions
-      allow update: if isSignedIn() &&
-                       request.resource.data.takerId == request.auth.uid &&
-                       resource.data.takerId == null &&
-                       resource.data.status == 'pending';
-                       
-      // Bets cannot be deleted from the client
+      // Allow read access if:
+      // 1. The bet is public
+      // 2. The user is the creator of the bet
+      // 3. The user is the taker of the bet
+      allow read: if request.auth != null && 
+                    (resource.data.isPublic == true || 
+                     request.auth.uid == resource.data.creatorId || 
+                     request.auth.uid == resource.data.takerId);
+      
+      // Allow updates only by the intended taker to accept the bet
+      allow update: if request.auth != null && 
+                      request.auth.uid == request.resource.data.takerId && 
+                      resource.data.takerId == null;
+                      
+      // Disallow direct deletion from clients
       allow delete: if false;
     }
 
+    // Users can only read their own transactions. No client-side writes.
     match /transactions/{transactionId} {
-      // Users can only read their own transactions
-      allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow list: if isSignedIn() && request.query.where.size() > 0 && request.query.where[0][2] == request.auth.uid;
-      
-      // Transactions are only created by the backend
-      allow write: if false;
+      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow create, update, delete: if false;
     }
   }
 }
