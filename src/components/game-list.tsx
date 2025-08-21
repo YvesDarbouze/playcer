@@ -1,20 +1,30 @@
 
 "use client";
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { Input } from "@/components/ui/input";
 import { GameCard } from "./game-card";
 import { Search } from 'lucide-react';
 import { Button } from './ui/button';
 import type { Game } from '@/types';
+import { getClientGames } from '@/lib/games';
+import { Skeleton } from './ui/skeleton';
 
-interface GameListProps {
-    initialGames: Game[];
-}
-
-export function GameList({ initialGames }: GameListProps) {
+export function GameList() {
+    const [initialGames, setInitialGames] = useState<Game[]>([]);
+    const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+
+    useEffect(() => {
+        const fetchGames = async () => {
+            setLoading(true);
+            const games = await getClientGames();
+            setInitialGames(games);
+            setLoading(false);
+        };
+        fetchGames();
+    }, []);
 
     const filteredGames = useMemo(() => {
         if (!searchTerm) {
@@ -32,13 +42,40 @@ export function GameList({ initialGames }: GameListProps) {
         </svg>
     );
 
+    const renderGameGrid = () => {
+        if (loading) {
+            return (
+                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {[...Array(8)].map((_, i) => <Skeleton key={i} className="h-64 w-full" />)}
+                </div>
+            )
+        }
+        if (filteredGames.length > 0) {
+            return (
+                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {filteredGames.map(game => (
+                        <GameCard game={game} key={game.id} />
+                    ))}
+                </div>
+            )
+        }
+        return (
+            <div className="text-center py-16">
+                <h2 className="text-xl font-bold">No Games Found</h2>
+                <p className="text-muted-foreground mt-2">
+                    There are no upcoming games to display. Check back later!
+                </p>
+            </div>
+        )
+    }
+
     return (
         <>
             <div>
                 <header className="relative flex items-center justify-center h-[60vh] md:h-[80vh] text-center overflow-hidden">
                     <div className="absolute top-0 left-0 w-full h-full">
                          <video
-                            src="https://firebasestorage.googleapis.com/v0/b/playcer-xbv5e.appspot.com/o/Make_an_8_202508191324.mp4?alt=media&token=435948f8-379c-4ddd-82e7-64051a84c405"
+                            src="https://firebasestorage.googleapis.com/v0/b/playcer-xbv5e.appspot.com/o/pexels-pavel-danilyuk-5495292%20(2160p).mp4?alt=media&token=27f40776-5a4a-4c27-9005-9942a6c1b353"
                             autoPlay
                             loop
                             muted
@@ -79,20 +116,7 @@ export function GameList({ initialGames }: GameListProps) {
                 
                 <div className="container mx-auto py-12">
                      <h2 className="text-3xl font-bold mb-6">Upcoming Games</h2>
-                    {filteredGames.length > 0 ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                            {filteredGames.map(game => (
-                                <GameCard game={game} key={game.id} />
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="text-center py-16">
-                            <h2 className="text-xl font-bold">No Games Found</h2>
-                            <p className="text-muted-foreground mt-2">
-                                There are no upcoming games to display.
-                            </p>
-                        </div>
-                    )}
+                    {renderGameGrid()}
                 </div>
             </div>
         </>

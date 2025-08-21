@@ -1,13 +1,12 @@
 
+"use client";
+
 import { GameList } from "@/components/game-list";
-import { getGames } from "@/lib/games";
 
-
-export default async function HomePage() {
-  const games = await getGames();
+export default function HomePage() {
   return (
     <main>
-      <GameList initialGames={games} />
+      <GameList />
     </main>
   );
 }

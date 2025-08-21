@@ -6,7 +6,7 @@ let app: admin.app.App | undefined;
 // This ensures we initialize the app only once
 if (!admin.apps.length) {
   try {
-    // Check if the necessary environment variables are set
+    // Check if the necessary environment variables are set for a server environment
     if (process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
         app = admin.initializeApp({
             credential: admin.credential.cert({
@@ -16,10 +16,13 @@ if (!admin.apps.length) {
                 privateKey: (process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
             }),
         });
-    } else {
-        // This will allow the app to run in environments where server-side admin credentials are not provided (like client-side rendering)
-        // The functions that need admin SDK will then handle the uninitialized case.
-        console.warn("Firebase Admin credentials are not set. Skipping admin initialization.");
+    } else if (process.env.FUNCTIONS_EMULATOR) {
+        // This is a fallback for local development with Firebase Emulators
+        app = admin.initializeApp();
+    }
+    else {
+        // This log is helpful for debugging server-side rendering issues
+        console.warn("Firebase Admin SDK not initialized. Required credentials (e.g., FIREBASE_CLIENT_EMAIL) are not set. This is normal for client-side rendering but will fail in a server context.");
     }
   } catch (error: any) {
     console.error('Firebase admin initialization error', error.stack);
