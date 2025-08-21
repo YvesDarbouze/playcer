@@ -2,13 +2,11 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { signInWithPopup } from "firebase/auth";
-import { auth, twitterProvider } from "@/lib/firebase";
-import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
-
+import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
+
 
 const TwitterIcon = (props: React.SVGProps<SVGSVGElement>) => (
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" {...props}>
@@ -22,31 +20,16 @@ interface SignInFormProps {
 
 export function SignInForm({ onSignInSuccess }: SignInFormProps) {
   const [isLoading, setIsLoading] = useState(false);
-  const router = useRouter();
-  const { toast } = useToast();
+  const { signIn } = useAuth();
+
 
   const handleSocialSignIn = async () => {
     setIsLoading(true);
-    try {
-      await signInWithPopup(auth, twitterProvider);
-      toast({
-          title: "Sign-in Successful",
-          description: "Welcome back!",
-      });
-      if(onSignInSuccess) {
-          onSignInSuccess();
-      } else {
-        router.push("/dashboard");
-      }
-    } catch (error: any) {
-       toast({
-        title: "Sign-in Failed",
-        description: "Could not sign in at this time. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
+    await signIn();
+    if (onSignInSuccess) {
+      onSignInSuccess();
     }
+    // No need to set loading to false as the page will redirect
   };
 
   return (
@@ -57,7 +40,7 @@ export function SignInForm({ onSignInSuccess }: SignInFormProps) {
             onClick={handleSocialSignIn} 
             disabled={isLoading}
         >
-          {isLoading ? ( "Redirecting to Twitter..." ) : ( <> <TwitterIcon className="mr-2" /> Sign in with Twitter </> )}
+          {isLoading ? ( <> <Loader2 className="mr-2 animate-spin" /> Redirecting... </> ) : ( <> <TwitterIcon className="mr-2" /> Sign in with Twitter </> )}
         </Button>
         <div className="mt-4 text-center text-sm">
           No account?{" "}

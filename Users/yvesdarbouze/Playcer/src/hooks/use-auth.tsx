@@ -3,26 +3,31 @@
 
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import type { User as FirebaseUser } from 'firebase/auth';
-import { auth, signOut as firebaseSignOut, storage } from '@/lib/firebase';
-import { onAuthStateChanged, getIdTokenResult, updateProfile } from 'firebase/auth';
+import { auth, signOut as firebaseSignOut, storage, twitterProvider } from '@/lib/firebase';
+import { onAuthStateChanged, getIdTokenResult, updateProfile, signInWithPopup } from 'firebase/auth';
 import { doc, getDoc, getFirestore, Timestamp, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { useToast } from './use-toast';
+import { useRouter } from 'next/navigation';
+
+const REDIRECT_URL_KEY = 'authRedirectUrl';
 
 interface AuthContextType {
   user: FirebaseUser | null;
   loading: boolean;
   claims: { [key: string]: any } | null;
-  updateUserProfileImage: (file: File) => Promise<void>;
+  signIn: () => Promise<void>;
   signOut: () => Promise<void>;
+  updateUserProfileImage: (file: File) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({ 
     user: null, 
     loading: true, 
     claims: null, 
+    signIn: async () => {},
+    signOut: async () => {},
     updateUserProfileImage: async () => {},
-    signOut: async () => {}
 });
 
 // Helper to check self-exclusion status
@@ -57,12 +62,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [claims, setClaims] = useState<{ [key: string]: any } | null>(null);
   const { toast } = useToast();
+  const router = useRouter();
+  
+  const handleSignIn = async () => {
+    sessionStorage.setItem(REDIRECT_URL_KEY, window.location.href);
+    try {
+      await signInWithPopup(auth, twitterProvider);
+      // The onAuthStateChanged listener will handle the redirect
+    } catch (error: any) {
+       toast({
+        title: "Sign-in Failed",
+        description: "Could not sign in at this time. Please try again.",
+        variant: "destructive",
+      });
+      sessionStorage.removeItem(REDIRECT_URL_KEY);
+    }
+  };
 
   const handleSignOut = async () => {
     try {
         await firebaseSignOut(auth);
         setUser(null);
         setClaims(null);
+        router.push('/');
     } catch (error) {
         console.error("Error signing out: ", error);
         toast({ title: "Error", description: "Failed to sign out.", variant: "destructive" });
@@ -86,6 +108,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const idTokenResult = await getIdTokenResult(user);
             setUser(user);
             setClaims(idTokenResult.claims);
+
+            const redirectUrl = sessionStorage.getItem(REDIRECT_URL_KEY);
+            if (redirectUrl) {
+                sessionStorage.removeItem(REDIRECT_URL_KEY);
+                router.replace(redirectUrl);
+            }
         }
       } else {
         setUser(null);
@@ -95,7 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     return () => unsubscribe();
-  }, [toast]);
+  }, [toast, router]);
 
   const updateUserProfileImage = async (file: File) => {
     if (!user) {
@@ -136,7 +164,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, claims, updateUserProfileImage, signOut: handleSignOut }}>
+    <AuthContext.Provider value={{ user, loading, claims, signIn: handleSignIn, signOut: handleSignOut, updateUserProfileImage }}>
       {children}
     </AuthContext.Provider>
   );

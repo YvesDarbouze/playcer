@@ -16,19 +16,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { LogOut, User, Shield } from "lucide-react";
-import { LoginModal } from "./login-modal";
-
+import { LogIn, LogOut, User, Shield } from "lucide-react";
 
 export function LoginButton() {
-  const { user, loading, claims, signOut } = useAuth();
+  const { user, loading, claims, signOut, signIn } = useAuth();
   const router = useRouter();
-  const [isLoginModalOpen, setIsLoginModalOpen] = React.useState(false);
-
-  const handleSignOut = async () => {
-    await signOut();
-    router.push('/');
-  };
 
   if (loading) {
     return <Skeleton className="h-10 w-24" />;
@@ -36,10 +28,10 @@ export function LoginButton() {
 
   if (!user) {
     return (
-      <>
-        <Button onClick={() => setIsLoginModalOpen(true)}>Login</Button>
-        <LoginModal isOpen={isLoginModalOpen} onOpenChange={setIsLoginModalOpen} />
-      </>
+        <Button onClick={signIn}>
+            <LogIn className="mr-2" />
+            Login
+        </Button>
     );
   }
 
@@ -75,7 +67,7 @@ export function LoginButton() {
           </DropdownMenuItem>
         )}
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={handleSignOut}>
+        <DropdownMenuItem onClick={signOut}>
             <LogOut className="mr-2" />
             Sign out
         </DropdownMenuItem>

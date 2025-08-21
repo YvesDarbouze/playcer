@@ -16,13 +16,13 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { Handshake, Swords, Twitter, Loader2 } from "lucide-react";
+import { Handshake, Swords, Twitter, Loader2, LogIn } from "lucide-react";
 import type { Bet } from "@/types";
 import { cn } from "@/lib/utils";
-import { LoginButton } from "./login-button";
 import { useToast } from "@/hooks/use-toast";
 import { useStripe, useElements, PaymentElement } from "@stripe/react-stripe-js";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/hooks/use-auth";
 
 
 interface BetChallengeCardProps {
@@ -67,6 +67,7 @@ export function BetChallengeCard({
   const elements = useElements();
   const router = useRouter();
   const { toast } = useToast();
+  const { signIn } = useAuth();
   const [isFinalizing, setIsFinalizing] = React.useState(false);
 
   const isCreator = currentUser && currentUser.uid === bet.creatorId;
@@ -139,11 +140,13 @@ export function BetChallengeCard({
             </div>
         )
     }
-    if (!currentUser) {
-        return <div className="flex flex-col gap-2 items-center">
-            <p className="text-sm text-muted-foreground">You must be logged in to participate.</p>
-            <LoginButton />
-        </div>
+     if (!currentUser && bet.status === 'pending_acceptance') {
+        return (
+            <Button onClick={signIn} className="w-full" size="lg">
+                <LogIn className="mr-2" />
+                Login to Accept
+            </Button>
+        );
     }
     if (canAccept) {
       return (
