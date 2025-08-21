@@ -1,5 +1,4 @@
 
-
 import type { Timestamp } from "firebase/firestore";
 
 export type Court = {
@@ -79,35 +78,30 @@ export type Game = {
 
 export type Bet = {
   id: string;
-  gameId: string;
-  gameDetails: {
-    home_team: string;
-    away_team: string;
-    commence_time: string; // Should be string for serialization
-    sport_key: string;
-  };
-  challengerId: string;
-  recipientId: string | null;
-  challengerUsername: string;
-  challengerPhotoURL: string;
-  recipientTwitterHandle: string | null;
-  wagerAmount: number;
+  eventId: string;
+  eventDate: string; // ISO string
+  homeTeam: string;
+  awayTeam: string;
+  creatorId: string;
+  takerId: string | null;
+  creatorUsername: string;
+  creatorPhotoURL: string;
+  takerUsername: string | null;
+  takerPhotoURL: string | null;
+  stakeAmount: number;
   betType: "moneyline" | "spread" | "totals";
-  betValue: {
-    team?: string; // For moneyline or spread
-    points?: number; // For spread
-    over_under?: "over" | "under"; // For totals
-    total?: number; // for totals
-  };
-  status: "pending_acceptance" | "active" | "completed" | "declined" | "expired" | 'void';
-  challengerPaymentIntentId: string;
-  recipientPaymentIntentId: string | null;
-  winnerId: string | null;
-  createdAt: Date;
-  settledAt: Date | null;
+  chosenOption: string; // e.g., 'Los Angeles Lakers' or 'Over'
+  line?: number; // e.g., -7.5 for spread, 210.5 for totals
+  odds: number; // American odds, e.g., -110
+  bookmakerKey: string;
+  status: "pending_acceptance" | "accepted" | "resolved" | "void";
   isPublic: boolean;
-  recipientUsername?: string; 
-  recipientPhotoURL?: string; 
+  twitterShareUrl: string | null;
+  winnerId: string | null;
+  loserId: string | null;
+  outcome: 'win' | 'loss' | 'draw' | null;
+  createdAt: string; // ISO string
+  settledAt: string | null; // ISO string
 };
 
 export type UserBet = {
@@ -140,5 +134,3 @@ export type Dispute = {
   } | null;
   createdAt: Timestamp;
 };
-
-    

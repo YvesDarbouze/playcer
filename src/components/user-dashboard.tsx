@@ -11,10 +11,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UserBetsTable } from "./user-bets-table";
-import { Banknote, Trophy, ShieldHalf, Swords, Hourglass, LifeBuoy, ShieldCheck, PlusCircle, Store, Upload } from "lucide-react";
+import { Banknote, Trophy, ShieldHalf, Swords, Hourglass, LifeBuoy, ShieldCheck, PlusCircle, Store, Upload, BarChart } from "lucide-react";
 import Link from 'next/link';
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RankingTable } from "./ranking-table";
 
 
 const convertToBet = (doc: any): Bet => {
@@ -22,18 +23,15 @@ const convertToBet = (doc: any): Bet => {
     return {
         id: doc.id,
         ...data,
-        gameDetails: {
-            ...data.gameDetails,
-            commence_time: (data.gameDetails.commence_time as Timestamp).toDate(),
-        },
-        createdAt: (data.createdAt as Timestamp).toDate(),
-        settledAt: data.settledAt ? (data.settledAt as Timestamp).toDate() : null,
-    } as Bet;
+        eventDate: (data.eventDate as Timestamp).toDate().toISOString(),
+        createdAt: (data.createdAt as Timestamp).toDate().toISOString(),
+        settledAt: data.settledAt ? (data.settledAt as Timestamp).toDate().toISOString() : null,
+    } as unknown as Bet;
 };
 
 
 export function UserDashboard() {
-    const { user: authUser, updateUserProfileImage } = useAuth();
+    const { user: authUser, loading: authLoading, updateUserProfileImage } = useAuth();
     const [userProfile, setUserProfile] = React.useState<User | null>(null);
     const [bets, setBets] = React.useState<Bet[]>([]);
     const [loading, setLoading] = React.useState(true);
@@ -53,13 +51,13 @@ export function UserDashboard() {
                 setUserProfile({ id: userDocSnap.id, ...userDocSnap.data() } as User);
             }
             
-            // Fetch all bets where user is challenger or recipient
+            // Fetch all bets where user is creator OR taker
             const betsRef = collection(db, "bets");
             const q = query(
                 betsRef, 
                 or(
-                    where("challengerId", "==", authUser.uid),
-                    where("recipientId", "==", authUser.uid)
+                    where("creatorId", "==", authUser.uid),
+                    where("takerId", "==", authUser.uid)
                 ),
                 orderBy("createdAt", "desc")
             );
@@ -73,17 +71,10 @@ export function UserDashboard() {
 
         fetchData();
     }, [authUser]);
-
-    // This effect ensures the local userProfile state updates when the photoURL in the auth context changes.
-    React.useEffect(() => {
-        if (authUser && userProfile && authUser.photoURL !== userProfile.photoURL) {
-            setUserProfile(prev => prev ? { ...prev, photoURL: authUser.photoURL! } : null);
-        }
-    }, [authUser, userProfile]);
     
-    const pendingBets = bets.filter(b => b.status === 'pending_acceptance');
-    const activeBets = bets.filter(b => b.status === 'active');
-    const historyBets = bets.filter(b => b.status === 'completed' || b.status === 'void' || b.status === 'declined' || b.status === 'expired');
+    const pendingBets = bets.filter(b => b.status === 'pending_acceptance' && b.creatorId === authUser?.uid);
+    const activeBets = bets.filter(b => b.status === 'accepted');
+    const historyBets = bets.filter(b => b.status === 'resolved' || b.status === 'void');
 
     const handleAvatarClick = () => {
         fileInputRef.current?.click();
@@ -91,11 +82,16 @@ export function UserDashboard() {
 
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
-        if (file) {
+        if (file && authUser) {
             updateUserProfileImage(file);
         }
     };
 
+    React.useEffect(() => {
+        if (authUser && userProfile && authUser.photoURL !== userProfile.photoURL) {
+            setUserProfile(prev => prev ? { ...prev, photoURL: authUser.photoURL! } : null);
+        }
+    }, [authUser, userProfile]);
 
     const KYCAlert = () => {
         if (!userProfile) return null;
@@ -129,7 +125,7 @@ export function UserDashboard() {
         }
     }
 
-    if (loading) {
+    if (loading || authLoading) {
         return (
              <div className="container mx-auto p-4 md:p-8 space-y-8">
                 <Skeleton className="h-40 w-full rounded-lg" />
@@ -149,19 +145,13 @@ export function UserDashboard() {
                 <Card className="shadow-lg">
                     <CardContent className="p-6 flex flex-col md:flex-row items-center gap-6">
                         <div className="relative group">
-                            <Avatar className="h-24 w-24 border-4 border-primary">
+                            <Avatar className="h-24 w-24 border-4 border-primary cursor-pointer" onClick={handleAvatarClick}>
                                 <AvatarImage src={userProfile.photoURL} alt={userProfile.displayName} />
                                 <AvatarFallback>{userProfile.username.charAt(0)}</AvatarFallback>
                             </Avatar>
-                            <Button
-                                onClick={handleAvatarClick}
-                                variant="secondary"
-                                size="icon"
-                                className="absolute bottom-0 right-0 rounded-full h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                                aria-label="Upload profile picture"
-                            >
-                                <Upload className="h-4 w-4" />
-                            </Button>
+                            <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" onClick={handleAvatarClick}>
+                               <Upload className="h-8 w-8 text-white" />
+                            </div>
                             <input
                                 type="file"
                                 ref={fileInputRef}
@@ -175,21 +165,7 @@ export function UserDashboard() {
                             <h1 className="text-3xl font-bold">{userProfile.displayName}</h1>
                             <p className="text-muted-foreground text-lg">@{userProfile.username}</p>
                         </div>
-                        <div className="flex flex-wrap justify-center gap-4">
-                            <div className="text-center">
-                                <p className="text-3xl font-bold text-primary">{userProfile.wins}</p>
-                                <p className="text-sm text-muted-foreground">Wins</p>
-                            </div>
-                            <div className="text-center">
-                                 <p className="text-3xl font-bold text-destructive">{userProfile.losses}</p>
-                                <p className="text-sm text-muted-foreground">Losses</p>
-                            </div>
-                             <div className="text-center">
-                                 <p className="text-3xl font-bold">${userProfile.walletBalance.toFixed(2)}</p>
-                                <p className="text-sm text-muted-foreground">Wallet</p>
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
+                         <div className="grid grid-cols-2 gap-2">
                              <Link href="/create-bet" passHref>
                                 <Button className="w-full">
                                     <PlusCircle className="mr-2" />
@@ -218,6 +194,37 @@ export function UserDashboard() {
                     </CardContent>
                 </Card>
             </header>
+
+             <Tabs defaultValue="stats" className="w-full mb-8">
+                <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="stats"><Trophy className="mr-2"/> My Stats</TabsTrigger>
+                    <TabsTrigger value="ranking"><BarChart className="mr-2"/>Global Ranking</TabsTrigger>
+                </TabsList>
+                <TabsContent value="stats">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Your Record</CardTitle>
+                        </CardHeader>
+                        <CardContent className="flex flex-wrap justify-around gap-4">
+                             <div className="text-center">
+                                <p className="text-4xl font-bold text-primary">{userProfile.wins}</p>
+                                <p className="text-sm text-muted-foreground">Wins</p>
+                            </div>
+                            <div className="text-center">
+                                 <p className="text-4xl font-bold text-destructive">{userProfile.losses}</p>
+                                <p className="text-sm text-muted-foreground">Losses</p>
+                            </div>
+                             <div className="text-center">
+                                 <p className="text-4xl font-bold">${userProfile.walletBalance.toFixed(2)}</p>
+                                <p className="text-sm text-muted-foreground">Wallet</p>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+                <TabsContent value="ranking">
+                    <RankingTable currentUserId={userProfile.id} />
+                </TabsContent>
+            </Tabs>
 
             <section>
                 <h2 className="text-2xl font-bold mb-4">My Bets</h2>
