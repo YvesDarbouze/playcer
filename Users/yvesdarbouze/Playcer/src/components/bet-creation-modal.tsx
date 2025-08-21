@@ -53,7 +53,7 @@ interface BetCreationModalProps {
   userProfile: User | null;
 }
 
-const createBetSchema = (walletBalance: number = 0) => z.object({
+const createBetSchema = z.object({
     totalWager: z.coerce
         .number()
         .min(1, "Stake must be at least $1.")
@@ -97,7 +97,7 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, use
   const [clientSecret, setClientSecret] = React.useState<string | null>(null);
   
   const form = useForm<BetFormData>({
-    resolver: zodResolver(createBetSchema(userProfile?.walletBalance)),
+    resolver: zodResolver(createBetSchema()),
     defaultValues: {
       totalWager: 20,
       betVisibility: "public",
@@ -397,5 +397,3 @@ export function BetCreationModal(props: BetCreationModalProps) {
         </Elements>
     )
 }
-
-    
