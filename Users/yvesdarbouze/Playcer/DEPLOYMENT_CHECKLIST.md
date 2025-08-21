@@ -115,4 +115,42 @@ To protect your backend from abuse, you must enable App Check.
 
 After enforcement is enabled, only requests from your verified web application will be allowed to access your backend services.
 
-    
+---
+
+## 6. Set Up Monitoring and Alerting
+
+To ensure your application's reliability, set up monitoring and alerts in the Google Cloud Console.
+
+**Steps to Configure:**
+
+1.  Go to the **Google Cloud Console** for your Firebase project.
+2.  Navigate to **Monitoring**.
+
+**A. Create a Dashboard:**
+
+1.  Go to **Dashboards** and click **Create Dashboard**.
+2.  Add widgets for key metrics:
+    *   **Cloud Function Invocations**: Track the number of times your key functions (`processBetOutcomes`, `stripeWebhook`, `createBet`) are being called.
+    *   **Cloud Function Execution Time (p95/p99)**: Monitor the latency of your functions. High latency in `processBetOutcomes` could delay bet settlements.
+    *   **Cloud Function Error Rate**: A chart showing the percentage of function executions that result in an error.
+
+**B. Create Alerting Policies:**
+
+1.  Go to **Alerting** and click **Create Policy**.
+2.  **Alert on Function Errors:**
+    *   **Metric**: `Cloud Function` -> `Executions`
+    *   **Filter**: `status` = `error`
+    *   **Aggregator**: `count`
+    *   **Configuration**: Set a threshold, for example, "Alert if the count of errors is above 0 for 5 minutes." This will notify you immediately if any function starts failing.
+3.  **Alert on High Latency:**
+    *   **Metric**: `Cloud Function` -> `Execution Times`
+    *   **Filter**: `function_name` = `processBetOutcomes`
+    *   **Aggregator**: `99th percentile`
+    *   **Configuration**: Set a threshold that makes sense for your application (e.g., "Alert if latency is above 10,000 ms for 10 minutes").
+4.  **Create Log-Based Alerts for Critical Failures:**
+    *   Go to **Logs Explorer** and create queries for specific failure messages you've logged in your functions.
+    *   **Query for Stripe Failures**: `resource.type="cloud_function" AND severity=ERROR AND textPayload:"Failed to cancel Stripe Payment Intent"` or `"Failed to capture/release funds"`
+    *   Click **Create Alert** from the query results.
+    *   **Configuration**: Configure the alert to trigger whenever more than 0 log entries appear in a 5-minute window.
+    *   Repeat this process for other critical error messages you want to be alerted on.
+5.  **Configure Notification Channels**: For each policy, configure how you want to be notified (e.g., Email, Slack, PagerDuty).
