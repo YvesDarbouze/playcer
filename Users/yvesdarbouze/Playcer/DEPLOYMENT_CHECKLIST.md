@@ -7,18 +7,21 @@ This guide outlines the final steps required in the Firebase Console and third-p
 
 ## 1. Configure Environment Variables (Secrets)
 
-Your application's Cloud Functions require API keys to communicate with external services. These should be stored as secrets in Google Cloud Secret Manager, which Firebase Functions can access securely.
+Your application's Cloud Functions require API keys to communicate with external services. These should be stored as secrets in Google Cloud Secret Manager, which Firebase Functions can access securely at runtime.
 
 **Required Secrets:**
 
 *   `ALGOLIA_APP_ID`: Your Algolia Application ID.
 *   `ALGOLIA_API_KEY`: Your Algolia **Admin** API Key. This is used by the backend to write to your search index.
-*   `ALGOLIA_SEARCH_ONLY_API_KEY`: Your Algolia **Search-Only** API Key. This is used to generate secure, temporary keys for frontend users.
+*   `ALGOLIA_SEARCH_ONLY_API_KEY`: Your Algolia **Search-Only** API Key. This is used for client-side search operations.
 *   `ODDS_API_KEY`: Your API key from [The Odds API](https://the-odds-api.com/) for fetching game data, odds, and scores.
+*   `STRIPE_API_KEY`: Your Stripe Secret Key for processing payments.
+*   `STRIPE_WEBHOOK_SECRET`: Your Stripe webhook signing secret to verify incoming events.
+*   `KYC_WEBHOOK_SECRET`: The signing secret from your KYC provider to verify identity webhooks (optional, for real KYC).
 
 **How to Set Secrets:**
 
-You can set these secrets by running the following commands in your terminal from your project directory. Replace `your_actual_key_here` with the real keys from your service dashboards.
+You can set these secrets by running the following commands in your terminal from your project directory. Replace `your_actual_key_here` with the real keys from your service dashboards. You will be prompted to enter the secret value after running each command.
 
 ```bash
 # Set Algolia Keys
@@ -28,9 +31,16 @@ firebase functions:secrets:set ALGOLIA_SEARCH_ONLY_API_KEY
 
 # Set Odds API Key
 firebase functions:secrets:set ODDS_API_KEY
+
+# Set Stripe Keys
+firebase functions:secrets:set STRIPE_API_KEY
+firebase functions:secrets:set STRIPE_WEBHOOK_SECRET
+
+# Set KYC Webhook Secret (if applicable)
+firebase functions:secrets:set KYC_WEBHOOK_SECRET
 ```
 
-After running each command, you will be prompted to enter the secret value. Once set, you must redeploy your functions for them to access the new secrets:
+After setting all secrets, you must redeploy your functions for them to access the new values:
 
 ```bash
 firebase deploy --only functions
@@ -40,31 +50,22 @@ firebase deploy --only functions
 
 ## 2. Schedule the Bet Settlement Function
 
-The `processBetOutcomes` function needs to run automatically to check for completed games and settle bets. You will use Google Cloud Scheduler to trigger this function.
+The `processBetOutcomes` and `expirePendingBets` functions need to run automatically. Google Cloud Scheduler is automatically configured to trigger these functions when you deploy them.
 
-**Steps to Create the Schedule:**
+**Verification Steps:**
 
-1.  Go to the **Google Cloud Console** for your Firebase project.
+1.  After deploying, go to the **Google Cloud Console** for your Firebase project.
 2.  Navigate to **Cloud Scheduler**.
-3.  Click **Create Job**.
-4.  **Define the job:**
-    *   **Name:** `settle-completed-bets`
-    *   **Frequency:** `*/15 * * * *` (This is a cron expression to run the job every 15 minutes).
-    *   **Timezone:** Select your desired timezone (e.g., `America/New_York`).
-5.  **Configure the execution:**
-    *   **Target type:** `HTTP`
-    *   **URL:** Get this from your Firebase Functions dashboard. It will look like `https://<your-region>-<your-project-id>.cloudfunctions.net/processBetOutcomes`.
-    *   **HTTP method:** `POST`
-    *   **Auth header:** Select `Add OIDC token`.
-    *   **Service account:** Select a service account that has permission to invoke Cloud Functions (e.g., the default App Engine service account).
-
-6.  Click **Create**. The scheduler will now automatically call your settlement function every 15 minutes.
+3.  You should see two jobs created by Firebase:
+    *   `firebase-schedule-processBetOutcomes...`
+    *   `firebase-schedule-expirePendingBets...`
+4.  Confirm they are enabled and set to a frequency of every 15 minutes. No further action is needed.
 
 ---
 
 ## 3. Deploy Firestore Security Rules and Indexes
 
-The `firestore.rules` and `firestore.indexes.json` files contain the necessary security rules and database indexes for your application. You need to deploy these rules to Firebase.
+The `firestore.rules` and `firestore.indexes.json` files contain the necessary security rules and database indexes for your application. You need to deploy these to Firebase.
 
 **How to Deploy:**
 
@@ -79,11 +80,21 @@ This will apply the rules and indexes defined in your project files to your Fire
 
 ---
 
-## 4. Real-World Stripe Integration
+## 4. Configure Stripe Webhook Endpoint
 
-This MVP uses a *placeholder* for Stripe payments. To process real payments, you would need to:
+Stripe needs to send events to your `stripeWebhook` function.
 
-1.  Create a [Stripe](https://stripe.com/) account.
-2.  Install the Stripe Node.js SDK in your `functions` directory: `npm install stripe`
-3.  Replace the placeholder `paymentGateway` object in `functions/src/index.ts` with actual calls to the Stripe API for creating and managing PaymentIntents.
-4.  Store your Stripe API keys securely as secrets, just like the other keys.
+**Steps to Configure:**
+
+1.  After deploying, go to your **Firebase Functions dashboard** and find the URL for the `stripeWebhook` function. It will look like `https://<your-region>-<your-project-id>.cloudfunctions.net/stripeWebhook`.
+2.  Go to your **Stripe Dashboard** -> **Developers** -> **Webhooks**.
+3.  Click **Add an endpoint**.
+4.  Paste the function URL into the **Endpoint URL** field.
+5.  Click **+ Select events** and add the following events:
+    *   `payment_intent.succeeded`
+    *   `payment_intent.payment_failed`
+    *   `payment_intent.requires_capture`
+    *   `payment_intent.canceled`
+6.  Click **Add endpoint**. Stripe will now send events to your function.
+
+    

@@ -15,7 +15,7 @@ import { startStreaming } from "./stream";
 
 
 // Initialize Algolia client
-// Ensure you have set these environment variables in your Firebase project configuration
+// Secrets are injected at runtime by Firebase
 const algoliaClient = algoliasearch.default(process.env.ALGOLIA_APP_ID!, process.env.ALGOLIA_API_KEY!);
 const gamesIndex = algoliaClient.initIndex('games');
 const betsIndex = algoliaClient.initIndex('bets');
@@ -27,13 +27,17 @@ const db = getFirestore();
 const auth = getAuth();
 
 // Initialize Stripe SDK
-// Ensure you have set STRIPE_API_KEY environment variable
+// Secrets are injected at runtime by Firebase
 const stripe = new Stripe(process.env.STRIPE_API_KEY!, {
     apiVersion: '2024-06-20',
 });
 
-// Start the real-time event streaming service
+// Start the real-time event streaming service when the function instance starts
 startStreaming();
+
+const functionBuilder = functions.runWith({
+    secrets: ["STRIPE_API_KEY", "STRIPE_WEBHOOK_SECRET", "ALGOLIA_APP_ID", "ALGOLIA_API_KEY", "ALGOLIA_SEARCH_ONLY_API_KEY", "ODDS_API_KEY", "KYC_WEBHOOK_SECRET"]
+});
 
 
 // --- THIRD-PARTY SERVICES ---
@@ -89,8 +93,7 @@ const geolocationAPI = {
 
 // --- AUTHENTICATION TRIGGERS ---
 
-export const onusercreate = onUserCreate(async (event) => {
-  const user = event.data;
+export const onusercreate = functionBuilder.auth.user().onCreate(async (user) => {
   const {uid, displayName, photoURL, email} = user;
 
   const twitterProvider = user.providerData.find(p => p.providerId === 'twitter.com');
@@ -132,7 +135,7 @@ export const onusercreate = onUserCreate(async (event) => {
 
 // --- HTTP CALLABLE FUNCTIONS ---
 
-export const getAlgoliaSearchKey = onCall((request) => {
+export const getAlgoliaSearchKey = functionBuilder.https.onCall((request) => {
     if (!request.auth) {
         throw new HttpsError('unauthenticated', 'You must be logged in to search.');
     }
@@ -147,7 +150,7 @@ export const getAlgoliaSearchKey = onCall((request) => {
     return { key: searchKey };
 });
 
-export const createBetPaymentIntent = onCall(async (request) => {
+export const createBetPaymentIntent = functionBuilder.https.onCall(async (request) => {
     if (!request.auth) {
         throw new HttpsError('unauthenticated', 'You must be logged in to create a payment intent.');
     }
@@ -178,7 +181,7 @@ export const createBetPaymentIntent = onCall(async (request) => {
 });
 
 
-export const handleDeposit = onCall(async (request) => {
+export const handleDeposit = functionBuilder.https.onCall(async (request) => {
     if (!request.auth) {
         throw new HttpsError('unauthenticated', 'You must be logged in to make a deposit.');
     }
@@ -221,7 +224,7 @@ export const handleDeposit = onCall(async (request) => {
 });
 
 
-export const createBet = onCall(async (request) => {
+export const createBet = functionBuilder.https.onCall(async (request) => {
     if (!request.auth) {
         throw new HttpsError('unauthenticated', 'You must be logged in to create a bet.');
     }
@@ -315,7 +318,7 @@ export const createBet = onCall(async (request) => {
 });
 
 
-export const acceptBet = onCall(async (request) => {
+export const acceptBet = functionBuilder.https.onCall(async (request) => {
     if (!request.auth) {
         throw new HttpsError('unauthenticated', 'You must be logged in to accept a bet.');
     }
@@ -357,7 +360,7 @@ export const acceptBet = onCall(async (request) => {
     }
 });
 
-export const cancelBet = onCall(async (request) => {
+export const cancelBet = functionBuilder.https.onCall(async (request) => {
     if (!request.auth) {
         throw new HttpsError('unauthenticated', 'You must be logged in to cancel a bet.');
     }
@@ -411,7 +414,7 @@ export const cancelBet = onCall(async (request) => {
 });
 
 
-export const processBetOutcomes = onSchedule("every 15 minutes", async (event) => {
+export const processBetOutcomes = functionBuilder.pubsub.schedule("every 15 minutes").onRun(async (context) => {
     functions.logger.log("Starting processBetOutcomes scheduled job...");
     
     const now = Timestamp.now();
@@ -519,7 +522,7 @@ export const processBetOutcomes = onSchedule("every 15 minutes", async (event) =
     return null;
 });
 
-export const expirePendingBets = onSchedule("every 15 minutes", async (event) => {
+export const expirePendingBets = functionBuilder.pubsub.schedule("every 15 minutes").onRun(async (context) => {
     functions.logger.log("Starting expirePendingBets scheduled job...");
 
     const now = Timestamp.now();
@@ -665,7 +668,7 @@ async function processPayout(data: { betId: string, winnerId: string | null, los
 }
     
 
-export const stripeWebhook = functions.https.onRequest(async (request, response) => {
+export const stripeWebhook = functionBuilder.https.onRequest(async (request, response) => {
     const signature = request.headers['stripe-signature'];
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
@@ -793,7 +796,7 @@ export const stripeWebhook = functions.https.onRequest(async (request, response)
 });
 
 
-export const kycWebhook = functions.https.onRequest(async (request, response) => {
+export const kycWebhook = functionBuilder.https.onRequest(async (request, response) => {
     const kycWebhookSecret = process.env.KYC_WEBHOOK_SECRET;
 
     const signature = request.headers['x-kyc-provider-signature'];
@@ -849,7 +852,7 @@ export const kycWebhook = functions.https.onRequest(async (request, response) =>
     response.status(200).send({ received: true });
 });
 
-export const markNotificationsAsRead = onCall(async (request) => {
+export const markNotificationsAsRead = functionBuilder.https.onCall(async (request) => {
     if (!request.auth) {
         throw new HttpsError('unauthenticated', 'You must be logged in.');
     }
@@ -901,7 +904,7 @@ const ensureIsAdmin = (context: any) => {
     }
 };
 
-export const resolveDispute = onCall(async (request) => {
+export const resolveDispute = functionBuilder.https.onCall(async (request) => {
     ensureIsAdmin(request);
 
     const { disputeId, ruling, adminNotes } = request.data;
@@ -971,3 +974,5 @@ export const resolveDispute = onCall(async (request) => {
         throw new HttpsError('internal', 'An internal error occurred while resolving the dispute.');
     });
 });
+
+    
