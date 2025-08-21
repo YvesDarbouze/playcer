@@ -278,9 +278,10 @@ export const acceptBet = onCall(async (request) => {
     const { uid: takerId } = request.auth;
     const { betId, acceptedAmount } = request.data;
     if (!betId) throw new HttpsError('invalid-argument', 'The `betId` must be provided.');
+    if (typeof acceptedAmount !== 'number' || acceptedAmount <= 0) {
+        throw new HttpsError('invalid-argument', 'A valid accepted amount is required.');
+    }
    
-    const betDocRef = db.collection('bets').doc(betId);
-    
     // Create payment intent for the recipient
     try {
         const paymentIntent = await stripe.paymentIntents.create({
