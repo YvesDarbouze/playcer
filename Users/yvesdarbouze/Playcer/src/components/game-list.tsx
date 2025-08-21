@@ -82,9 +82,7 @@ export function GameList({ initialGames }: GameListProps) {
                     {filteredGames.length > 0 ? (
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                             {filteredGames.map(game => (
-                                <Link href={`/game/${game.id}`} key={game.id} passHref>
-                                    <GameCard game={game} />
-                                </Link>
+                                <GameCard game={game} key={game.id} />
                             ))}
                         </div>
                     ) : (

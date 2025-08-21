@@ -170,10 +170,10 @@ export default function GameDetailsPage({ params }: { params: { gameId: string }
     <>
     <main className="container mx-auto p-4 md:p-8">
       <header className="mb-8">
-        <Link href={`/sport/${game.sport_key}`} passHref>
+        <Link href={`/`} passHref>
           <Button variant="outline" className="mb-4">
             <ArrowLeft className="mr-2" />
-            Back to {game.sport_title}
+            Back to All Games
           </Button>
         </Link>
         <h1 className="text-4xl font-headline font-black">{game.away_team} @ {game.home_team}</h1>

@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import * as React from 'react';
@@ -81,10 +80,12 @@ export function GameCard({ game }: GameCardProps) {
             </CardContent>
 
             <div className='p-2 bg-muted/50 text-center'>
-                <Button variant="ghost" className="w-full font-bold h-12 text-base">
-                    <Swords className="mr-2" />
-                    View Odds & Challenges
-                </Button>
+                <Link href={`/game/${game.id}`} passHref>
+                    <Button variant="ghost" className="w-full font-bold h-12 text-base">
+                        <Swords className="mr-2" />
+                        View Odds & Challenges
+                    </Button>
+                </Link>
             </div>
         </Card>
     );
