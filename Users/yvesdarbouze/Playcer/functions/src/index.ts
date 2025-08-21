@@ -37,7 +37,7 @@ startStreaming();
 
 const functionBuilder = functions.runWith({
     secrets: ["STRIPE_API_KEY", "STRIPE_WEBHOOK_SECRET", "ALGOLIA_APP_ID", "ALGOLIA_API_KEY", "ALGOLIA_SEARCH_ONLY_API_KEY", "ODDS_API_KEY", "KYC_WEBHOOK_SECRET"],
-    enforceAppCheck: true,
+    enforceAppCheck: true, // Enforce App Check on all functions using this builder
 });
 
 
@@ -669,7 +669,7 @@ async function processPayout(data: { betId: string, winnerId: string | null, los
 }
     
 
-export const stripeWebhook = functionBuilder.https.onRequest(async (request, response) => {
+export const stripeWebhook = functions.https.onRequest(async (request, response) => {
     const signature = request.headers['stripe-signature'];
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
@@ -975,5 +975,7 @@ export const resolveDispute = functionBuilder.https.onCall(async (request) => {
         throw new HttpsError('internal', 'An internal error occurred while resolving the dispute.');
     });
 });
+
+    
 
     
