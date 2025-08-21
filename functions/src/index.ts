@@ -17,6 +17,7 @@ import { startStreaming } from "./stream";
 // Ensure you have set these environment variables in your Firebase project configuration
 const algoliaClient = algoliasearch.default(process.env.ALGOLIA_APP_ID!, process.env.ALGOLIA_API_KEY!);
 const gamesIndex = algoliaClient.initIndex('games');
+const betsIndex = algoliasearch.initIndex('bets');
 
 
 // Initialize Firebase Admin SDK
@@ -67,6 +68,59 @@ export const onGameWritten = functions.firestore
             functions.logger.log(`[Algolia] Saved/updated game ${gameId}`);
         } catch (error) {
             functions.logger.error(`[Algolia] Error saving game ${gameId}:`, error);
+        }
+    });
+
+export const onBetWritten = functions.firestore
+    .document('bets/{betId}')
+    .onWrite(async (change, context) => {
+        const { betId } = context.params;
+
+        if (!change.after.exists()) {
+            // Document was deleted
+            try {
+                await betsIndex.deleteObject(betId);
+                functions.logger.log(`[Algolia] Deleted bet ${betId}`);
+            } catch (error) {
+                functions.logger.error(`[Algolia] Error deleting bet ${betId}:`, error);
+            }
+            return;
+        }
+
+        const betData = change.after.data() as any;
+
+        // If the bet is no longer public or pending, remove it from the search index
+        if (!betData.isPublic || betData.status !== 'pending') {
+             try {
+                await betsIndex.deleteObject(betId);
+                functions.logger.log(`[Algolia] Deleted non-public/non-pending bet ${betId}`);
+            } catch (error) {
+                functions.logger.error(`[Algolia] Error deleting bet ${betId} from index:`, error);
+            }
+            return;
+        }
+
+        // Document was created or updated and is searchable
+        const record = {
+            objectID: betId,
+            homeTeam: betData.homeTeam,
+            awayTeam: betData.awayTeam,
+            challengerUsername: betData.challengerUsername,
+            totalWager: betData.totalWager,
+            remainingWager: betData.remainingWager,
+            betType: betData.betType,
+            chosenOption: betData.chosenOption,
+            line: betData.line,
+            odds: betData.odds,
+            allowFractionalAcceptance: betData.allowFractionalAcceptance,
+            createdAt: betData.createdAt.toMillis(),
+        };
+
+        try {
+            await betsIndex.saveObject(record);
+            functions.logger.log(`[Algolia] Saved/updated bet ${betId}`);
+        } catch (error) {
+            functions.logger.error(`[Algolia] Error saving bet ${betId}:`, error);
         }
     });
 
@@ -168,7 +222,7 @@ export const createBetPaymentIntent = onCall(async (request) => {
         });
 
         functions.logger.log(`Successfully created payment intent ${paymentIntent.id} for user ${uid}.`);
-        return { success: true, clientSecret: paymentIntent.client_secret };
+        return { success: true, clientSecret: paymentIntent.client_secret, paymentIntentId: paymentIntent.id };
     } catch (error: any) {
         functions.logger.error(`Error creating payment intent for user ${uid}:`, error);
         throw new HttpsError('internal', error.message);
@@ -238,11 +292,12 @@ export const createBet = onCall(async (request) => {
         twitterShareUrl,
         bookmakerKey,
         odds,
-        allowFractionalAcceptance
+        allowFractionalAcceptance,
+        challengerPaymentIntentId,
     } = request.data;
     
     // Basic validation
-    if (!eventId || !eventDate || !homeTeam || !awayTeam || !betType || !chosenOption || totalWager === undefined || !bookmakerKey || odds === undefined) {
+    if (!eventId || !eventDate || !homeTeam || !awayTeam || !betType || !chosenOption || totalWager === undefined || !bookmakerKey || odds === undefined || !challengerPaymentIntentId) {
         throw new HttpsError('invalid-argument', 'Missing required bet information.');
     }
 
@@ -275,6 +330,7 @@ export const createBet = onCall(async (request) => {
             homeTeam,
             awayTeam,
             challengerId: challengerId,
+            challengerPaymentIntentId: challengerPaymentIntentId,
             accepters: [],
             challengerUsername: userData.username,
             challengerPhotoURL: userData.photoURL,
@@ -333,13 +389,67 @@ export const acceptBet = onCall(async (request) => {
         
         // This is a two-step process. First, we send the clientSecret back.
         // The client confirms the payment. A webhook will finalize the bet.
-        return { success: true, clientSecret: paymentIntent.client_secret };
+        return { success: true, clientSecret: paymentIntent.client_secret, paymentIntentId: paymentIntent.id };
 
     } catch (error: any) {
         functions.logger.error(`Error creating recipient payment intent for bet ${betId}:`, error);
         throw new HttpsError('internal', error.message);
     }
 });
+
+export const cancelBet = onCall(async (request) => {
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'You must be logged in to cancel a bet.');
+    }
+
+    const { uid } = request.auth;
+    const { betId } = request.data;
+    if (!betId) {
+        throw new HttpsError('invalid-argument', 'A `betId` must be provided.');
+    }
+
+    const betDocRef = db.collection('bets').doc(betId);
+
+    return db.runTransaction(async (transaction) => {
+        const betDoc = await transaction.get(betDocRef);
+        if (!betDoc.exists) {
+            throw new HttpsError('not-found', 'Bet not found.');
+        }
+
+        const betData = betDoc.data()!;
+
+        if (betData.challengerId !== uid) {
+            throw new HttpsError('permission-denied', 'Only the creator can cancel this bet.');
+        }
+
+        if (betData.status !== 'pending') {
+            throw new HttpsError('failed-precondition', `Cannot cancel a bet with status '${betData.status}'.`);
+        }
+        
+        if (betData.accepters && betData.accepters.length > 0) {
+            throw new HttpsError('failed-precondition', 'Cannot cancel a bet that has been partially or fully accepted.');
+        }
+        
+        // If all checks pass, cancel the Stripe Payment Intent
+        try {
+            await stripe.paymentIntents.cancel(betData.challengerPaymentIntentId);
+            functions.logger.log(`Successfully canceled Payment Intent ${betData.challengerPaymentIntentId} for bet ${betId}.`);
+        } catch (error: any) {
+            functions.logger.error(`Failed to cancel Stripe Payment Intent ${betData.challengerPaymentIntentId} for bet ${betId}:`, error);
+            // Even if Stripe fails, we might still want to cancel the bet in our system
+            // to prevent it from being accepted. This depends on business logic.
+            // For now, we'll throw an error and stop.
+            throw new HttpsError('internal', 'Could not cancel payment authorization.');
+        }
+
+        // Update the bet status to 'canceled'
+        transaction.update(betDocRef, { status: 'canceled' });
+        
+        functions.logger.log(`Bet ${betId} has been canceled by user ${uid}.`);
+        return { success: true };
+    });
+});
+
 
 export const processBetOutcomes = onCall(async (request) => {
     functions.logger.log("Starting processBetOutcomes...");
@@ -369,33 +479,44 @@ export const processBetOutcomes = onCall(async (request) => {
                 let winnerId: string | null = null;
                 const { home_score, away_score } = result;
                 const { homeTeam } = betData;
-                const accepterId = betData.accepters[0]?.accepterId;
+                
+                // Simplified for now, assumes first accepter is the only one
+                const accepter = betData.accepters[0];
+                if (!accepter) {
+                     functions.logger.warn(`Bet ${betId} is active but has no accepters. Skipping.`);
+                     continue;
+                }
 
                 if (betData.betType === 'moneyline') {
                     const winningTeamName = home_score > away_score ? homeTeam : betData.awayTeam;
                     if (betData.chosenOption === winningTeamName) {
                         winnerId = betData.challengerId;
                     } else {
-                        winnerId = accepterId;
+                        winnerId = accepter.accepterId;
                     }
                 } 
                 
                 if (winnerId) {
-                    const loserId = winnerId === betData.challengerId ? accepterId : betData.challengerId;
+                    const loserId = winnerId === betData.challengerId ? accepter.accepterId : betData.challengerId;
                     await processPayout({ 
                         betId, 
                         winnerId, 
-                        stake: betData.totalWager, 
                         loserId,
+                        stake: betData.totalWager, 
+                        challengerPaymentIntentId: betData.challengerPaymentIntentId,
+                        accepterPaymentIntentId: accepter.paymentIntentId,
                     });
                     await betDoc.ref.update({ status: 'settled', winnerId, loserId, outcome: 'win', settledAt: Timestamp.now() });
                     processedCount++;
                 } else {
-                     await processPayout({ 
+                     // This is a PUSH. We need to release both authorizations.
+                    await processPayout({ 
                         betId, 
                         winnerId: null, 
-                        stake: betData.totalWager, 
                         loserId: null,
+                        stake: betData.totalWager, 
+                        challengerPaymentIntentId: betData.challengerPaymentIntentId,
+                        accepterPaymentIntentId: accepter.paymentIntentId,
                     });
                     await betDoc.ref.update({ status: 'settled', outcome: 'draw', settledAt: Timestamp.now() });
                     processedCount++;
@@ -410,58 +531,135 @@ export const processBetOutcomes = onCall(async (request) => {
     return { success: true, processedCount };
 });
 
-async function processPayout(data: { betId: string, winnerId: string | null, loserId: string | null, stake: number }) {
-    const { betId, winnerId, loserId, stake } = data;
+export const expirePendingBets = onCall(async (request) => {
+    functions.logger.log("Starting expirePendingBets...");
+
+    const now = Timestamp.now();
+    const query = db.collection('bets')
+        .where('status', '==', 'pending')
+        .where('eventDate', '<=', now);
+
+    const expiredBetsSnap = await query.get();
+
+    if (expiredBetsSnap.empty) {
+        functions.logger.log("No expired pending bets found.");
+        return { success: true, message: "No bets to expire." };
+    }
+
+    let expiredCount = 0;
+
+    for (const betDoc of expiredBetsSnap.docs) {
+        const betId = betDoc.id;
+        const betData = betDoc.data()!;
+
+        try {
+            // Cancel the creator's payment intent
+            await stripe.paymentIntents.cancel(betData.challengerPaymentIntentId);
+            functions.logger.log(`Canceled challenger payment intent ${betData.challengerPaymentIntentId} for expired bet ${betId}.`);
+
+            // Cancel payment intents for any partial accepters
+            if (betData.accepters && betData.accepters.length > 0) {
+                 for (const accepter of betData.accepters) {
+                    await stripe.paymentIntents.cancel(accepter.paymentIntentId);
+                    functions.logger.log(`Canceled accepter payment intent ${accepter.paymentIntentId} for expired bet ${betId}.`);
+                }
+            }
+
+            await betDoc.ref.update({ status: 'expired' });
+            expiredCount++;
+            
+            // Notify the creator
+            await createNotification(
+                betData.challengerId,
+                `Your bet for ${betData.awayTeam} @ ${betData.homeTeam} expired without being fully matched.`,
+                `/bet/${betId}`
+            );
+
+        } catch (error: any) {
+            functions.logger.error(`Failed to expire bet ${betId}:`, error);
+            // If Stripe cancellation fails, we might not want to change the status,
+            // so an admin can review it. For now, we'll log and continue.
+        }
+    }
+    
+    functions.logger.log(`Finished expirePendingBets. Expired ${expiredCount} bets.`);
+    return { success: true, expiredCount };
+});
+
+
+async function processPayout(data: { betId: string, winnerId: string | null, loserId: string | null, stake: number, challengerPaymentIntentId: string, accepterPaymentIntentId: string }) {
+    const { betId, winnerId, loserId, stake, challengerPaymentIntentId, accepterPaymentIntentId } = data;
     const PLATFORM_COMMISSION_RATE = 0.045; // 4.5% vig
     
-    const betDoc = await db.collection('bets').doc(betId).get();
-    const betData = betDoc.data();
-    if(!betData) return;
+    if(winnerId && loserId) {
+        // --- Capture Loser's Funds & Pay Winner ---
+        const loserPI = winnerId === challengerPaymentIntentId ? accepterPaymentIntentId : challengerPaymentIntentId;
+        
+        try {
+            await stripe.paymentIntents.capture(loserPI);
+            functions.logger.log(`Successfully captured PaymentIntent ${loserPI} for loser ${loserId} in bet ${betId}.`);
 
-    await db.runTransaction(async (transaction) => {
-        if(winnerId && loserId) {
+            const commission = stake * PLATFORM_COMMISSION_RATE;
+            const payoutToWinner = stake - commission;
+            
             const winnerDocRef = db.collection('users').doc(winnerId);
             const loserDocRef = db.collection('users').doc(loserId);
-            const commission = stake * PLATFORM_COMMISSION_RATE;
-            const payoutToWinner = stake - commission; 
 
-            transaction.update(winnerDocRef, { 
-                walletBalance: FieldValue.increment(payoutToWinner),
-                wins: FieldValue.increment(1),
-                totalBets: FieldValue.increment(1)
-            });
-            transaction.update(loserDocRef, { 
-                losses: FieldValue.increment(1),
-                totalBets: FieldValue.increment(1) 
-            });
+            await db.runTransaction(async (transaction) => {
+                transaction.update(winnerDocRef, { 
+                    walletBalance: FieldValue.increment(payoutToWinner),
+                    wins: FieldValue.increment(1),
+                    totalBets: FieldValue.increment(1)
+                });
+                transaction.update(loserDocRef, { 
+                    losses: FieldValue.increment(1),
+                    totalBets: FieldValue.increment(1) 
+                });
 
-            const payoutTxId = db.collection('transactions').doc().id;
-            transaction.set(db.collection('transactions').doc(payoutTxId), {
-                userId: winnerId, type: 'bet_payout', amount: payoutToWinner, status: 'completed', relatedBetId: betId, createdAt: Timestamp.now()
+                const payoutTxId = db.collection('transactions').doc().id;
+                transaction.set(db.collection('transactions').doc(payoutTxId), {
+                    userId: winnerId, type: 'bet_payout', amount: payoutToWinner, status: 'completed', relatedBetId: betId, createdAt: Timestamp.now()
+                });
             });
 
              // Notify users
+            const betDoc = await db.collection('bets').doc(betId).get();
+            const betData = betDoc.data();
+            if(!betData) return;
             await createNotification(winnerId, `You won $${payoutToWinner.toFixed(2)} on your bet for ${betData.awayTeam} @ ${betData.homeTeam}!`, `/bet/${betId}`);
             await createNotification(loserId, `You lost your $${stake.toFixed(2)} bet for ${betData.awayTeam} @ ${betData.homeTeam}.`, `/bet/${betId}`);
+            
+        } catch(error) {
+             functions.logger.error(`Failed to capture funds or process payout for bet ${betId}. Loser PI: ${loserPI}`, error);
+        }
 
-        } else {
-            // This is a PUSH. Refund both users.
-            const creatorDocRef = db.collection('users').doc(betData.challengerId);
-            transaction.update(creatorDocRef, { walletBalance: FieldValue.increment(stake), totalBets: FieldValue.increment(1) });
-             await createNotification(betData.challengerId, `Your bet on ${betData.awayTeam} @ ${betData.homeTeam} was a push. Your $${stake.toFixed(2)} stake has been returned.`, `/bet/${betId}`);
-
-            // Handle multiple takers if applicable
+    } else {
+        // --- This is a PUSH. Cancel both authorizations. ---
+        try {
+            await Promise.all([
+                stripe.paymentIntents.cancel(challengerPaymentIntentId),
+                stripe.paymentIntents.cancel(accepterPaymentIntentId)
+            ]);
+            functions.logger.log(`Push for bet ${betId}. Canceled both payment intents.`);
+            
+             // Notify users
+            const betDoc = await db.collection('bets').doc(betId).get();
+            const betData = betDoc.data();
+            if(!betData) return;
+            
+            await createNotification(betData.challengerId, `Your bet on ${betData.awayTeam} @ ${betData.homeTeam} was a push. Your funds authorization has been released.`, `/bet/${betId}`);
             if(betData.accepters && betData.accepters.length > 0) {
                  for (const accepter of betData.accepters) {
-                    const accepterDocRef = db.collection('users').doc(accepter.accepterId);
-                    transaction.update(accepterDocRef, { walletBalance: FieldValue.increment(accepter.amount), totalBets: FieldValue.increment(1) });
-                    await createNotification(accepter.accepterId, `Your bet on ${betData.awayTeam} @ ${betData.homeTeam} was a push. Your $${accepter.amount.toFixed(2)} stake has been returned.`, `/bet/${betId}`);
+                    await createNotification(accepter.accepterId, `Your bet on ${betData.awayTeam} @ ${betData.homeTeam} was a push. Your funds authorization has been released.`, `/bet/${betId}`);
                 }
             }
-        }
-    });
 
-    functions.logger.log(`Payout for bet ${betId} processed.`);
+        } catch (error) {
+            functions.logger.error(`Failed to cancel payment intents for push on bet ${betId}.`, error);
+        }
+    }
+
+    functions.logger.log(`Payout logic for bet ${betId} processed.`);
 }
     
 
@@ -512,6 +710,7 @@ export const stripeWebhook = functions.https.onRequest(async (request, response)
         case 'payment_intent.payment_failed':
             const piFailed = event.data.object as Stripe.PaymentIntent;
             functions.logger.warn(`Payment failed for user ${piFailed.metadata.userId} for intent ${piFailed.id}.`);
+            // Here you might want to send a notification to the user
             break;
 
         case 'payment_intent.requires_capture':
@@ -547,9 +746,6 @@ export const stripeWebhook = functions.https.onRequest(async (request, response)
                         throw new Error('Accepted amount exceeds remaining wager.');
                     }
                     
-                    // Capture the payment
-                    await stripe.paymentIntents.capture(piToCapture.id);
-
                     // Update bet document
                     const newRemainingAmount = betData.remainingWager - numericAcceptedAmount;
                     const newStatus = newRemainingAmount <= 0 ? 'active' : 'pending';
@@ -559,6 +755,7 @@ export const stripeWebhook = functions.https.onRequest(async (request, response)
                         accepterUsername: accepterData.username,
                         accepterPhotoURL: accepterData.photoURL,
                         amount: numericAcceptedAmount,
+                        paymentIntentId: piToCapture.id, // Store the PI for later capture
                         createdAt: Timestamp.now()
                     };
 
@@ -577,6 +774,13 @@ export const stripeWebhook = functions.https.onRequest(async (request, response)
                 });
                 functions.logger.log(`Bet acceptance for ${betId} successfully processed.`);
             }
+            break;
+            
+        case 'payment_intent.canceled':
+            const piCanceled = event.data.object as Stripe.PaymentIntent;
+            functions.logger.info(`Payment intent ${piCanceled.id} was canceled.`);
+            // This event is useful for logging and reconciliation. If a bet was associated
+            // with this payment intent, its status should already be 'canceled' or 'expired'.
             break;
 
         default:

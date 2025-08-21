@@ -60,6 +60,7 @@ export type Game = {
   home_score?: number;
   away_score?: number;
   is_complete?: boolean;
+  gameState?: 'upcoming' | 'live' | 'completed' | 'canceled';
   bookmakers?: {
     key: string;
     title: string;
@@ -76,25 +77,34 @@ export type Game = {
   }[];
 };
 
+export type BetAcceptance = {
+    accepterId: string;
+    accepterUsername: string;
+    accepterPhotoURL: string;
+    amount: number;
+    paymentIntentId: string;
+    createdAt: Timestamp;
+};
+
 export type Bet = {
   id: string;
   eventId: string;
   eventDate: string; // ISO string
   homeTeam: string;
   awayTeam: string;
-  creatorId: string;
-  takerId: string | null;
-  creatorUsername: string;
-  creatorPhotoURL: string;
-  takerUsername: string | null;
-  takerPhotoURL: string | null;
-  stakeAmount: number;
+  challengerId: string;
+  challengerPaymentIntentId: string;
+  accepters: BetAcceptance[];
+  challengerUsername: string;
+  challengerPhotoURL: string;
+  totalWager: number;
+  remainingWager: number;
   betType: "moneyline" | "spread" | "totals";
   chosenOption: string; // e.g., 'Los Angeles Lakers' or 'Over'
   line?: number; // e.g., -7.5 for spread, 210.5 for totals
   odds: number; // American odds, e.g., -110
   bookmakerKey: string;
-  status: "pending_acceptance" | "accepted" | "resolved" | "void";
+  status: "pending" | "active" | "settled" | "disputed" | "canceled" | "expired";
   isPublic: boolean;
   twitterShareUrl: string | null;
   winnerId: string | null;
@@ -102,7 +112,9 @@ export type Bet = {
   outcome: 'win' | 'loss' | 'draw' | null;
   createdAt: string; // ISO string
   settledAt: string | null; // ISO string
+  allowFractionalAcceptance: boolean;
 };
+
 
 export type UserBet = {
   betRef: string; // In Firestore, this is a DocumentReference, but we use its path string in the app
@@ -132,5 +144,14 @@ export type Dispute = {
     adminNotes: string;
     resolvedAt: Timestamp;
   } | null;
+  createdAt: Timestamp;
+};
+
+export type Notification = {
+  id: string;
+  userId: string;
+  message: string;
+  link: string;
+  isRead: boolean;
   createdAt: Timestamp;
 };
