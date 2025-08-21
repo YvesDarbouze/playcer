@@ -679,6 +679,7 @@ export const stripeWebhook = functions.https.onRequest(async (request, response)
         case 'payment_intent.payment_failed':
             const piFailed = event.data.object as Stripe.PaymentIntent;
             functions.logger.warn(`Payment failed for user ${piFailed.metadata.userId} for intent ${piFailed.id}.`);
+            // Here you might want to send a notification to the user
             break;
 
         case 'payment_intent.requires_capture':
@@ -744,6 +745,13 @@ export const stripeWebhook = functions.https.onRequest(async (request, response)
                 });
                 functions.logger.log(`Bet acceptance for ${betId} successfully processed.`);
             }
+            break;
+            
+        case 'payment_intent.canceled':
+            const piCanceled = event.data.object as Stripe.PaymentIntent;
+            functions.logger.info(`Payment intent ${piCanceled.id} was canceled.`);
+            // This event is useful for logging and reconciliation. If a bet was associated
+            // with this payment intent, its status should already be 'canceled' or 'expired'.
             break;
 
         default:
@@ -850,3 +858,5 @@ async function createNotification(userId: string, message: string, link: string)
         createdAt: Timestamp.now()
     });
 }
+
+    
