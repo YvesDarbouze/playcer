@@ -89,7 +89,7 @@ async function saveEventsToFirestore(events: any[]) {
     if (!events || events.length === 0) return;
 
     const batch = db.batch();
-    functions.logger.log(`[FIRESTORE] Saving ${events.length} events to Firestore.`);
+    functions.logger.log(`[FIRESTORE] Preparing to save ${events.length} events to Firestore.`);
 
     for (const event of events) {
         if (!event.eventID || !event.league || !event.teams.home?.names?.medium || !event.teams.away?.names?.medium) {
@@ -110,8 +110,10 @@ async function saveEventsToFirestore(events: any[]) {
             away_score: event.scores?.away ?? null,
             last_update: Timestamp.now()
         };
+        // Use merge: true to avoid overwriting existing fields if the event data is partial
         batch.set(gameRef, gameDoc, { merge: true });
 
+        // Batch writes for the bookmaker_odds subcollection as well
         if (event.odds) {
              for (const bookmakerKey in event.odds) {
                 const bookmakerData = event.odds[bookmakerKey];
@@ -123,7 +125,7 @@ async function saveEventsToFirestore(events: any[]) {
 
     try {
         await batch.commit();
-        functions.logger.log(`[FIRESTORE] Successfully saved/updated ${events.length} events.`);
+        functions.logger.log(`[FIRESTORE] Successfully committed batch of ${events.length} events.`);
     } catch(error) {
         functions.logger.error(`[FIRESTORE] Error committing batch:`, error);
     }
@@ -157,6 +159,7 @@ export async function startStreaming() {
                 for (const league of leagues) {
                     if (league.leagueID) {
                       await connectToFeed(league.leagueID);
+                      // Stagger connections to avoid rate limiting
                       await new Promise(resolve => setTimeout(resolve, 500)); 
                     }
                 }
