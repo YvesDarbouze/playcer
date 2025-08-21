@@ -57,10 +57,7 @@ const createBetSchema = (walletBalance: number = 0) => z.object({
     stakeAmount: z.coerce
         .number()
         .min(1, "Stake must be at least $1.")
-        .max(10000, "Stake cannot exceed $10,000.")
-        .refine(val => val <= walletBalance, {
-            message: "Wager cannot exceed your available wallet balance."
-        }),
+        .max(10000, "Stake cannot exceed $10,000."),
     betVisibility: z.enum(["public", "private"]).default("public"),
     opponentTwitter: z.string().optional().refine(val => !val || val.startsWith('@') || /^[a-zA-Z0-9_]{1,15}$/.test(val!), {
         message: "Invalid Twitter handle."
@@ -101,7 +98,7 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, use
   const [clientSecret, setClientSecret] = React.useState<string | null>(null);
   
   const form = useForm<BetFormData>({
-    resolver: zodResolver(createBetSchema(userProfile?.walletBalance)),
+    resolver: zodResolver(createBetSchema()),
     defaultValues: {
       stakeAmount: 20,
       betVisibility: "public",
@@ -396,5 +393,3 @@ export function BetCreationModal(props: BetCreationModalProps) {
         </Elements>
     )
 }
-
-    
