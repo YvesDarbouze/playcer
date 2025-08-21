@@ -77,27 +77,33 @@ export type Game = {
   }[];
 };
 
+export type BetAcceptance = {
+    accepterId: string;
+    amount: number;
+    createdAt: Timestamp;
+};
+
 export type Bet = {
   id: string;
   eventId: string;
   eventDate: string; // ISO string
   homeTeam: string;
   awayTeam: string;
-  creatorId: string;
-  takerId: string | null; // Represents the first or primary taker if not fractional
-  takers?: Record<string, number>; // Map of takerId to amount accepted
+  challengerId: string;
+  accepterId: string | null; // Represents the first or primary accepter if not fractional
+  accepters?: BetAcceptance[]; // Array of acceptance records for fractional bets
   creatorUsername: string;
   creatorPhotoURL: string;
   takerUsername: string | null;
   takerPhotoURL: string | null;
-  stakeAmount: number;
-  remainingStakeAmount?: number;
+  totalWager: number;
+  remainingWager?: number;
   betType: "moneyline" | "spread" | "totals";
   chosenOption: string; // e.g., 'Los Angeles Lakers' or 'Over'
   line?: number; // e.g., -7.5 for spread, 210.5 for totals
   odds: number; // American odds, e.g., -110
   bookmakerKey: string;
-  status: "pending_acceptance" | "accepted" | "resolved" | "void";
+  status: "pending" | "active" | "settled" | "disputed" | "canceled";
   isPublic: boolean;
   twitterShareUrl: string | null;
   winnerId: string | null;
@@ -107,14 +113,6 @@ export type Bet = {
   settledAt: string | null; // ISO string
   allowFractionalAcceptance: boolean;
 };
-
-export type BetAcceptance = {
-    id: string; // takerId
-    amount: number;
-    takerUsername: string;
-    takerPhotoURL: string;
-    createdAt: Timestamp;
-}
 
 export type UserBet = {
   betRef: string; // In Firestore, this is a DocumentReference, but we use its path string in the app
