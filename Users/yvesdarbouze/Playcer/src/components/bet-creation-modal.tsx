@@ -53,7 +53,7 @@ interface BetCreationModalProps {
   userProfile: User | null;
 }
 
-const createBetSchema = z.object({
+const createBetSchema = () => z.object({
     totalWager: z.coerce
         .number()
         .min(1, "Stake must be at least $1.")
@@ -391,9 +391,12 @@ export function BetCreationModal(props: BetCreationModalProps) {
         return null;
     }
     
+    // Pass userProfile to BetCreationModalInternal
     return (
         <Elements stripe={stripePromise} options={{}}>
             <BetCreationModalInternal {...props} />
         </Elements>
     )
 }
+
+    
