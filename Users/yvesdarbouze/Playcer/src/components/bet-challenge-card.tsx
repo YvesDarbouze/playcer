@@ -73,7 +73,7 @@ export function BetChallengeCard({
 
   const isCreator = currentUser && currentUser.uid === bet.creatorId;
 
-  const canAccept = currentUser && bet.status === 'pending' && !isCreator;
+  const canAccept = currentUser && bet.status === 'pending_acceptance' && !isCreator;
 
   const handleShareBet = () => {
     const shareUrl = bet.twitterShareUrl || `https://twitter.com/intent/tweet?text=${encodeURIComponent(`I just posted a public challenge on Playcer for ${bet.awayTeam} @ ${bet.homeTeam}. Who wants to accept?`)}&url=${window.location.href}`;
@@ -155,7 +155,7 @@ export function BetChallengeCard({
         </Button>
       );
     }
-    if (isCreator && bet.status === 'pending') {
+    if (isCreator && bet.status === 'pending_acceptance') {
       return (
         <Button onClick={handleShareBet} className="w-full" size="lg" variant="secondary">
           <Twitter className="mr-2" />
@@ -175,7 +175,7 @@ export function BetChallengeCard({
   return (
     <Card className="w-full max-w-2xl shadow-2xl">
       <CardHeader className="text-center bg-muted/30 p-4">
-        <Badge variant={bet.status === 'pending' ? 'default' : 'secondary'} className="mx-auto w-fit mb-2">
+        <Badge variant={bet.status === 'pending_acceptance' ? 'default' : 'secondary'} className="mx-auto w-fit mb-2">
             {bet.status.replace(/_/g, ' ').toUpperCase()}
         </Badge>
         <CardTitle className="font-bold text-lg">
@@ -213,3 +213,5 @@ export function BetChallengeCard({
     </Card>
   );
 }
+
+    
