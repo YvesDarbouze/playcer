@@ -85,6 +85,21 @@ async function connectToFeed(leagueID: string) {
     }
 }
 
+function getGameState(apiStatus: string): 'upcoming' | 'live' | 'completed' | 'canceled' {
+    switch (apiStatus) {
+        case 'upcoming':
+            return 'upcoming';
+        case 'inplay':
+            return 'live';
+        case 'finished':
+            return 'completed';
+        case 'canceled':
+            return 'canceled';
+        default:
+            return 'upcoming';
+    }
+}
+
 async function saveEventsToFirestore(events: any[]) {
     if (!events || events.length === 0) return;
 
@@ -106,6 +121,7 @@ async function saveEventsToFirestore(events: any[]) {
             home_team: event.teams.home.names.medium,
             away_team: event.teams.away.names.medium,
             is_complete: event.status.finished,
+            gameState: getGameState(event.status.type),
             home_score: event.scores?.home ?? null,
             away_score: event.scores?.away ?? null,
             last_update: Timestamp.now()
