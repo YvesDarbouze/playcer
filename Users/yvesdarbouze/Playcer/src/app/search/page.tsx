@@ -10,17 +10,25 @@ import { useAuth } from '@/hooks/use-auth';
 import { SearchBox } from '@/components/search/search-box';
 import { Hits } from '@/components/search/hits';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Terminal } from 'lucide-react';
 
 const functions = getFunctions(app);
 const getAlgoliaSearchKey = httpsCallable(functions, 'getAlgoliaSearchKey');
 
-const appId = process.env.NEXT_PUBLIC_ALGOLIA_APP_ID!;
+const appId = process.env.NEXT_PUBLIC_ALGOLIA_APP_ID;
 
 export default function SearchPage() {
     const { user } = useAuth();
     const [searchClient, setSearchClient] = useState<any>(null);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        if (!appId) {
+            setLoading(false);
+            return;
+        }
+
         const createSearchClient = async () => {
             if (user) {
                 try {
@@ -29,19 +37,18 @@ export default function SearchPage() {
                     setSearchClient(algoliasearch(appId, searchKey));
                 } catch (error) {
                     console.error("Error fetching Algolia search key:", error);
-                    // Fallback to a search-only key if the function fails
                     setSearchClient(algoliasearch(appId, process.env.NEXT_PUBLIC_ALGOLIA_SEARCH_ONLY_API_KEY!));
                 }
             } else {
-                 // For logged-out users, use the public search-only key
                  setSearchClient(algoliasearch(appId, process.env.NEXT_PUBLIC_ALGOLIA_SEARCH_ONLY_API_KEY!));
             }
+            setLoading(false);
         };
 
         createSearchClient();
     }, [user]);
 
-    if (!searchClient) {
+    if (loading) {
         return (
             <div className="container mx-auto p-4 md:p-8">
                 <Skeleton className="h-12 w-1/3 mb-8" />
@@ -50,6 +57,20 @@ export default function SearchPage() {
                 </div>
             </div>
         );
+    }
+
+    if (!appId || !searchClient) {
+        return (
+            <main className="container mx-auto p-4 md:p-8">
+                 <Alert>
+                    <Terminal className="h-4 w-4" />
+                    <AlertTitle>Algolia Not Configured</AlertTitle>
+                    <AlertDescription>
+                        Please set the `NEXT_PUBLIC_ALGOLIA_APP_ID` and `NEXT_PUBLIC_ALGOLIA_SEARCH_ONLY_API_KEY` environment variables to enable search.
+                    </AlertDescription>
+                </Alert>
+            </main>
+        )
     }
 
     return (

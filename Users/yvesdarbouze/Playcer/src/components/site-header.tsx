@@ -18,9 +18,9 @@ import algoliasearch from "algoliasearch/lite";
 import { InstantSearch } from "react-instantsearch";
 import { SearchBox } from "./search/search-box";
 
-const appId = process.env.NEXT_PUBLIC_ALGOLIA_APP_ID!;
-const apiKey = process.env.NEXT_PUBLIC_ALGOLIA_SEARCH_ONLY_API_KEY!;
-const searchClient = algoliasearch(appId, apiKey);
+const appId = process.env.NEXT_PUBLIC_ALGOLIA_APP_ID;
+const apiKey = process.env.NEXT_PUBLIC_ALGOLIA_SEARCH_ONLY_API_KEY;
+const searchClient = appId && apiKey ? algoliasearch(appId, apiKey) : null;
 
 
 export function SiteHeader() {
@@ -77,14 +77,16 @@ export function SiteHeader() {
         </div>
         
         <div className="flex flex-1 items-center justify-end space-x-2">
-            <div className="relative w-full max-w-sm hidden md:block">
-                <InstantSearch
-                  searchClient={searchClient}
-                  indexName="bets"
-                >
-                  <SearchBox />
-                </InstantSearch>
-            </div>
+            {searchClient && (
+                 <div className="relative w-full max-w-sm hidden md:block">
+                    <InstantSearch
+                    searchClient={searchClient}
+                    indexName="bets"
+                    >
+                    <SearchBox />
+                    </InstantSearch>
+                </div>
+            )}
             <LoginButton />
         </div>
       </div>
