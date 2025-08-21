@@ -160,7 +160,7 @@ export function UserDashboard() {
                             <p className="text-muted-foreground text-lg">@{userProfile.username}</p>
                         </div>
                          <div className="grid grid-cols-2 gap-2">
-                             <Link href="/create-bet" passHref>
+                             <Link href="/" passHref>
                                 <Button className="w-full">
                                     <PlusCircle className="mr-2" />
                                     Create Bet
@@ -190,7 +190,7 @@ export function UserDashboard() {
             </header>
 
             <Tabs defaultValue="stats" className="w-full mb-8">
-                <TabsList className="grid w-full grid-cols-2">
+                <TabsList className="grid w-full grid-cols-1">
                     <TabsTrigger value="stats"><Trophy className="mr-2"/> My Stats</TabsTrigger>
                 </TabsList>
                 <TabsContent value="stats">
@@ -238,5 +238,3 @@ export function UserDashboard() {
         </div>
     );
 }
-
-    
