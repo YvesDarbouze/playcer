@@ -26,12 +26,9 @@ import { app } from "@/lib/firebase";
 interface UserBetsTableProps {
   bets: Bet[];
   currentUserId: string;
-  onBetAction?: () => void; // Callback to refresh data after an action
 }
 
 const OpponentDisplay = ({ bet, currentUserId }: { bet: Bet, currentUserId: string }) => {
-    const isChallenger = bet.challengerId === currentUserId;
-    
     if (bet.isPublic && bet.accepters.length === 0) {
         return <span className="text-muted-foreground">vs. Public</span>;
     }
@@ -87,7 +84,7 @@ const BetValueDisplay = ({ bet }: { bet: Bet }) => {
     return <>{chosenOption || 'N/A'}</>;
 }
 
-export function UserBetsTable({ bets, currentUserId, onBetAction }: UserBetsTableProps) {
+export function UserBetsTable({ bets, currentUserId }: UserBetsTableProps) {
   const { toast } = useToast();
   const [isCanceling, setIsCanceling] = React.useState<Record<string, boolean>>({});
   
@@ -112,7 +109,6 @@ export function UserBetsTable({ bets, currentUserId, onBetAction }: UserBetsTabl
                 title: "Bet Canceled",
                 description: "Your bet has been successfully canceled.",
             });
-            if (onBetAction) onBetAction();
           } else {
              throw new Error(result.data.message || "Failed to cancel bet. Please try again.");
           }
@@ -206,5 +202,3 @@ export function UserBetsTable({ bets, currentUserId, onBetAction }: UserBetsTabl
     </Card>
   );
 }
-
-    
