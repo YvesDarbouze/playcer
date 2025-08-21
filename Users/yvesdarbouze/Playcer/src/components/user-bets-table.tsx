@@ -37,7 +37,7 @@ const OpponentDisplay = ({ bet, currentUserId }: { bet: Bet, currentUserId: stri
         if(bet.isPublic) {
             return <span className="text-muted-foreground">vs. Public</span>
         }
-        const handle = bet.twitterShareUrl?.split('text=@')[1]?.split('%20')[0] || 'private';
+        const handle = bet.twitterShareUrl?.split('text=')[1]?.split('%20I%20challenge%20you')[0]?.replace('@', '') || 'private';
         return <span className="text-muted-foreground">vs. @{handle}</span>
     }
     

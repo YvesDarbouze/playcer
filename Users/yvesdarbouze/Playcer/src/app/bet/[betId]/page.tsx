@@ -3,7 +3,7 @@
 
 import * as React from "react";
 import { useParams, useRouter } from "next/navigation";
-import { getFirestore, doc, getDoc, Timestamp } from "firebase/firestore";
+import { getFirestore, doc, getDoc, Timestamp, onSnapshot } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { useAuth } from "@/hooks/use-auth";
 import type { Bet } from "@/types";
@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { BetChallengeCard } from "@/components/bet-challenge-card";
 import { Elements } from '@stripe/react-stripe-js';
 import { loadStripe } from '@stripe/stripe-js';
+import { notFound } from 'next/navigation';
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
@@ -42,33 +43,42 @@ export default function BetChallengePage() {
   const [isAccepting, setIsAccepting] = React.useState(false);
   const [clientSecret, setClientSecret] = React.useState<string | null>(null);
 
-  const fetchBet = React.useCallback(async () => {
-      if (typeof betId !== "string") return;
-      setLoading(true);
-      setError(null);
-      try {
-        const betRef = doc(firestore, "bets", betId);
-        const betSnap = await getDoc(betRef);
-
-        if (betSnap.exists()) {
-          setBet(convertToBet(betSnap));
-        } else {
-          setError("Bet not found.");
-        }
-      } catch (err) {
-        console.error("Error fetching bet:", err);
-        setError("Failed to load bet details.");
-      } finally {
-        setLoading(false);
-      }
-    }, [betId]);
-
   React.useEffect(() => {
-    fetchBet();
-  }, [fetchBet]);
+    if (typeof betId !== "string") {
+      setLoading(false);
+      return;
+    }
+
+    const betRef = doc(firestore, "bets", betId);
+    const unsubscribe = onSnapshot(betRef, (betSnap) => {
+      if (betSnap.exists()) {
+        setBet(convertToBet(betSnap));
+        setError(null);
+      } else {
+        setError("Bet not found.");
+      }
+      setLoading(false);
+    }, (err) => {
+      console.error("Error fetching bet:", err);
+      setError("Failed to load bet details.");
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [betId]);
 
   const handleAcceptBet = async () => {
     if (!user || !bet) return;
+    
+    if (user.uid === bet.creatorId) {
+        toast({
+            title: "Cannot Accept Bet",
+            description: "You cannot accept your own challenge.",
+            variant: "destructive",
+        });
+        return;
+    }
+
     setIsAccepting(true);
 
     const functions = getFunctions(app);
@@ -95,18 +105,18 @@ export default function BetChallengePage() {
       setIsAccepting(false);
     }
   };
+  
+  if (error) {
+    notFound();
+  }
 
   const renderContent = () => {
     if (loading || authLoading) {
       return (
         <div className="w-full max-w-2xl">
-          <Skeleton className="h-[400px] w-full rounded-lg" />
+          <Skeleton className="h-[500px] w-full rounded-lg" />
         </div>
       );
-    }
-
-    if (error) {
-      return <p className="text-destructive">{error}</p>;
     }
 
     if (bet) {
