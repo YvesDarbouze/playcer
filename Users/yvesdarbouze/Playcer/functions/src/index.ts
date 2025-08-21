@@ -4,6 +4,7 @@ import { getAuth } from "firebase-admin/auth";
 import {getFirestore, Timestamp, FieldValue} from "firebase-admin/firestore";
 import {onUserCreate} from "firebase-functions/v2/auth";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { onSchedule } from "firebase-functions/v2/scheduler";
 import * as functions from "firebase-functions";
 import { v4 as uuidv4 } from "uuid";
 import * as algoliasearch from 'algoliasearch';
@@ -451,8 +452,8 @@ export const cancelBet = onCall(async (request) => {
 });
 
 
-export const processBetOutcomes = onCall(async (request) => {
-    functions.logger.log("Starting processBetOutcomes...");
+export const processBetOutcomes = onSchedule("every 15 minutes", async (event) => {
+    functions.logger.log("Starting processBetOutcomes scheduled job...");
     
     const now = Timestamp.now();
     const query = db.collection('bets')
