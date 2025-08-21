@@ -783,7 +783,7 @@ export const stripeWebhook = functions.https.onRequest(async (request, response)
 
                     if (status !== 'pending') throw new Error(`Bet ${betId} is not pending acceptance.`);
                     if (challengerId === accepterId) throw new Error('User cannot accept their own bet.');
-                    if (accepterData.kycStatus !== 'verified') throw new Error('Recipient must be KYC verified.');
+                    if (accepterData.kycStatus !== 'verified') throw new HttpsError('failed-precondition', 'You must be KYC verified to accept a bet.');
 
                     const numericAcceptedAmount = Number(acceptedAmount);
                     if (isNaN(numericAcceptedAmount) || numericAcceptedAmount <= 0) {
@@ -935,4 +935,84 @@ async function createNotification(userId: string, message: string, link: string)
     });
 }
 
+// --- ADMIN FUNCTIONS ---
+
+const ensureIsAdmin = (context: any) => {
+    if (!context.auth) {
+        throw new HttpsError('unauthenticated', 'You must be logged in to perform this action.');
+    }
+    if (context.auth.token.admin !== true) {
+        throw new HttpsError('permission-denied', 'You must be an administrator to perform this action.');
+    }
+};
+
+export const resolveDispute = onCall(async (request) => {
+    ensureIsAdmin(request);
+
+    const { disputeId, ruling, adminNotes } = request.data;
+    if (!disputeId || !ruling || !adminNotes) {
+        throw new HttpsError('invalid-argument', 'disputeId, ruling, and adminNotes are required.');
+    }
+    if (!['creator_wins', 'taker_wins', 'void'].includes(ruling)) {
+        throw new HttpsError('invalid-argument', 'Invalid ruling provided.');
+    }
+
+    const disputeRef = db.collection('disputes').doc(disputeId);
     
+    return db.runTransaction(async (transaction) => {
+        const disputeDoc = await transaction.get(disputeRef);
+        if (!disputeDoc.exists) {
+            throw new HttpsError('not-found', 'Dispute not found.');
+        }
+        const disputeData = disputeDoc.data()!;
+        if (disputeData.status !== 'open') {
+            throw new HttpsError('failed-precondition', 'This dispute has already been resolved.');
+        }
+        
+        const betRef = db.collection('bets').doc(disputeData.betId);
+        const betDoc = await transaction.get(betRef);
+        if (!betDoc.exists) {
+            throw new HttpsError('not-found', `Related bet ${disputeData.betId} not found.`);
+        }
+        const betData = betDoc.data()!;
+
+        // Update the dispute document first
+        transaction.update(disputeRef, {
+            status: 'resolved',
+            resolution: { outcome: ruling, adminNotes, resolvedAt: Timestamp.now() }
+        });
+
+        if (ruling === 'void') {
+            // If the bet is voided, we'll mark it as such and rely on a separate process
+            // to handle any necessary fund movements or payment intent cancellations.
+            transaction.update(betRef, { status: 'void', settledAt: Timestamp.now() });
+            functions.logger.log(`Dispute ${disputeId} for bet ${betData.id} resolved as 'void'.`);
+
+        } else {
+            const winnerId = ruling === 'creator_wins' ? betData.creatorId : betData.takerId;
+            const loserId = ruling === 'creator_wins' ? betData.takerId : betData.creatorId;
+
+            // This is where the financial settlement would be triggered.
+            // For now, we just update the bet's status and winner.
+            // The actual payout logic would be called here.
+             await processPayout({ 
+                betId: betDoc.id, 
+                winnerId: winnerId, 
+                loserId: loserId,
+                stake: betData.totalWager, // Assuming full wager for simplicity
+                challengerPaymentIntentId: betData.challengerPaymentIntentId,
+                accepterPaymentIntentId: betData.accepters[0]?.paymentIntentId, // Simplified for single accepter
+            });
+
+            transaction.update(betRef, { status: 'settled', winnerId: winnerId, loserId: loserId, settledAt: Timestamp.now() });
+            functions.logger.log(`Dispute ${disputeId} for bet ${betData.id} resolved. Winner: ${winnerId}`);
+        }
+         // TODO: Notify users of the dispute resolution.
+    }).then(() => {
+        return { success: true, message: 'Dispute resolved successfully.' };
+    }).catch((error) => {
+        functions.logger.error(`Error resolving dispute ${disputeId}:`, error);
+        if (error instanceof HttpsError) throw error;
+        throw new HttpsError('internal', 'An internal error occurred while resolving the dispute.');
+    });
+});
