@@ -1,8 +1,9 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
 import { collection, doc, getDoc, onSnapshot, Timestamp, query } from "firebase/firestore";
-import { firestore, app } from "@/lib/firebase";
+import { app, firestore } from "@/lib/firebase";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import type { Game, User } from "@/types";
 import { format } from "date-fns";

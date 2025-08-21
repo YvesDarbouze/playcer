@@ -7,7 +7,6 @@ import { HttpsError, onCall } from "firebase-functions/v2/https";
 import * as functions from "firebase-functions";
 import { v4 as uuidv4 } from "uuid";
 import * as algoliasearch from 'algoliasearch';
-import { generateBetImage } from "../../ai/flows/generate-bet-image";
 import fetch from "node-fetch";
 import Stripe from "stripe";
 import * as crypto from "crypto";
@@ -411,20 +410,6 @@ async function processPayout(data: { betId: string, winnerId: string | null, los
 
     functions.logger.log(`Payout for bet ${betId} processed.`);
 }
-
-export const generateBetImage = onCall(async (request) => {
-    if (!request.auth) {
-        throw new HttpsError('unauthenticated', 'You must be logged in to generate a bet image.');
-    }
-
-    try {
-        const result = await generateBetImage(request.data);
-        return result;
-    } catch(e: any) {
-        functions.logger.error('Error generating bet image', e);
-        throw new HttpsError('internal', 'There was an error generating the bet image.');
-    }
-});
     
 
 export const stripeWebhook = functions.https.onRequest(async (request, response) => {
