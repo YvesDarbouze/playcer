@@ -16,6 +16,7 @@ import { startStreaming } from "./stream";
 // Initialize Algolia client
 // Ensure you have set these environment variables in your Firebase project configuration
 const algoliaClient = algoliasearch.default(process.env.ALGOLIA_APP_ID!, process.env.ALGOLIA_API_KEY!);
+const gamesIndex = algoliaClient.initIndex('games');
 
 
 // Initialize Firebase Admin SDK
@@ -33,19 +34,41 @@ const stripe = new Stripe(process.env.STRIPE_API_KEY!, {
 startStreaming();
 
 
-// --- HELPERS ---
-async function createNotification(userId: string, message: string, link: string) {
-    if (!userId) return;
-    const notificationRef = db.collection('users').doc(userId).collection('notifications').doc();
-    await notificationRef.set({
-        id: notificationRef.id,
-        userId,
-        message,
-        link,
-        isRead: false,
-        createdAt: Timestamp.now()
+// --- DATABASE TRIGGERS ---
+
+export const onGameWritten = functions.firestore
+    .document('games/{gameId}')
+    .onWrite(async (change, context) => {
+        const { gameId } = context.params;
+
+        if (!change.after.exists()) {
+            // Document was deleted
+            try {
+                await gamesIndex.deleteObject(gameId);
+                functions.logger.log(`[Algolia] Deleted game ${gameId}`);
+            } catch (error) {
+                functions.logger.error(`[Algolia] Error deleting game ${gameId}:`, error);
+            }
+            return;
+        }
+
+        // Document was created or updated
+        const gameData = change.after.data();
+        const record = {
+            objectID: gameId,
+            home_team: gameData.home_team,
+            away_team: gameData.away_team,
+            sport_title: gameData.sport_title,
+            commence_time: gameData.commence_time.toMillis(),
+        };
+
+        try {
+            await gamesIndex.saveObject(record);
+            functions.logger.log(`[Algolia] Saved/updated game ${gameId}`);
+        } catch (error) {
+            functions.logger.error(`[Algolia] Error saving game ${gameId}:`, error);
+        }
     });
-}
 
 
 // --- THIRD-PARTY SERVICES ---
@@ -658,3 +681,18 @@ export const markNotificationsAsRead = onCall(async (request) => {
         throw new HttpsError('internal', 'Could not mark notifications as read.');
     }
 });
+
+async function createNotification(userId: string, message: string, link: string) {
+    if (!userId) return;
+    const notificationRef = db.collection('users').doc(userId).collection('notifications').doc();
+    await notificationRef.set({
+        id: notificationRef.id,
+        userId,
+        message,
+        link,
+        isRead: false,
+        createdAt: Timestamp.now()
+    });
+}
+
+    
