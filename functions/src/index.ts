@@ -4,6 +4,7 @@ import { getAuth } from "firebase-admin/auth";
 import {getFirestore, Timestamp, FieldValue} from "firebase-admin/firestore";
 import {onUserCreate} from "firebase-functions/v2/auth";
 import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { onSchedule } from "firebase-functions/v2/scheduler";
 import * as functions from "firebase-functions";
 import { v4 as uuidv4 } from "uuid";
 import * as algoliasearch from 'algoliasearch';
@@ -17,7 +18,7 @@ import { startStreaming } from "./stream";
 // Ensure you have set these environment variables in your Firebase project configuration
 const algoliaClient = algoliasearch.default(process.env.ALGOLIA_APP_ID!, process.env.ALGOLIA_API_KEY!);
 const gamesIndex = algoliaClient.initIndex('games');
-const betsIndex = algoliasearch.initIndex('bets');
+const betsIndex = algoliaClient.initIndex('bets');
 
 
 // Initialize Firebase Admin SDK
@@ -130,10 +131,14 @@ export const onBetWritten = functions.firestore
 const sportsDataAPI = {
      async getEventResult(sportKey: string, eventId: string): Promise<{ home_score: number, away_score: number, status: 'Final' | 'InProgress' }> {
         functions.logger.log(`Fetching result for event ${eventId} from sports data oracle.`);
-        // This is a mock implementation as the new API structure for single event results is not provided.
-        // In a real scenario, this would call the new API.
-        if (Math.random() > 0.5) {
-             return { home_score: Math.floor(Math.random() * 100), away_score: Math.floor(Math.random() * 100), status: 'Final' };
+        // In a real application, this would fetch from a live API.
+        // For this MVP, we simulate a final score to test settlement logic.
+        const home_score = Math.floor(Math.random() * 40) + 70; // Simulate a score between 70-110
+        const away_score = Math.floor(Math.random() * 40) + 70; // Simulate a score between 70-110
+        
+        // Randomly decide if the game is over to allow testing of in-progress games.
+        if (Math.random() > 0.1) { // 90% chance of being 'Final' for testing
+             return { home_score, away_score, status: 'Final' };
         }
         return { home_score: 0, away_score: 0, status: 'InProgress' };
     }
@@ -451,8 +456,8 @@ export const cancelBet = onCall(async (request) => {
 });
 
 
-export const processBetOutcomes = onCall(async (request) => {
-    functions.logger.log("Starting processBetOutcomes...");
+export const processBetOutcomes = onSchedule("every 15 minutes", async (event) => {
+    functions.logger.log("Starting processBetOutcomes scheduled job...");
     
     const now = Timestamp.now();
     const query = db.collection('bets')
@@ -463,7 +468,7 @@ export const processBetOutcomes = onCall(async (request) => {
 
     if (activeBetsSnap.empty) {
         functions.logger.log("No active bets found for processing.");
-        return { success: true, message: "No bets to process." };
+        return null;
     }
 
     let processedCount = 0;
@@ -477,50 +482,78 @@ export const processBetOutcomes = onCall(async (request) => {
 
             if (result.status === 'Final') {
                 let winnerId: string | null = null;
+                let loserId: string | null = null;
                 const { home_score, away_score } = result;
-                const { homeTeam } = betData;
                 
-                // Simplified for now, assumes first accepter is the only one
+                // This simplified logic assumes a single accepter for a non-fractional bet
                 const accepter = betData.accepters[0];
                 if (!accepter) {
                      functions.logger.warn(`Bet ${betId} is active but has no accepters. Skipping.`);
                      continue;
                 }
+                const challengerId = betData.challengerId;
+                const accepterId = accepter.accepterId;
+
+                let challengerWon = false;
 
                 if (betData.betType === 'moneyline') {
-                    const winningTeamName = home_score > away_score ? homeTeam : betData.awayTeam;
-                    if (betData.chosenOption === winningTeamName) {
-                        winnerId = betData.challengerId;
+                    if (home_score === away_score) { // Push condition for moneyline
+                        winnerId = null; 
+                        loserId = null;
                     } else {
-                        winnerId = accepter.accepterId;
+                        const winningTeamName = home_score > away_score ? betData.homeTeam : betData.awayTeam;
+                        challengerWon = (betData.chosenOption === winningTeamName);
                     }
-                } 
-                
-                if (winnerId) {
-                    const loserId = winnerId === betData.challengerId ? accepter.accepterId : betData.challengerId;
-                    await processPayout({ 
-                        betId, 
-                        winnerId, 
-                        loserId,
-                        stake: betData.totalWager, 
-                        challengerPaymentIntentId: betData.challengerPaymentIntentId,
-                        accepterPaymentIntentId: accepter.paymentIntentId,
-                    });
-                    await betDoc.ref.update({ status: 'settled', winnerId, loserId, outcome: 'win', settledAt: Timestamp.now() });
-                    processedCount++;
-                } else {
-                     // This is a PUSH. We need to release both authorizations.
-                    await processPayout({ 
-                        betId, 
-                        winnerId: null, 
-                        loserId: null,
-                        stake: betData.totalWager, 
-                        challengerPaymentIntentId: betData.challengerPaymentIntentId,
-                        accepterPaymentIntentId: accepter.paymentIntentId,
-                    });
-                    await betDoc.ref.update({ status: 'settled', outcome: 'draw', settledAt: Timestamp.now() });
-                    processedCount++;
+                } else if (betData.betType === 'spread') {
+                    const pickedTeamIsHome = betData.chosenOption === betData.homeTeam;
+                    // For spread, the line is negative for the favorite and positive for the underdog.
+                    // We add the line to the team that was picked to see if they cover.
+                    const effectiveHomeScore = pickedTeamIsHome ? (home_score + betData.line) : home_score;
+                    const effectiveAwayScore = !pickedTeamIsHome ? (away_score - betData.line) : away_score;
+                    
+                    if (effectiveHomeScore > effectiveAwayScore) {
+                        challengerWon = pickedTeamIsHome;
+                    } else if (effectiveAwayScore > effectiveHomeScore) {
+                        challengerWon = !pickedTeamIsHome;
+                    } else { // Push condition for spreads
+                        winnerId = null;
+                        loserId = null;
+                    }
+                } else if (betData.betType === 'totals') {
+                    const totalScore = home_score + away_score;
+                     if (totalScore === betData.line) { // Push condition for totals
+                        winnerId = null;
+                        loserId = null;
+                     } else {
+                        challengerWon = (betData.chosenOption === 'Over' && totalScore > betData.line) ||
+                                      (betData.chosenOption === 'Under' && totalScore < betData.line);
+                     }
                 }
+                
+                if (winnerId === undefined) { // If not a push
+                    winnerId = challengerWon ? challengerId : accepterId;
+                    loserId = challengerWon ? accepterId : challengerId;
+                }
+                
+                // Process Payout (which now handles win, loss, or push)
+                await processPayout({ 
+                    betId, 
+                    winnerId, 
+                    loserId,
+                    stake: accepter.amount, // Use the accepted amount for payout calculation
+                    challengerPaymentIntentId: betData.challengerPaymentIntentId,
+                    accepterPaymentIntentId: accepter.paymentIntentId,
+                });
+                
+                await betDoc.ref.update({ 
+                    status: 'settled', 
+                    winnerId, 
+                    loserId, 
+                    outcome: winnerId ? 'win' : 'draw', 
+                    settledAt: Timestamp.now() 
+                });
+                processedCount++;
+
             }
         } catch (error) {
             functions.logger.error(`Failed to process outcome for bet ${betId}:`, error);
@@ -528,11 +561,11 @@ export const processBetOutcomes = onCall(async (request) => {
     }
     
     functions.logger.log(`Finished processBetOutcomes. Processed ${processedCount} bets.`);
-    return { success: true, processedCount };
+    return null;
 });
 
-export const expirePendingBets = onCall(async (request) => {
-    functions.logger.log("Starting expirePendingBets...");
+export const expirePendingBets = onSchedule("every 15 minutes", async (event) => {
+    functions.logger.log("Starting expirePendingBets scheduled job...");
 
     const now = Timestamp.now();
     const query = db.collection('bets')
@@ -543,7 +576,7 @@ export const expirePendingBets = onCall(async (request) => {
 
     if (expiredBetsSnap.empty) {
         functions.logger.log("No expired pending bets found.");
-        return { success: true, message: "No bets to expire." };
+        return null;
     }
 
     let expiredCount = 0;
@@ -583,7 +616,7 @@ export const expirePendingBets = onCall(async (request) => {
     }
     
     functions.logger.log(`Finished expirePendingBets. Expired ${expiredCount} bets.`);
-    return { success: true, expiredCount };
+    return null;
 });
 
 
@@ -591,14 +624,30 @@ async function processPayout(data: { betId: string, winnerId: string | null, los
     const { betId, winnerId, loserId, stake, challengerPaymentIntentId, accepterPaymentIntentId } = data;
     const PLATFORM_COMMISSION_RATE = 0.045; // 4.5% vig
     
+    const betDocSnap = await db.collection('bets').doc(betId).get();
+    if (!betDocSnap.exists) {
+        functions.logger.error(`Bet document ${betId} not found during payout.`);
+        return;
+    }
+    const betData = betDocSnap.data()!;
+    
     if(winnerId && loserId) {
-        // --- Capture Loser's Funds & Pay Winner ---
-        const loserPI = winnerId === challengerPaymentIntentId ? accepterPaymentIntentId : challengerPaymentIntentId;
-        
-        try {
-            await stripe.paymentIntents.capture(loserPI);
-            functions.logger.log(`Successfully captured PaymentIntent ${loserPI} for loser ${loserId} in bet ${betId}.`);
+        const winnerIsChallenger = winnerId === betData.challengerId;
 
+        // This logic assumes a single accepter for simplicity of determining winner/loser PI.
+        // For multiple accepters, this would need to iterate through them.
+        const winnerPI = winnerIsChallenger ? challengerPaymentIntentId : accepterPaymentIntentId;
+        const loserPI = winnerIsChallenger ? accepterPaymentIntentId : challengerPaymentIntentId;
+
+        try {
+            // --- Capture Loser's Funds & Release Winner's Funds ---
+            await Promise.all([
+                stripe.paymentIntents.capture(loserPI),
+                stripe.paymentIntents.cancel(winnerPI)
+            ]);
+            functions.logger.log(`Successfully captured loser's PI (${loserPI}) and canceled winner's PI (${winnerPI}) for bet ${betId}.`);
+
+            // --- Database Updates for Payout ---
             const commission = stake * PLATFORM_COMMISSION_RATE;
             const payoutToWinner = stake - commission;
             
@@ -623,30 +672,28 @@ async function processPayout(data: { betId: string, winnerId: string | null, los
             });
 
              // Notify users
-            const betDoc = await db.collection('bets').doc(betId).get();
-            const betData = betDoc.data();
-            if(!betData) return;
             await createNotification(winnerId, `You won $${payoutToWinner.toFixed(2)} on your bet for ${betData.awayTeam} @ ${betData.homeTeam}!`, `/bet/${betId}`);
             await createNotification(loserId, `You lost your $${stake.toFixed(2)} bet for ${betData.awayTeam} @ ${betData.homeTeam}.`, `/bet/${betId}`);
             
         } catch(error) {
-             functions.logger.error(`Failed to capture funds or process payout for bet ${betId}. Loser PI: ${loserPI}`, error);
+             functions.logger.error(`Failed to capture/release funds or process payout for bet ${betId}. Loser PI: ${loserPI}, Winner PI: ${winnerPI}`, error);
         }
 
     } else {
-        // --- This is a PUSH. Cancel both authorizations. ---
+        // --- This is a PUSH. Cancel all authorizations. ---
         try {
-            await Promise.all([
-                stripe.paymentIntents.cancel(challengerPaymentIntentId),
-                stripe.paymentIntents.cancel(accepterPaymentIntentId)
-            ]);
-            functions.logger.log(`Push for bet ${betId}. Canceled both payment intents.`);
+            const cancellationPromises = [stripe.paymentIntents.cancel(challengerPaymentIntentId)];
+            if(betData.accepters && betData.accepters.length > 0) {
+                 betData.accepters.forEach((accepter: any) => {
+                    cancellationPromises.push(stripe.paymentIntents.cancel(accepter.paymentIntentId));
+                });
+            }
+            
+            await Promise.all(cancellationPromises);
+
+            functions.logger.log(`Push for bet ${betId}. Canceled all payment intents.`);
             
              // Notify users
-            const betDoc = await db.collection('bets').doc(betId).get();
-            const betData = betDoc.data();
-            if(!betData) return;
-            
             await createNotification(betData.challengerId, `Your bet on ${betData.awayTeam} @ ${betData.homeTeam} was a push. Your funds authorization has been released.`, `/bet/${betId}`);
             if(betData.accepters && betData.accepters.length > 0) {
                  for (const accepter of betData.accepters) {
@@ -755,7 +802,7 @@ export const stripeWebhook = functions.https.onRequest(async (request, response)
                         accepterUsername: accepterData.username,
                         accepterPhotoURL: accepterData.photoURL,
                         amount: numericAcceptedAmount,
-                        paymentIntentId: piToCapture.id, // Store the PI for later capture
+                        paymentIntentId: piToCapture.id, // Store the PI for later capture/cancellation
                         createdAt: Timestamp.now()
                     };
 
@@ -887,3 +934,85 @@ async function createNotification(userId: string, message: string, link: string)
         createdAt: Timestamp.now()
     });
 }
+
+// --- ADMIN FUNCTIONS ---
+
+const ensureIsAdmin = (context: any) => {
+    if (!context.auth) {
+        throw new HttpsError('unauthenticated', 'You must be logged in to perform this action.');
+    }
+    if (context.auth.token.admin !== true) {
+        throw new HttpsError('permission-denied', 'You must be an administrator to perform this action.');
+    }
+};
+
+export const resolveDispute = onCall(async (request) => {
+    ensureIsAdmin(request);
+
+    const { disputeId, ruling, adminNotes } = request.data;
+    if (!disputeId || !ruling || !adminNotes) {
+        throw new HttpsError('invalid-argument', 'disputeId, ruling, and adminNotes are required.');
+    }
+    if (!['creator_wins', 'taker_wins', 'void'].includes(ruling)) {
+        throw new HttpsError('invalid-argument', 'Invalid ruling provided.');
+    }
+
+    const disputeRef = db.collection('disputes').doc(disputeId);
+    
+    return db.runTransaction(async (transaction) => {
+        const disputeDoc = await transaction.get(disputeRef);
+        if (!disputeDoc.exists) {
+            throw new HttpsError('not-found', 'Dispute not found.');
+        }
+        const disputeData = disputeDoc.data()!;
+        if (disputeData.status !== 'open') {
+            throw new HttpsError('failed-precondition', 'This dispute has already been resolved.');
+        }
+        
+        const betRef = db.collection('bets').doc(disputeData.betId);
+        const betDoc = await transaction.get(betRef);
+        if (!betDoc.exists) {
+            throw new HttpsError('not-found', `Related bet ${disputeData.betId} not found.`);
+        }
+        const betData = betDoc.data()!;
+
+        // Update the dispute document first
+        transaction.update(disputeRef, {
+            status: 'resolved',
+            resolution: { outcome: ruling, adminNotes, resolvedAt: Timestamp.now() }
+        });
+
+        if (ruling === 'void') {
+            // If the bet is voided, we'll mark it as such and rely on a separate process
+            // to handle any necessary fund movements or payment intent cancellations.
+            transaction.update(betRef, { status: 'void', settledAt: Timestamp.now() });
+            functions.logger.log(`Dispute ${disputeId} for bet ${betData.id} resolved as 'void'.`);
+
+        } else {
+            const winnerId = ruling === 'creator_wins' ? betData.creatorId : betData.takerId;
+            const loserId = ruling === 'creator_wins' ? betData.takerId : betData.creatorId;
+
+            // This is where the financial settlement would be triggered.
+            // For now, we just update the bet's status and winner.
+            // The actual payout logic would be called here.
+             await processPayout({ 
+                betId: betDoc.id, 
+                winnerId: winnerId, 
+                loserId: loserId,
+                stake: betData.totalWager, // Assuming full wager for simplicity
+                challengerPaymentIntentId: betData.challengerPaymentIntentId,
+                accepterPaymentIntentId: betData.accepters[0]?.paymentIntentId, // Simplified for single accepter
+            });
+
+            transaction.update(betRef, { status: 'settled', winnerId: winnerId, loserId: loserId, settledAt: Timestamp.now() });
+            functions.logger.log(`Dispute ${disputeId} for bet ${betData.id} resolved. Winner: ${winnerId}`);
+        }
+         // TODO: Notify users of the dispute resolution.
+    }).then(() => {
+        return { success: true, message: 'Dispute resolved successfully.' };
+    }).catch((error) => {
+        functions.logger.error(`Error resolving dispute ${disputeId}:`, error);
+        if (error instanceof HttpsError) throw error;
+        throw new HttpsError('internal', 'An internal error occurred while resolving the dispute.');
+    });
+});
