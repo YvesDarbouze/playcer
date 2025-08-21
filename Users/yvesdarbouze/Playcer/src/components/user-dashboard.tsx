@@ -51,8 +51,7 @@ export function UserDashboard() {
             collection(firestore, "bets"),
             or(
                 where("creatorId", "==", authUser.uid),
-                where("takerId", "==", authUser.uid),
-                where("takers", "array-contains", authUser.uid)
+                where("takers", `.${authUser.uid}`, ">", 0)
             ),
             orderBy("createdAt", "desc")
         );
@@ -60,6 +59,9 @@ export function UserDashboard() {
         const unsubscribeBets = onSnapshot(betsQuery, (snapshot) => {
             const userBets = snapshot.docs.map(convertToBet);
             setBets(userBets);
+            setLoadingData(false);
+        }, (error) => {
+            console.error("Error fetching bets:", error);
             setLoadingData(false);
         });
 
