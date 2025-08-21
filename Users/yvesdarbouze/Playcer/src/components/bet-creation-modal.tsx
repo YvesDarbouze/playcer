@@ -92,13 +92,12 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, use
   const elements = useElements();
 
   const [isLoading, setIsLoading] = React.useState(false);
-  const [isSuccess, setIsSuccess] = React.useState(false);
   const [betId, setBetId] = React.useState<string | null>(null);
   const [step, setStep] = React.useState(1);
   const [clientSecret, setClientSecret] = React.useState<string | null>(null);
   
   const form = useForm<BetFormData>({
-    resolver: zodResolver(createBetSchema()),
+    resolver: zodResolver(createBetSchema(userProfile?.walletBalance)),
     defaultValues: {
       stakeAmount: 20,
       betVisibility: "public",
@@ -107,13 +106,13 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, use
   });
 
   const betVisibility = form.watch("betVisibility");
-  const opponentTwitter = form.watch("opponentTwitter");
+  const opponentTwitterRaw = form.watch("opponentTwitter");
   const stakeAmount = form.watch("stakeAmount") || 0;
   
   const handleModalClose = (open: boolean) => {
     if (!open) {
         form.reset({ stakeAmount: 20, opponentTwitter: '', betVisibility: 'public', allowFractional: false });
-        setIsSuccess(false);
+        setBetId(null);
         setStep(1);
         setClientSecret(null);
     }
@@ -148,6 +147,8 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, use
         const functions = getFunctions(app);
         const createBetFn = httpsCallable(functions, 'createBet');
         
+        const opponentHandle = data.opponentTwitter ? data.opponentTwitter.replace('@', '') : null;
+        
         const betPayload = {
           eventId: game.id,
           eventDate: game.commence_time,
@@ -158,8 +159,8 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, use
           chosenOption,
           line,
           isPublic: data.betVisibility === 'public',
-          twitterShareUrl: data.betVisibility === 'private' && data.opponentTwitter 
-            ? `https://twitter.com/intent/tweet?text=${encodeURIComponent(`@${data.opponentTwitter.replace('@','')} I challenge you to a bet on Playcer!`)}` 
+          twitterShareUrl: data.betVisibility === 'private' && opponentHandle
+            ? `https://twitter.com/intent/tweet?text=${encodeURIComponent(`@${opponentHandle} I challenge you to a bet on Playcer!`)}` 
             : null,
           bookmakerKey: bookmakerKey,
           odds: odds,
@@ -169,7 +170,6 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, use
         try {
           const result: any = await createBetFn(betPayload);
           if (result.data.success) {
-            setIsSuccess(true);
             setBetId(result.data.betId);
             setStep(3); // Move to success step
           } else {
@@ -336,15 +336,19 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, use
                   </form>
               );
             case 3:
-                const tweetUrl = opponentTwitter 
-                    ? `https://twitter.com/intent/tweet?text=${encodeURIComponent(`@${opponentTwitter.replace('@','')} I challenge you on Playcer: ${getBetValueDisplay()} for $${stakeAmount.toFixed(2)} in the ${game.away_team} @ ${game.home_team} game!`)}&url=${window.location.origin}/bet/${betId}`
-                    : `https://twitter.com/intent/tweet?text=${encodeURIComponent(`I just posted a public challenge on Playcer: ${getBetValueDisplay()} for $${stakeAmount.toFixed(2)} in the ${game.away_team} @ ${game.home_team} game. Who wants to accept?`)}&url=${window.location.origin}/bet/${betId}`;
+                const opponentHandle = opponentTwitterRaw ? opponentTwitterRaw.replace('@','') : null;
+                const betUrl = `${window.location.origin}/bet/${betId}`;
+                const publicTweetText = `I just posted a public challenge on Playcer: ${getBetValueDisplay()} for $${stakeAmount.toFixed(2)} in the ${game.away_team} @ ${game.home_team} game. Who wants to accept?`;
+                const privateTweetText = `@${opponentHandle} I challenge you on Playcer: ${getBetValueDisplay()} for $${stakeAmount.toFixed(2)} in the ${game.away_team} @ ${game.home_team} game!`;
+                
+                const tweetText = opponentHandle ? privateTweetText : publicTweetText;
+                const tweetUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}&url=${encodeURIComponent(betUrl)}`;
 
                 return (
                     <div className="space-y-4 py-8 text-center">
                          <h3 className="font-bold text-lg">Challenge Created!</h3>
                          <p className="text-sm text-muted-foreground">
-                            {opponentTwitter
+                            {opponentHandle
                                 ? "Your challenge has been created. Share it with your opponent so they can accept!"
                                 : "Your public bet is live in the marketplace! Share it with your followers."
                             }
