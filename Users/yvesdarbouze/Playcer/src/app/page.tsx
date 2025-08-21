@@ -1,4 +1,3 @@
-
 "use client";
 
 import { GameList } from "@/components/game-list";

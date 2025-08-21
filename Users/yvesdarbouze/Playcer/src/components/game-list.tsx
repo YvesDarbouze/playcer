@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo, useEffect } from 'react';
@@ -63,7 +62,7 @@ export function GameList() {
             <div className="text-center py-16">
                 <h2 className="text-xl font-bold">No Games Found</h2>
                 <p className="text-muted-foreground mt-2">
-                    There are no upcoming games to display.
+                    There are no upcoming games to display. Check back later!
                 </p>
             </div>
         )

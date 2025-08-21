@@ -1,4 +1,3 @@
-
 import { collection, getDocs, query, orderBy, Timestamp } from "firebase/firestore";
 import { firestore as getFirestore } from "@/lib/firebase-admin";
 import { getFirebaseApp } from "@/lib/firebase";
