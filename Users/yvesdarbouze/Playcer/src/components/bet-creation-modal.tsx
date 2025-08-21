@@ -164,7 +164,7 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, use
             : null,
           bookmakerKey: bookmakerKey,
           odds: odds,
-          allowFractionalAcceptance: data.allowFractionalAcceptance,
+          allowFractionalAcceptance: data.betVisibility === 'public' ? data.allowFractionalAcceptance : false,
         };
 
         try {

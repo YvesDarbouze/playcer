@@ -171,7 +171,7 @@ export function BetChallengeCard({
                     </div>
                     <Button onClick={() => onAccept(acceptedAmount)} disabled={isAccepting || acceptedAmount <= 0 || acceptedAmount > bet.remainingWager} className="w-full" size="lg">
                         {isAccepting ? <Loader2 className="animate-spin mr-2" /> : <Handshake className="mr-2" />}
-                        {isAccepting ? "Initializing..." : `Accept $${acceptedAmount.toFixed(2)}`}
+                        {isAccepting ? "Initializing..." : `Accept for $${acceptedAmount.toFixed(2)}`}
                     </Button>
                 </div>
             )
@@ -222,7 +222,7 @@ export function BetChallengeCard({
                 <div className="flex flex-col items-center">
                     <Swords className="text-muted-foreground my-2 size-8" />
                     <span className="font-bold text-xl">${bet.totalWager.toFixed(2)}</span>
-                    {bet.allowFractionalAcceptance && bet.remainingWager && (
+                    {bet.allowFractionalAcceptance && bet.remainingWager && bet.status === 'pending' && (
                          <span className="text-xs text-muted-foreground">
                             (${bet.remainingWager.toFixed(2)} left)
                         </span>

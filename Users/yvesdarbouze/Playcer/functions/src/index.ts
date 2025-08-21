@@ -17,6 +17,7 @@ import { startStreaming } from "./stream";
 // Ensure you have set these environment variables in your Firebase project configuration
 const algoliaClient = algoliasearch.default(process.env.ALGOLIA_APP_ID!, process.env.ALGOLIA_API_KEY!);
 const gamesIndex = algoliaClient.initIndex('games');
+const betsIndex = algoliaClient.initIndex('bets');
 
 
 // Initialize Firebase Admin SDK
@@ -67,6 +68,59 @@ export const onGameWritten = functions.firestore
             functions.logger.log(`[Algolia] Saved/updated game ${gameId}`);
         } catch (error) {
             functions.logger.error(`[Algolia] Error saving game ${gameId}:`, error);
+        }
+    });
+
+export const onBetWritten = functions.firestore
+    .document('bets/{betId}')
+    .onWrite(async (change, context) => {
+        const { betId } = context.params;
+
+        if (!change.after.exists()) {
+            // Document was deleted
+            try {
+                await betsIndex.deleteObject(betId);
+                functions.logger.log(`[Algolia] Deleted bet ${betId}`);
+            } catch (error) {
+                functions.logger.error(`[Algolia] Error deleting bet ${betId}:`, error);
+            }
+            return;
+        }
+
+        const betData = change.after.data() as any;
+
+        // If the bet is no longer public or pending, remove it from the search index
+        if (!betData.isPublic || betData.status !== 'pending') {
+             try {
+                await betsIndex.deleteObject(betId);
+                functions.logger.log(`[Algolia] Deleted non-public/non-pending bet ${betId}`);
+            } catch (error) {
+                functions.logger.error(`[Algolia] Error deleting bet ${betId} from index:`, error);
+            }
+            return;
+        }
+
+        // Document was created or updated and is searchable
+        const record = {
+            objectID: betId,
+            homeTeam: betData.homeTeam,
+            awayTeam: betData.awayTeam,
+            challengerUsername: betData.challengerUsername,
+            totalWager: betData.totalWager,
+            remainingWager: betData.remainingWager,
+            betType: betData.betType,
+            chosenOption: betData.chosenOption,
+            line: betData.line,
+            odds: betData.odds,
+            allowFractionalAcceptance: betData.allowFractionalAcceptance,
+            createdAt: betData.createdAt.toMillis(),
+        };
+
+        try {
+            await betsIndex.saveObject(record);
+            functions.logger.log(`[Algolia] Saved/updated bet ${betId}`);
+        } catch (error) {
+            functions.logger.error(`[Algolia] Error saving bet ${betId}:`, error);
         }
     });
 
