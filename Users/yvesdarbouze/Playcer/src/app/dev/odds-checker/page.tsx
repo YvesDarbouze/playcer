@@ -1,37 +1,32 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getFirebaseApp } from '@/lib/firebase';
-import { collection, getDocs, query, orderBy, Timestamp } from "firebase/firestore";
-import type { Game } from '@/types';
-import { format } from "date-fns";
 
-
-const getGames = async (): Promise<Game[]> => {
-    const db = getFirebaseApp();
-    const gamesRef = collection(db, "games");
-    const q = query(
-      gamesRef,
-      orderBy("commence_time", "asc")
-    );
-    const querySnapshot = await getDocs(q);
-
-    return querySnapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        ...data,
-        commence_time: (data.commence_time as Timestamp).toDate().toISOString(),
-      } as unknown as Game;
-    });
+type Game = {
+    id: string;
+    commence_time: string;
+    home_team: string;
+    away_team: string;
+    bookmakers: {
+        key: string;
+        title: string;
+        last_update: string;
+        markets: {
+            key: 'h2h';
+            outcomes: { name: string; price: number }[];
+        }[];
+    }[];
 };
 
+const functions = getFunctions(getFirebaseApp());
+const getUpcomingOdds = httpsCallable(functions, 'getUpcomingOdds');
 
 export default function OddsCheckerPage() {
     const [games, setGames] = useState<Game[]>([]);
@@ -42,20 +37,36 @@ export default function OddsCheckerPage() {
         setLoading(true);
         setError(null);
         try {
-            const fetchedGames = await getGames();
+            const result: any = await getUpcomingOdds();
+            const fetchedGames = result.data;
+
             if (!fetchedGames || fetchedGames.length === 0) {
-                setError("No upcoming games found in Firestore.");
+                setError("No upcoming games found or there was an error fetching them.");
             }
             setGames(fetchedGames);
         } catch (e: any) {
-            setError(e.message);
+            console.error(e);
+            setError(e.message || "An unknown error occurred.");
         } finally {
             setLoading(false);
         }
     };
     
     const getOddsDisplay = (game: Game) => {
-        // This is a simplified display. A real app might show more complex odds.
+        const bookmaker = game.bookmakers?.[0]; // Use first available bookmaker
+        if (!bookmaker) return "N/A";
+
+        const h2hMarket = bookmaker.markets.find(market => market.key === 'h2h');
+        if (!h2hMarket) return "N/A";
+        
+        const homeOutcome = h2hMarket.outcomes.find(o => o.name === game.home_team);
+        const awayOutcome = h2hMarket.outcomes.find(o => o.name === game.away_team);
+
+        if (homeOutcome && awayOutcome) {
+            const homeOdds = homeOutcome.price > 0 ? `+${homeOutcome.price}` : homeOutcome.price;
+            const awayOdds = awayOutcome.price > 0 ? `+${awayOutcome.price}` : awayOutcome.price;
+            return `${awayOdds} / ${homeOdds}`;
+        }
         return "N/A";
     };
 
@@ -63,15 +74,15 @@ export default function OddsCheckerPage() {
         <main className="container mx-auto p-4 md:p-8">
             <Card>
                 <CardHeader>
-                    <CardTitle>Developer: Firestore Game Checker</CardTitle>
+                    <CardTitle>Developer: Odds API Checker</CardTitle>
                     <CardDescription>
-                        This page fetches the game data directly from your Firestore database to verify ingestion from the SportsGameOdds API is working.
+                        This page directly calls The Odds API via a secure Cloud Function to demonstrate the data fetching logic.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
                     <Button onClick={handleFetchGames} disabled={loading}>
                         {loading && <Loader2 className="mr-2 animate-spin" />}
-                        Fetch Games from Firestore
+                        Fetch Upcoming Games
                     </Button>
                     
                     {error && <p className="mt-4 text-destructive">{error}</p>}
@@ -82,15 +93,15 @@ export default function OddsCheckerPage() {
                                 <TableRow>
                                     <TableHead>Matchup</TableHead>
                                     <TableHead>Time (Local)</TableHead>
-                                    <TableHead>Sport</TableHead>
+                                    <TableHead>Odds (Away/Home)</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {games.map(game => (
                                     <TableRow key={game.id}>
                                         <TableCell className="font-medium">{game.away_team} @ {game.home_team}</TableCell>
-                                        <TableCell>{format(new Date(game.commence_time), "PPpp")}</TableCell>
-                                        <TableCell>{game.sport_title}</TableCell>
+                                        <TableCell>{new Date(game.commence_time).toLocaleString()}</TableCell>
+                                        <TableCell>{getOddsDisplay(game)}</TableCell>
                                     </TableRow>
                                 ))}
                             </TableBody>
@@ -101,5 +112,3 @@ export default function OddsCheckerPage() {
         </main>
     );
 }
-
-    
