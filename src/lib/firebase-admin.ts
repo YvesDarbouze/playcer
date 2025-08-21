@@ -1,34 +1,43 @@
 
 import * as admin from 'firebase-admin';
+import { applicationDefault } from 'firebase-admin/app';
 
 let app: admin.app.App | undefined;
 
 // This ensures we initialize the app only once
 if (!admin.apps.length) {
   try {
-    // Check if the necessary environment variables are set
-    if (process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
-        app = admin.initializeApp({
-            credential: admin.credential.cert({
-                projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-                clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-                // The private key needs to be parsed correctly from the environment variable
-                privateKey: (process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
-            }),
-        });
-    } else {
-        // This will allow the app to run in environments where server-side admin credentials are not provided
-        console.warn("Firebase Admin credentials (FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY) are not set. Server-side data fetching will be disabled.");
-    }
+    // In a Google-managed environment (like App Hosting), use applicationDefault()
+    // It automatically finds the correct credentials.
+    app = admin.initializeApp({
+        credential: applicationDefault(),
+    });
+    console.log("Firebase Admin SDK initialized successfully via applicationDefault().");
   } catch (error: any) {
-    console.error('Firebase admin initialization error', error.stack);
+    console.error('Firebase admin initialization error with applicationDefault(). This might happen in a local dev environment without gcloud auth. Falling back to env vars.', error.message);
+    // Fallback for local development or environments where GOOGLE_APPLICATION_CREDENTIALS is not set.
+    if (process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
+        try {
+            app = admin.initializeApp({
+                credential: admin.credential.cert({
+                    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+                    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+                    privateKey: (process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
+                }),
+            });
+             console.log("Firebase Admin SDK initialized successfully via environment variables.");
+        } catch (fallbackError: any) {
+             console.error('Firebase admin fallback initialization error', fallbackError.stack);
+        }
+    } else {
+        console.warn("Firebase Admin credentials are not set in environment variables. Server-side features will be limited.");
+    }
   }
 } else {
   app = admin.app();
 }
 
 const firestore = () => {
-    // Only return a firestore instance if the app was successfully initialized
     if (app) {
         return admin.firestore(app);
     }
