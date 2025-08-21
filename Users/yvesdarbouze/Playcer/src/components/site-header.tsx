@@ -17,6 +17,8 @@ import {
 import algoliasearch from "algoliasearch/lite";
 import { InstantSearch } from "react-instantsearch";
 import { SearchBox } from "./search/search-box";
+import { NotificationBell } from "./notification-bell";
+
 
 const appId = process.env.NEXT_PUBLIC_ALGOLIA_APP_ID;
 const apiKey = process.env.NEXT_PUBLIC_ALGOLIA_SEARCH_ONLY_API_KEY;
@@ -87,6 +89,7 @@ export function SiteHeader() {
                     </InstantSearch>
                 </div>
             )}
+            <NotificationBell />
             <LoginButton />
         </div>
       </div>

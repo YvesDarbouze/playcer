@@ -33,6 +33,21 @@ const stripe = new Stripe(process.env.STRIPE_API_KEY!, {
 startStreaming();
 
 
+// --- HELPERS ---
+async function createNotification(userId: string, message: string, link: string) {
+    if (!userId) return;
+    const notificationRef = db.collection('users').doc(userId).collection('notifications').doc();
+    await notificationRef.set({
+        id: notificationRef.id,
+        userId,
+        message,
+        link,
+        isRead: false,
+        createdAt: Timestamp.now()
+    });
+}
+
+
 // --- THIRD-PARTY SERVICES ---
 
 const sportsDataAPI = {
@@ -378,6 +393,10 @@ async function processPayout(data: { betId: string, winnerId: string | null, los
     const { betId, winnerId, loserId, stake } = data;
     const PLATFORM_COMMISSION_RATE = 0.045; // 4.5% vig
     
+    const betDoc = await db.collection('bets').doc(betId).get();
+    const betData = betDoc.data();
+    if(!betData) return;
+
     await db.runTransaction(async (transaction) => {
         if(winnerId && loserId) {
             const winnerDocRef = db.collection('users').doc(winnerId);
@@ -399,14 +418,30 @@ async function processPayout(data: { betId: string, winnerId: string | null, los
             transaction.set(db.collection('transactions').doc(payoutTxId), {
                 userId: winnerId, type: 'bet_payout', amount: payoutToWinner, status: 'completed', relatedBetId: betId, createdAt: Timestamp.now()
             });
+
+             // Notify users
+            await createNotification(winnerId, `You won $${payoutToWinner.toFixed(2)} on your bet for ${betData.awayTeam} @ ${betData.homeTeam}!`, `/bet/${betId}`);
+            await createNotification(loserId, `You lost your $${stake.toFixed(2)} bet for ${betData.awayTeam} @ ${betData.homeTeam}.`, `/bet/${betId}`);
+
         } else {
             // This is a PUSH. Refund both users.
-            const betDoc = await transaction.get(db.collection('bets').doc(betId));
-            const betData = betDoc.data()!;
             const creatorDocRef = db.collection('users').doc(betData.creatorId);
-            const takerDocRef = db.collection('users').doc(betData.takerId);
             transaction.update(creatorDocRef, { walletBalance: FieldValue.increment(stake), totalBets: FieldValue.increment(1) });
-            transaction.update(takerDocRef, { walletBalance: FieldValue.increment(stake), totalBets: FieldValue.increment(1) });
+             await createNotification(betData.creatorId, `Your bet on ${betData.awayTeam} @ ${betData.homeTeam} was a push. Your $${stake.toFixed(2)} stake has been returned.`, `/bet/${betId}`);
+
+            // Handle multiple takers if applicable
+            if(betData.takers && Object.keys(betData.takers).length > 0) {
+                 for (const takerId in betData.takers) {
+                    const takerDocRef = db.collection('users').doc(takerId);
+                    const takerStake = betData.takers[takerId];
+                    transaction.update(takerDocRef, { walletBalance: FieldValue.increment(takerStake), totalBets: FieldValue.increment(1) });
+                    await createNotification(takerId, `Your bet on ${betData.awayTeam} @ ${betData.homeTeam} was a push. Your $${takerStake.toFixed(2)} stake has been returned.`, `/bet/${betId}`);
+                }
+            } else if (betData.takerId) {
+                const takerDocRef = db.collection('users').doc(betData.takerId);
+                transaction.update(takerDocRef, { walletBalance: FieldValue.increment(stake), totalBets: FieldValue.increment(1) });
+                await createNotification(betData.takerId, `Your bet on ${betData.awayTeam} @ ${betData.homeTeam} was a push. Your $${stake.toFixed(2)} stake has been returned.`, `/bet/${betId}`);
+            }
         }
     });
 
@@ -520,7 +555,13 @@ export const stripeWebhook = functions.https.onRequest(async (request, response)
                         takerPhotoURL: takerData.photoURL,
                         createdAt: Timestamp.now()
                     }, { merge: true });
-
+                    
+                    // Create Notification for the bet creator
+                    await createNotification(
+                        creatorId,
+                        `Your challenge for ${betData.awayTeam} @ ${betData.homeTeam} was accepted by @${takerData.username} for $${numericAcceptedAmount.toFixed(2)}!`,
+                        `/bet/${betId}`
+                    );
                 });
                 functions.logger.log(`Bet acceptance for ${betId} successfully processed.`);
             }
@@ -588,4 +629,32 @@ export const kycWebhook = functions.https.onRequest(async (request, response) =>
     }
 
     response.status(200).send({ received: true });
+});
+
+export const markNotificationsAsRead = onCall(async (request) => {
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'You must be logged in.');
+    }
+    const { uid } = request.auth;
+    const notificationsRef = db.collection('users').doc(uid).collection('notifications');
+    const unreadQuery = notificationsRef.where('isRead', '==', false);
+
+    try {
+        const snapshot = await unreadQuery.get();
+        if (snapshot.empty) {
+            return { success: true, message: "No unread notifications." };
+        }
+        
+        const batch = db.batch();
+        snapshot.docs.forEach(doc => {
+            batch.update(doc.ref, { isRead: true });
+        });
+        await batch.commit();
+
+        return { success: true, count: snapshot.size };
+
+    } catch (error) {
+        functions.logger.error("Error marking notifications as read:", error);
+        throw new HttpsError('internal', 'Could not mark notifications as read.');
+    }
 });
