@@ -18,6 +18,7 @@ if (!admin.apps.length) {
         });
     } else if (process.env.FUNCTIONS_EMULATOR) {
         // This is a fallback for local development with Firebase Emulators
+        // It uses the project ID from the environment.
         app = admin.initializeApp();
     }
     else {

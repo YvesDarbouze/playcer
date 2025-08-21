@@ -1,7 +1,7 @@
-
 "use client"
 import { collection, getDocs, query, where, orderBy, Timestamp } from "firebase/firestore";
-import { firestore as getFirestore } from "@/lib/firebase-admin";
+import { getFirebaseApp } from "@/lib/firebase";
+import { getFirestore as getClientFirestore } from "firebase/firestore";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { format } from "date-fns";
@@ -11,15 +11,13 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GameList } from "@/components/game-list";
+import { useEffect, useState } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 
-async function getGames(sportKey: string): Promise<Game[]> {
+async function getGamesBySport(sportKey: string): Promise<Game[]> {
   try {
-    const firestore = getFirestore();
-    if (!firestore) {
-        console.log("Firestore not initialized");
-        return [];
-    }
+    const firestore = getClientFirestore(getFirebaseApp());
     const gamesRef = collection(firestore, "games");
     const q = query(
       gamesRef,
@@ -27,13 +25,7 @@ async function getGames(sportKey: string): Promise<Game[]> {
       orderBy("commence_time", "asc")
     );
     const querySnapshot = await getDocs(q);
-    if (querySnapshot.empty) {
-      // For demo, return mock data if nothing in DB
-      return [
-        { id: 'nfl_1', commence_time: new Date().toISOString(), home_team: 'Rams', away_team: '49ers', sport_key: sportKey, sport_title: "NFL", is_complete: false } as Game,
-        { id: 'nfl_2', commence_time: new Date(Date.now() + 86400000).toISOString(), home_team: 'Chiefs', away_team: 'Eagles', sport_key: sportKey, sport_title: "NFL", is_complete: false } as Game,
-      ];
-    }
+    
     return querySnapshot.docs.map(doc => {
       const data = doc.data();
       return {
@@ -48,11 +40,37 @@ async function getGames(sportKey: string): Promise<Game[]> {
   }
 }
 
-export default async function SportPage({ params }: { params: { sport_key: string } }) {
+export default function SportPage({ params }: { params: { sport_key: string } }) {
   const { sport_key } = params;
-  const games = await getGames(sport_key);
+  const [games, setGames] = useState<Game[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  if (games.length === 0) {
+  useEffect(() => {
+    const fetchGames = async () => {
+        setLoading(true);
+        const fetchedGames = await getGamesBySport(sport_key);
+        setGames(fetchedGames);
+        setLoading(false);
+    }
+    fetchGames();
+  }, [sport_key])
+
+  if (loading) {
+      return (
+          <main className="container mx-auto p-4 md:p-8">
+               <Skeleton className="h-10 w-48 mb-4" />
+               <Skeleton className="h-12 w-96 mb-2" />
+               <Skeleton className="h-6 w-72 mb-8" />
+               <div className="space-y-4">
+                  <Skeleton className="h-20 w-full" />
+                  <Skeleton className="h-20 w-full" />
+                  <Skeleton className="h-20 w-full" />
+               </div>
+          </main>
+      )
+  }
+
+  if (!loading && games.length === 0) {
     notFound();
   }
 
