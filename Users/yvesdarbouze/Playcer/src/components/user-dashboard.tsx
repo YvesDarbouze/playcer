@@ -51,7 +51,7 @@ export function UserDashboard() {
             collection(firestore, "bets"),
             or(
                 where("creatorId", "==", authUser.uid),
-                where("takers", `.${authUser.uid}`, ">", 0)
+                where("takerId", "==", authUser.uid)
             ),
             orderBy("createdAt", "desc")
         );

@@ -160,7 +160,7 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, use
           line,
           isPublic: data.betVisibility === 'public',
           twitterShareUrl: data.betVisibility === 'private' && opponentHandle
-            ? `https://twitter.com/intent/tweet?text=${encodeURIComponent(`@${opponentHandle} I challenge you to a bet on Playcer!`)}` 
+            ? `https://twitter.com/intent/tweet?text=${encodeURIComponent(`@${opponentHandle} I challenge you to a bet on Playcer: ${getBetValueDisplay()} for $${data.stakeAmount.toFixed(2)} in the ${game.away_team} @ ${game.home_team} game!`)}&url=${window.location.origin}/bet/[betId]`
             : null,
           bookmakerKey: bookmakerKey,
           odds: odds,
@@ -397,5 +397,3 @@ export function BetCreationModal(props: BetCreationModalProps) {
         </Elements>
     )
 }
-
-    

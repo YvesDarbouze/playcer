@@ -265,7 +265,7 @@ export const createBet = onCall(async (request) => {
             line,
             status: 'pending_acceptance',
             isPublic: isPublic,
-            twitterShareUrl: twitterShareUrl || null,
+            twitterShareUrl: twitterShareUrl ? twitterShareUrl.replace('[betId]', betId) : null,
             winnerId: null,
             loserId: null,
             createdAt: Timestamp.now(),

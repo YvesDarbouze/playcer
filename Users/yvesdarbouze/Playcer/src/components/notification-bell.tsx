@@ -55,14 +55,20 @@ export function NotificationBell() {
         return () => unsubscribe();
     }, [user, toast]);
 
-    const handleOpenChange = async (open: boolean) => {
-        setIsOpen(open);
-        if (open && unreadCount > 0) {
+    const handleMarkAllAsRead = async () => {
+        if (unreadCount > 0) {
             try {
                 await markNotificationsAsReadFn();
             } catch (error) {
                 console.error("Error marking notifications as read: ", error);
             }
+        }
+    }
+
+    const handleOpenChange = async (open: boolean) => {
+        setIsOpen(open);
+        if (!open && unreadCount > 0) {
+           handleMarkAllAsRead();
         }
     }
 
@@ -83,8 +89,13 @@ export function NotificationBell() {
                 </Button>
             </PopoverTrigger>
             <PopoverContent className="w-80 p-0">
-                <div className="p-2 border-b">
+                <div className="p-2 border-b flex justify-between items-center">
                     <h3 className="font-medium text-sm">Notifications</h3>
+                    {unreadCount > 0 && (
+                        <Button variant="link" size="sm" onClick={handleMarkAllAsRead} className="h-auto p-0">
+                            Mark all as read
+                        </Button>
+                    )}
                 </div>
                 {notifications.length > 0 ? (
                     <div className="flex flex-col max-h-96 overflow-y-auto">
@@ -93,7 +104,7 @@ export function NotificationBell() {
                                 <a className={cn(
                                     "p-3 hover:bg-accent block",
                                     !notif.isRead && "bg-primary/10"
-                                )}>
+                                )} onClick={() => setIsOpen(false)}>
                                     <p className="text-sm">{notif.message}</p>
                                     <p className="text-xs text-muted-foreground mt-1">
                                         {formatDistanceToNow(new Date((notif.createdAt as any).toDate()), { addSuffix: true })}
@@ -105,13 +116,7 @@ export function NotificationBell() {
                 ) : (
                     <p className="text-sm text-muted-foreground text-center p-4">No new notifications.</p>
                 )}
-                 <div className="p-2 border-t text-center">
-                    <Button variant="link" size="sm" className="w-full">
-                        <CheckCheck className="mr-2"/> Mark All As Read
-                    </Button>
-                 </div>
             </PopoverContent>
         </Popover>
     );
 }
-
