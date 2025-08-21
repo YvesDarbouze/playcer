@@ -32,17 +32,8 @@ import { getFirebaseApp } from "@/lib/firebase";
 import { Separator } from "./ui/separator";
 import { useStripe, useElements, PaymentElement, Elements } from '@stripe/react-stripe-js';
 import { loadStripe } from '@stripe/stripe-js';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 
-
-interface BookmakerOdds {
-    key: string;
-    title: string;
-    last_update: string;
-    markets: {
-        key: "h2h" | "spreads" | "totals";
-        outcomes: { name: string; price: number, point?: number }[];
-    }[];
-};
 
 type SelectedBet = {
     betType: "moneyline" | "spread" | "totals";
@@ -64,6 +55,18 @@ const betSchema = z.object({
     opponentTwitter: z.string().optional().refine(val => !val || val.startsWith('@') || /^[a-zA-Z0-9_]{1,15}$/.test(val!), {
         message: "Invalid Twitter handle."
     }),
+    betType: z.enum(["moneyline", "spread", "totals"]),
+    line: z.coerce.number().optional(),
+    teamSelection: z.string().optional(),
+    overUnderSelection: z.string().optional(),
+}).refine(data => {
+    if (data.betType === 'spread') return !!data.teamSelection && data.line !== undefined;
+    if (data.betType === 'totals') return !!data.overUnderSelection && data.line !== undefined;
+    if (data.betType === 'moneyline') return !!data.teamSelection;
+    return true;
+}, {
+    message: "Please complete all required fields for the selected bet type.",
+    path: ["betType"],
 });
 
 
@@ -99,7 +102,21 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet }: B
 
   const opponentTwitter = form.watch("opponentTwitter");
   const stakeAmount = form.watch("stake") || 0;
+  const betType = form.watch("betType");
   
+  React.useEffect(() => {
+    if (selectedBet) {
+        form.setValue("betType", selectedBet.betType);
+        if(selectedBet.betType === 'totals') {
+            form.setValue("overUnderSelection", selectedBet.chosenOption);
+        } else {
+            form.setValue("teamSelection", selectedBet.chosenOption);
+        }
+        form.setValue("line", selectedBet.line);
+    }
+  }, [selectedBet, form]);
+
+
   const handleModalClose = (open: boolean) => {
     if (!open) {
         form.reset({ stake: 20, opponentTwitter: '' });
@@ -115,7 +132,7 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet }: B
       return null;
   }
 
-  const { betType, chosenOption, line, odds, bookmakerKey } = selectedBet;
+  const { odds, bookmakerKey } = selectedBet;
 
   const onSubmit = async (data: BetFormData) => {
     if (!user) return toast({ title: "Not Authenticated", variant: "destructive" });
@@ -138,20 +155,27 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet }: B
         const functions = getFunctions(getFirebaseApp());
         const createBet = httpsCallable(functions, 'createBet');
         
+        let betValue: any;
+        if (data.betType === 'moneyline') {
+            betValue = { team: data.teamSelection };
+        } else if (data.betType === 'spread') {
+            betValue = { team: data.teamSelection, points: data.line };
+        } else { // totals
+            betValue = { over_under: data.overUnderSelection, total: data.line };
+        }
+
         const betPayload = {
           eventId: game.id,
           eventDate: game.commence_time,
           homeTeam: game.home_team,
           awayTeam: game.away_team,
-          betType: betType,
+          betType: data.betType,
           stakeAmount: data.stake,
-          chosenOption: chosenOption,
-          line: line,
+          betValue,
           isPublic: !data.opponentTwitter,
           twitterShareUrl: data.opponentTwitter ? `https://twitter.com/intent/tweet?text=${encodeURIComponent(`@${data.opponentTwitter.replace('@','')} I challenge you to a bet on Playcer!`)}` : null,
           bookmakerKey: bookmakerKey,
           odds: odds,
-          period: 'game', // Defaulting to full game for now
         };
 
         try {
@@ -196,16 +220,17 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet }: B
   }
 
   const getBetValueDisplay = () => {
-    if (betType === 'moneyline') {
-      return chosenOption;
+    const data = form.getValues();
+    if (data.betType === 'moneyline') {
+      return data.teamSelection;
     }
-    if (betType === 'spread') {
-      return `${chosenOption} ${line! > 0 ? `+${line}` : line}`;
+    if (data.betType === 'spread') {
+      return `${data.teamSelection} ${data.line! > 0 ? `+${data.line}` : data.line}`;
     }
-    if (betType === 'totals') {
-      return `Total ${chosenOption} ${line}`;
+    if (data.betType === 'totals') {
+      return `Total ${data.overUnderSelection} ${data.line}`;
     }
-    return chosenOption;
+    return '';
   }
   
   const potentialWinnings = (stakeAmount * (odds > 0 ? (odds / 100) : (100 / Math.abs(odds)))).toFixed(2);
@@ -218,14 +243,109 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet }: B
               return (
                 <Form {...form}>
                     <form id="bet-details-form" className="space-y-4">
-                        <div className="p-4 rounded-lg bg-muted border border-primary/20">
-                            <h3 className="font-bold text-lg">Your Pick</h3>
-                            <div className="flex justify-between items-baseline">
-                                <span className="text-xl font-bold text-primary">{getBetValueDisplay()}</span>
-                                <span className="text-xl font-bold">{odds > 0 ? `+${odds}` : odds}</span>
+                        
+                        <FormField
+                            control={form.control}
+                            name="betType"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Bet Type</FormLabel>
+                                    <Select onValueChange={(value) => field.onChange(value)} defaultValue={field.value}>
+                                        <FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl>
+                                        <SelectContent>
+                                            <SelectItem value="moneyline">Moneyline</SelectItem>
+                                            <SelectItem value="spread">Point Spread</SelectItem>
+                                            <SelectItem value="totals">Total (Over/Under)</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </FormItem>
+                            )}
+                        />
+
+                        {betType === 'moneyline' && (
+                             <FormField
+                                control={form.control}
+                                name="teamSelection"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Your Pick</FormLabel>
+                                         <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                            <FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl>
+                                            <SelectContent>
+                                                <SelectItem value={game.home_team}>{game.home_team}</SelectItem>
+                                                <SelectItem value={game.away_team}>{game.away_team}</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage/>
+                                    </FormItem>
+                                )}/>
+                        )}
+                        
+                        {betType === 'spread' && (
+                            <div className="grid grid-cols-2 gap-4">
+                                <FormField
+                                    control={form.control}
+                                    name="teamSelection"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Your Pick</FormLabel>
+                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                <FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl>
+                                                <SelectContent>
+                                                    <SelectItem value={game.home_team}>{game.home_team}</SelectItem>
+                                                    <SelectItem value={game.away_team}>{game.away_team}</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            <FormMessage/>
+                                        </FormItem>
+                                    )}/>
+                                <FormField
+                                    control={form.control}
+                                    name="line"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Custom Line</FormLabel>
+                                            <FormControl><Input type="number" step="0.5" {...field} /></FormControl>
+                                            <FormMessage/>
+                                        </FormItem>
+                                    )}
+                                />
                             </div>
-                        </div>
-                       
+                        )}
+                        
+                        {betType === 'totals' && (
+                            <div className="grid grid-cols-2 gap-4">
+                                <FormField
+                                    control={form.control}
+                                    name="overUnderSelection"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Your Pick</FormLabel>
+                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                <FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl>
+                                                <SelectContent>
+                                                    <SelectItem value="Over">Over</SelectItem>
+                                                    <SelectItem value="Under">Under</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            <FormMessage/>
+                                        </FormItem>
+                                    )}/>
+                                <FormField
+                                    control={form.control}
+                                    name="line"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Custom Total</FormLabel>
+                                            <FormControl><Input type="number" step="0.5" {...field} /></FormControl>
+                                            <FormMessage/>
+                                        </FormItem>
+                                    )}
+                                />
+                            </div>
+                        )}
+
+
                         <div className="grid grid-cols-2 gap-4">
                             <FormField control={form.control} name="stake" render={({ field }) => (
                                 <FormItem><FormLabel>Wager ($)</FormLabel>
@@ -242,6 +362,7 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet }: B
                         </div>
 
                          <div className="p-4 rounded-lg bg-muted text-sm space-y-1">
+                            <OddsInfo label="Original Odds" value={odds > 0 ? `+${odds}`: odds} />
                             <OddsInfo label="Wager" value={`$${stakeAmount.toFixed(2)}`} />
                             <OddsInfo label="Potential Winnings" value={`$${potentialWinnings}`} />
                             <Separator />
@@ -318,7 +439,6 @@ export function BetCreationModal(props: BetCreationModalProps) {
         return null;
     }
     
-    // Pass an empty object to options if you don't have specific options to set
     return (
         <Elements stripe={stripePromise} options={{}}>
             <BetCreationModalInternal {...props} />

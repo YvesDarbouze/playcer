@@ -76,6 +76,20 @@ export type Game = {
   }[];
 };
 
+type MoneylineBetValue = {
+  team: string;
+};
+
+type SpreadBetValue = {
+  team: string;
+  points: number;
+};
+
+type TotalsBetValue = {
+  over_under: 'Over' | 'Under';
+  total: number;
+};
+
 export type Bet = {
   id: string;
   eventId: string;
@@ -90,8 +104,7 @@ export type Bet = {
   takerPhotoURL: string | null;
   stakeAmount: number;
   betType: "moneyline" | "spread" | "totals";
-  chosenOption: string; // e.g., 'Los Angeles Lakers' or 'Over'
-  line?: number; // e.g., -7.5 for spread, 210.5 for totals
+  betValue: MoneylineBetValue | SpreadBetValue | TotalsBetValue;
   odds: number; // American odds, e.g., -110
   bookmakerKey: string;
   status: "pending_acceptance" | "accepted" | "resolved" | "void";
