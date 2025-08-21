@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import * as React from "react";
@@ -68,7 +67,6 @@ export function BetChallengeCard({
   const elements = useElements();
   const router = useRouter();
   const { toast } = useToast();
-  const eventTime = new Date(bet.eventDate);
   const [isFinalizing, setIsFinalizing] = React.useState(false);
 
   const isCreator = currentUser && currentUser.uid === bet.creatorId;
