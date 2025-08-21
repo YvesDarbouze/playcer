@@ -13,10 +13,6 @@ import { getFirestore, collection, onSnapshot, query, limit, Timestamp } from 'f
 import { getFirebaseApp } from '@/lib/firebase';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { GameDetailsModal } from './game-details-modal';
-import { useAuth } from '@/hooks/use-auth';
-import { useRouter } from 'next/navigation';
-
 
 interface GameCardProps {
     game: Game;
@@ -54,9 +50,6 @@ const OddsValue = ({ value, previousValue }: { value: number, previousValue?: nu
 export function GameCard({ game }: GameCardProps) {
     const [odds, setOdds] = React.useState<BookmakerOdds | null>(null);
     const prevOddsRef = React.useRef<BookmakerOdds | null>(null);
-    const [isModalOpen, setIsModalOpen] = React.useState(false);
-    const { user } = useAuth();
-    const router = useRouter();
     
     React.useEffect(() => {
         prevOddsRef.current = odds;
@@ -81,19 +74,6 @@ export function GameCard({ game }: GameCardProps) {
 
     }, [game.id]);
 
-    const handleCardClick = () => {
-        if (user) {
-            setIsModalOpen(true);
-        } else {
-            router.push('/signin');
-        }
-    };
-    
-    const handleCreateBetClick = (e: React.MouseEvent) => {
-        e.stopPropagation(); // Prevent card click from firing
-        handleCardClick(); // Use same logic as card click
-    }
-
     const homeLogo = getTeamLogoUrl(game.home_team, game.sport_key);
     const awayLogo = getTeamLogoUrl(game.away_team, game.sport_key);
 
@@ -106,12 +86,11 @@ export function GameCard({ game }: GameCardProps) {
     const prevHomeTeamOdds = prevH2hMarket?.outcomes.find(o => o.name === game.home_team);
 
     return (
-        <>
         <Card 
-            className="hover:shadow-lg transition-all duration-300 flex flex-col overflow-hidden h-full cursor-pointer"
-            onClick={handleCardClick}
+            className="hover:shadow-lg transition-all duration-300 flex flex-col overflow-hidden h-full"
         >
-                <CardContent className="p-4 flex-grow flex flex-col items-center justify-center transition-all duration-300">
+             <Link href={`/game/${game.id}`} passHref className="flex-grow">
+                <CardContent className="p-4 flex-grow flex flex-col items-center justify-center transition-all duration-300 cursor-pointer">
                     {game.commence_time && (
                         <div className="text-center text-muted-foreground text-sm w-full">
                             <p>{format(new Date(game.commence_time), "EEE, MMM d, h:mm a")}</p>
@@ -131,15 +110,16 @@ export function GameCard({ game }: GameCardProps) {
                         </div>
                     </div>
                 </CardContent>
+            </Link>
 
             <div className='p-2 bg-muted/50 text-center'>
-                <Button variant="ghost" className="w-full font-bold h-12 text-base" onClick={handleCreateBetClick}>
-                    <Swords className="mr-2" />
-                    View Odds & Challenges
-                </Button>
+                <Link href={`/game/${game.id}`} passHref>
+                    <Button variant="ghost" className="w-full font-bold h-12 text-base">
+                        <Swords className="mr-2" />
+                        View Odds & Challenges
+                    </Button>
+                </Link>
             </div>
         </Card>
-        <GameDetailsModal game={game} isOpen={isModalOpen} onOpenChange={setIsModalOpen} />
-        </>
     );
 }
