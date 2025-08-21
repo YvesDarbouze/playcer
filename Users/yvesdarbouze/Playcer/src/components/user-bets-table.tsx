@@ -106,15 +106,15 @@ export function UserBetsTable({ bets, currentUserId, onBetAction }: UserBetsTabl
       }
       setIsCanceling(prev => ({ ...prev, [betId]: true }));
       try {
-          const result = await cancelBetFn({ betId });
-          if(result.data) { // Check if result.data is not null/undefined
+          const result: any = await cancelBetFn({ betId });
+          if(result.data.success) {
             toast({
                 title: "Bet Canceled",
                 description: "Your bet has been successfully canceled.",
             });
             if (onBetAction) onBetAction();
           } else {
-             throw new Error("Failed to cancel bet. Please try again.");
+             throw new Error(result.data.message || "Failed to cancel bet. Please try again.");
           }
       } catch (error: any) {
           toast({
@@ -182,7 +182,7 @@ export function UserBetsTable({ bets, currentUserId, onBetAction }: UserBetsTabl
                     <OutcomeBadge bet={bet} currentUserId={currentUserId} />
                 </TableCell>
                  <TableCell className="text-right space-x-1">
-                    {bet.status === 'pending' && bet.challengerId === currentUserId && bet.accepters.length === 0 && (
+                    {isCancelable(bet) && (
                         <Button variant="destructive" size="sm" onClick={() => handleCancelBet(bet.id)} disabled={isCanceling[bet.id]}>
                             <XCircle className="mr-2 h-4 w-4" /> Cancel
                         </Button>
@@ -206,3 +206,5 @@ export function UserBetsTable({ bets, currentUserId, onBetAction }: UserBetsTabl
     </Card>
   );
 }
+
+    
