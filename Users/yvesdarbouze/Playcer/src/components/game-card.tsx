@@ -12,6 +12,7 @@ import { getTeamLogoUrl } from '@/lib/team-logo-helper';
 import { getFirestore, collection, onSnapshot, query, limit, Timestamp } from 'firebase/firestore';
 import { getFirebaseApp } from '@/lib/firebase';
 import Link from 'next/link';
+import { cn } from '@/lib/utils';
 
 interface GameCardProps {
     game: Game;
@@ -27,8 +28,34 @@ type BookmakerOdds = {
     }[];
 };
 
+const OddsValue = ({ value, previousValue }: { value: number, previousValue?: number }) => {
+    const [flashColor, setFlashColor] = React.useState('');
+
+    React.useEffect(() => {
+        if (previousValue !== undefined && value !== previousValue) {
+            const color = value > previousValue ? 'bg-green-500/30' : 'bg-red-500/30';
+            setFlashColor(color);
+            const timer = setTimeout(() => setFlashColor(''), 1000);
+            return () => clearTimeout(timer);
+        }
+    }, [value, previousValue]);
+
+    return (
+        <p className={cn("font-mono text-sm transition-colors duration-300 p-1 rounded", flashColor)}>
+            {value > 0 ? `+${value}` : value}
+        </p>
+    );
+};
+
 export function GameCard({ game }: GameCardProps) {
     const [odds, setOdds] = React.useState<BookmakerOdds | null>(null);
+    const prevOddsRef = React.useRef<BookmakerOdds | null>(null);
+    
+    React.useEffect(() => {
+        prevOddsRef.current = odds;
+    });
+    const prevOdds = prevOddsRef.current;
+
 
     React.useEffect(() => {
         const db = getFirestore(getFirebaseApp());
@@ -53,31 +80,37 @@ export function GameCard({ game }: GameCardProps) {
     const h2hMarket = odds?.markets.find(m => m.key === 'h2h');
     const awayTeamOdds = h2hMarket?.outcomes.find(o => o.name === game.away_team);
     const homeTeamOdds = h2hMarket?.outcomes.find(o => o.name === game.home_team);
+    
+    const prevH2hMarket = prevOdds?.markets.find(m => m.key === 'h2h');
+    const prevAwayTeamOdds = prevH2hMarket?.outcomes.find(o => o.name === game.away_team);
+    const prevHomeTeamOdds = prevH2hMarket?.outcomes.find(o => o.name === game.home_team);
 
     return (
         <Card 
-            className="hover:shadow-lg transition-all duration-300 flex flex-col overflow-hidden cursor-pointer h-full"
+            className="hover:shadow-lg transition-all duration-300 flex flex-col overflow-hidden h-full"
         >
-            <CardContent className="p-4 flex-grow flex flex-col items-center justify-center transition-all duration-300">
-                 {game.commence_time && (
-                     <div className="text-center text-muted-foreground text-sm w-full">
-                        <p>{format(new Date(game.commence_time), "EEE, MMM d, h:mm a")}</p>
+             <Link href={`/game/${game.id}`} passHref className="flex-grow">
+                <CardContent className="p-4 flex-grow flex flex-col items-center justify-center transition-all duration-300 cursor-pointer">
+                    {game.commence_time && (
+                        <div className="text-center text-muted-foreground text-sm w-full">
+                            <p>{format(new Date(game.commence_time), "EEE, MMM d, h:mm a")}</p>
+                        </div>
+                    )}
+                    <div className="flex items-center justify-around text-center w-full flex-grow space-x-2 my-4">
+                        <div className="flex flex-col items-center text-center">
+                            <Image src={awayLogo} alt={`${game.away_team} logo`} width={80} height={80} className="h-16 w-auto transition-all"/>
+                            <p className="font-bold text-lg mt-1">{game.away_team}</p>
+                            {awayTeamOdds && <OddsValue value={awayTeamOdds.price} previousValue={prevAwayTeamOdds?.price} />}
+                        </div>
+                        <div className="text-muted-foreground font-bold text-xl">@</div>
+                        <div className="flex flex-col items-center text-center">
+                            <Image src={homeLogo} alt={`${game.home_team} logo`} width={80} height={80} className="h-16 w-auto transition-all"/>
+                            <p className="font-bold text-lg mt-1">{game.home_team}</p>
+                            {homeTeamOdds && <OddsValue value={homeTeamOdds.price} previousValue={prevHomeTeamOdds?.price} />}
+                        </div>
                     </div>
-                )}
-                <div className="flex items-center justify-around text-center w-full flex-grow space-x-2 my-4">
-                    <div className="flex flex-col items-center text-center">
-                        <Image src={awayLogo} alt={`${game.away_team} logo`} width={80} height={80} className="h-16 w-auto transition-all"/>
-                        <p className="font-bold text-lg mt-1">{game.away_team}</p>
-                        {awayTeamOdds && <p className="font-mono text-sm">{awayTeamOdds.price > 0 ? `+${awayTeamOdds.price}` : awayTeamOdds.price}</p>}
-                    </div>
-                    <div className="text-muted-foreground font-bold text-xl">@</div>
-                    <div className="flex flex-col items-center text-center">
-                        <Image src={homeLogo} alt={`${game.home_team} logo`} width={80} height={80} className="h-16 w-auto transition-all"/>
-                        <p className="font-bold text-lg mt-1">{game.home_team}</p>
-                         {homeTeamOdds && <p className="font-mono text-sm">{homeTeamOdds.price > 0 ? `+${homeTeamOdds.price}` : homeTeamOdds.price}</p>}
-                    </div>
-                </div>
-            </CardContent>
+                </CardContent>
+            </Link>
 
             <div className='p-2 bg-muted/50 text-center'>
                 <Link href={`/game/${game.id}`} passHref>
