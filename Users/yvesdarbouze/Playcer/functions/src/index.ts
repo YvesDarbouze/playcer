@@ -131,10 +131,14 @@ export const onBetWritten = functions.firestore
 const sportsDataAPI = {
      async getEventResult(sportKey: string, eventId: string): Promise<{ home_score: number, away_score: number, status: 'Final' | 'InProgress' }> {
         functions.logger.log(`Fetching result for event ${eventId} from sports data oracle.`);
-        // This is a mock implementation as the new API structure for single event results is not provided.
-        // In a real scenario, this would call the new API.
-        if (Math.random() > 0.5) {
-             return { home_score: Math.floor(Math.random() * 100), away_score: Math.floor(Math.random() * 100), status: 'Final' };
+        // In a real application, this would fetch from a live API.
+        // For this MVP, we simulate a final score to test settlement logic.
+        const home_score = Math.floor(Math.random() * 40) + 70; // Simulate a score between 70-110
+        const away_score = Math.floor(Math.random() * 40) + 70; // Simulate a score between 70-110
+        
+        // Randomly decide if the game is over to allow testing of in-progress games.
+        if (Math.random() > 0.1) { // 90% chance of being 'Final' for testing
+             return { home_score, away_score, status: 'Final' };
         }
         return { home_score: 0, away_score: 0, status: 'InProgress' };
     }
@@ -478,50 +482,75 @@ export const processBetOutcomes = onSchedule("every 15 minutes", async (event) =
 
             if (result.status === 'Final') {
                 let winnerId: string | null = null;
+                let loserId: string | null = null;
                 const { home_score, away_score } = result;
-                const { homeTeam } = betData;
                 
-                // Simplified for now, assumes first accepter is the only one for a non-fractional bet
+                // This simplified logic assumes a single accepter for a non-fractional bet
                 const accepter = betData.accepters[0];
                 if (!accepter) {
                      functions.logger.warn(`Bet ${betId} is active but has no accepters. Skipping.`);
                      continue;
                 }
+                const challengerId = betData.challengerId;
+                const accepterId = accepter.accepterId;
+
+                let challengerWon = false;
 
                 if (betData.betType === 'moneyline') {
-                    const winningTeamName = home_score > away_score ? homeTeam : betData.awayTeam;
-                    if (betData.chosenOption === winningTeamName) {
-                        winnerId = betData.challengerId;
+                    const winningTeamName = home_score > away_score ? betData.homeTeam : betData.awayTeam;
+                    if (home_score === away_score) { // Push condition for moneyline
+                        winnerId = null; 
+                        loserId = null;
                     } else {
-                        winnerId = accepter.accepterId;
+                        challengerWon = (betData.chosenOption === winningTeamName);
                     }
-                } 
-                
-                if (winnerId) {
-                    const loserId = winnerId === betData.challengerId ? accepter.accepterId : betData.challengerId;
-                    await processPayout({ 
-                        betId, 
-                        winnerId, 
-                        loserId,
-                        stake: accepter.amount, // Use the accepted amount for payout calculation
-                        challengerPaymentIntentId: betData.challengerPaymentIntentId,
-                        accepterPaymentIntentId: accepter.paymentIntentId,
-                    });
-                    await betDoc.ref.update({ status: 'settled', winnerId, loserId, outcome: 'win', settledAt: Timestamp.now() });
-                    processedCount++;
-                } else {
-                     // This is a PUSH. We need to release both authorizations.
-                    await processPayout({ 
-                        betId, 
-                        winnerId: null, 
-                        loserId: null,
-                        stake: accepter.amount,
-                        challengerPaymentIntentId: betData.challengerPaymentIntentId,
-                        accepterPaymentIntentId: accepter.paymentIntentId,
-                    });
-                    await betDoc.ref.update({ status: 'settled', outcome: 'draw', settledAt: Timestamp.now() });
-                    processedCount++;
+                } else if (betData.betType === 'spread') {
+                    const pickedTeamIsHome = betData.chosenOption === betData.homeTeam;
+                    const effectiveHomeScore = home_score + (pickedTeamIsHome ? betData.line : -betData.line);
+                    
+                    if (effectiveHomeScore > away_score) {
+                        challengerWon = true;
+                    } else if (effectiveHomeScore < away_score) {
+                        challengerWon = false;
+                    } else { // Push condition for spreads
+                        winnerId = null;
+                        loserId = null;
+                    }
+                } else if (betData.betType === 'totals') {
+                    const totalScore = home_score + away_score;
+                     if (totalScore === betData.line) { // Push condition for totals
+                        winnerId = null;
+                        loserId = null;
+                     } else {
+                        challengerWon = (betData.chosenOption === 'Over' && totalScore > betData.line) ||
+                                      (betData.chosenOption === 'Under' && totalScore < betData.line);
+                     }
                 }
+                
+                if (winnerId === undefined) { // If not a push
+                    winnerId = challengerWon ? challengerId : accepterId;
+                    loserId = challengerWon ? accepterId : challengerId;
+                }
+                
+                // Process Payout (which now handles win, loss, or push)
+                await processPayout({ 
+                    betId, 
+                    winnerId, 
+                    loserId,
+                    stake: accepter.amount, // Use the accepted amount for payout calculation
+                    challengerPaymentIntentId: betData.challengerPaymentIntentId,
+                    accepterPaymentIntentId: accepter.paymentIntentId,
+                });
+                
+                await betDoc.ref.update({ 
+                    status: 'settled', 
+                    winnerId, 
+                    loserId, 
+                    outcome: winnerId ? 'win' : 'draw', 
+                    settledAt: Timestamp.now() 
+                });
+                processedCount++;
+
             }
         } catch (error) {
             functions.logger.error(`Failed to process outcome for bet ${betId}:`, error);
@@ -899,3 +928,5 @@ async function createNotification(userId: string, message: string, link: string)
         createdAt: Timestamp.now()
     });
 }
+
+    
