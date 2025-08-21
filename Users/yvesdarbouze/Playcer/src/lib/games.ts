@@ -7,7 +7,7 @@ export async function getGames(): Promise<Game[]> {
   try {
     const firestore = getFirestore();
     if (!firestore) {
-      console.error("Firestore Admin SDK not initialized.");
+      console.error("Firestore Admin SDK not initialized. Game data cannot be fetched on the server.");
       return [];
     }
 

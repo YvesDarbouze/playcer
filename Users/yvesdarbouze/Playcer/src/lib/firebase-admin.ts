@@ -1,7 +1,7 @@
 
 import * as admin from 'firebase-admin';
 
-let app: admin.app.App;
+let app: admin.app.App | undefined;
 
 // This ensures we initialize the app only once
 if (!admin.apps.length) {
