@@ -97,4 +97,20 @@ Stripe needs to send events to your `stripeWebhook` function.
     *   `payment_intent.canceled`
 6.  Click **Add endpoint**. Stripe will now send events to your function.
 
-    
+---
+
+## 5. Enable Firebase App Check
+
+To protect your backend from abuse, you must enable App Check.
+
+**Steps to Enable:**
+
+1.  Go to the **Firebase Console**.
+2.  In the left navigation pane, go to the **Build** section and click on **App Check**.
+3.  Select the **Apps** tab and click on your web application.
+4.  Click on **reCAPTCHA Enterprise** and follow the prompts to enable it. You may need to enable the reCAPTCHA Enterprise API in the Google Cloud Console.
+5.  Once your site is registered, go to the **APIs** tab in the App Check section.
+6.  Select **Cloud Functions** and click **Enforce**.
+7.  Select **Cloud Firestore** and click **Enforce**.
+
+After enforcement is enabled, only requests from your verified web application will be allowed to access your backend services.

@@ -36,7 +36,8 @@ const stripe = new Stripe(process.env.STRIPE_API_KEY!, {
 startStreaming();
 
 const functionBuilder = functions.runWith({
-    secrets: ["STRIPE_API_KEY", "STRIPE_WEBHOOK_SECRET", "ALGOLIA_APP_ID", "ALGOLIA_API_KEY", "ALGOLIA_SEARCH_ONLY_API_KEY", "ODDS_API_KEY", "KYC_WEBHOOK_SECRET"]
+    secrets: ["STRIPE_API_KEY", "STRIPE_WEBHOOK_SECRET", "ALGOLIA_APP_ID", "ALGOLIA_API_KEY", "ALGOLIA_SEARCH_ONLY_API_KEY", "ODDS_API_KEY", "KYC_WEBHOOK_SECRET"],
+    enforceAppCheck: true,
 });
 
 
