@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import * as React from "react";
@@ -8,7 +7,7 @@ import { getFirestore, doc, getDoc, Timestamp } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { useAuth } from "@/hooks/use-auth";
 import type { Bet } from "@/types";
-import { getFirebaseApp } from "@/lib/firebase";
+import { firestore, app } from "@/lib/firebase";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { BetChallengeCard } from "@/components/bet-challenge-card";
@@ -48,8 +47,7 @@ export default function BetChallengePage() {
       setLoading(true);
       setError(null);
       try {
-        const db = getFirestore(getFirebaseApp());
-        const betRef = doc(db, "bets", betId);
+        const betRef = doc(firestore, "bets", betId);
         const betSnap = await getDoc(betRef);
 
         if (betSnap.exists()) {
@@ -73,7 +71,7 @@ export default function BetChallengePage() {
     if (!user || !bet) return;
     setIsAccepting(true);
 
-    const functions = getFunctions(getFirebaseApp());
+    const functions = getFunctions(app);
     const acceptBetFn = httpsCallable(functions, "acceptBet"); 
 
     try {

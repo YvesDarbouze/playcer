@@ -1,6 +1,9 @@
 
-import { collection, getDocs, query, where, orderBy, Timestamp } from "firebase/firestore";
-import { firestore as getFirestore } from "@/lib/firebase-admin"; // Using admin SDK for server-side fetches
+"use client";
+
+import { useState, useEffect } from "react";
+import { collection, getDocs, query, where, orderBy, Timestamp, onSnapshot } from "firebase/firestore";
+import { firestore } from "@/lib/firebase";
 import type { Bet } from "@/types";
 import { MarketplaceFeed } from "@/components/marketplace-feed";
 import { Logo } from "@/components/icons";
@@ -8,16 +11,11 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { LayoutDashboard } from "lucide-react";
 import { LoginButton } from "@/components/login-button";
+import { Skeleton } from "@/components/ui/skeleton";
 
-export const dynamic = 'force-dynamic';
 
 async function getOpenBets(): Promise<Bet[]> {
   try {
-    const firestore = getFirestore();
-    if (!firestore) {
-      console.log("Firestore not initialized");
-      return [];
-    }
     const betsRef = collection(firestore, "bets");
     const q = query(
       betsRef,
@@ -30,7 +28,6 @@ async function getOpenBets(): Promise<Bet[]> {
     
     return querySnapshot.docs.map(doc => {
       const data = doc.data();
-      // Convert Firestore Timestamps to serializable strings for the client
       return {
         ...data,
         id: doc.id,
@@ -46,8 +43,43 @@ async function getOpenBets(): Promise<Bet[]> {
   }
 }
 
-export default async function MarketplacePage() {
-  const openBets = await getOpenBets();
+export default function MarketplacePage() {
+  const [openBets, setOpenBets] = useState<Bet[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchBets = async () => {
+        setLoading(true);
+        const bets = await getOpenBets();
+        setOpenBets(bets);
+        setLoading(false);
+    }
+    fetchBets();
+
+    const betsRef = collection(firestore, "bets");
+    const q = query(
+      betsRef,
+      where("isPublic", "==", true),
+      where("status", "==", "pending_acceptance")
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+        const updatedBets = snapshot.docs.map(doc => {
+             const data = doc.data();
+              return {
+                ...data,
+                id: doc.id,
+                eventDate: (data.eventDate as Timestamp).toDate().toISOString(),
+                createdAt: (data.createdAt as Timestamp).toDate().toISOString(),
+                settledAt: data.settledAt ? (data.settledAt as Timestamp).toDate().toISOString() : null,
+              } as unknown as Bet;
+        });
+         // A simple way to merge updates without complex logic for this use case
+        fetchBets();
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   return (
     <main className="bg-muted/40 min-h-screen">
@@ -76,8 +108,14 @@ export default async function MarketplacePage() {
                      </div>
                  </div>
             </header>
-
-            <MarketplaceFeed initialBets={openBets} />
+            
+            {loading ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-80 w-full" />)}
+                </div>
+            ) : (
+                <MarketplaceFeed initialBets={openBets} />
+            )}
        </div>
     </main>
   );

@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { collection, doc, getDoc, onSnapshot, Timestamp, query } from "firebase/firestore";
-import { getFirebaseApp } from "@/lib/firebase";
+import { app, firestore } from "@/lib/firebase";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import type { Game, User } from "@/types";
 import { format } from "date-fns";
@@ -66,11 +66,10 @@ export default function GameDetailsPage({ params }: { params: { gameId: string }
   useEffect(() => {
     if (!gameId) return;
 
-    const db = getFirebaseApp();
-    const functions = getFunctions(db.app);
+    const functions = getFunctions(app);
 
     const fetchGameDetails = async () => {
-      const gameRef = doc(db, "games", gameId);
+      const gameRef = doc(firestore, "games", gameId);
       const gameSnap = await getDoc(gameRef);
 
       if (gameSnap.exists()) {
@@ -87,7 +86,7 @@ export default function GameDetailsPage({ params }: { params: { gameId: string }
 
      const fetchUserProfile = async () => {
         if (!user) return;
-        const userDocRef = doc(db, "users", user.uid);
+        const userDocRef = doc(firestore, "users", user.uid);
         const userDocSnap = await getDoc(userDocRef);
         if (userDocSnap.exists()) {
             setUserProfile(userDocSnap.data() as User);
@@ -113,7 +112,7 @@ export default function GameDetailsPage({ params }: { params: { gameId: string }
     fetchConsensusOdds();
     if(user) fetchUserProfile();
 
-    const oddsQuery = query(collection(db, `games/${gameId}/bookmaker_odds`));
+    const oddsQuery = query(collection(firestore, `games/${gameId}/bookmaker_odds`));
     const unsubscribe = onSnapshot(oddsQuery, (snapshot) => {
         if (!snapshot.empty) {
             setOdds(snapshot.docs.map(d => d.data() as BookmakerOdds));

@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from 'react';
@@ -9,7 +10,7 @@ import { Swords } from 'lucide-react';
 import type { Game } from '@/types';
 import { getTeamLogoUrl } from '@/lib/team-logo-helper';
 import { getFirestore, collection, onSnapshot, query, limit, Timestamp } from 'firebase/firestore';
-import { getFirebaseApp } from '@/lib/firebase';
+import { firestore } from '@/lib/firebase';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { Skeleton } from './ui/skeleton';
@@ -59,8 +60,7 @@ export function GameCard({ game }: GameCardProps) {
 
 
     React.useEffect(() => {
-        const db = getFirestore(getFirebaseApp());
-        const oddsQuery = query(collection(db, `games/${game.id}/bookmaker_odds`), limit(1));
+        const oddsQuery = query(collection(firestore, `games/${game.id}/bookmaker_odds`), limit(1));
         
         const unsubscribe = onSnapshot(oddsQuery, (snapshot) => {
             if (!snapshot.empty) {

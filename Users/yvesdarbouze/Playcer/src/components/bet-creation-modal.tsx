@@ -28,7 +28,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import type { Game, User } from "@/types";
 import { Twitter, Swords, Loader2 } from "lucide-react";
-import { getFirebaseApp } from "@/lib/firebase";
+import { app } from "@/lib/firebase";
 import { Separator } from "./ui/separator";
 import { useStripe, useElements, PaymentElement, Elements } from '@stripe/react-stripe-js';
 import { loadStripe } from '@stripe/stripe-js';
@@ -144,7 +144,7 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, use
     }
 
     if (paymentIntent && paymentIntent.status === 'requires_capture') {
-        const functions = getFunctions(getFirebaseApp());
+        const functions = getFunctions(app);
         const createBetFn = httpsCallable(functions, 'createBet');
         
         const betPayload = {
@@ -187,7 +187,7 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, use
       if (!isValid) return;
       
       setIsLoading(true);
-      const functions = getFunctions(getFirebaseApp());
+      const functions = getFunctions(app);
       const createBetPaymentIntent = httpsCallable(functions, 'createBetPaymentIntent');
       
       try {

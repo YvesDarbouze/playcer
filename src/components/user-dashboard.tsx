@@ -1,10 +1,9 @@
-
 "use client";
 
 import * as React from "react";
 import { getFirestore, doc, getDoc, collection, query, where, getDocs, orderBy, Timestamp, or } from "firebase/firestore";
 import { useAuth } from "@/hooks/use-auth";
-import { getFirebaseApp } from "@/lib/firebase";
+import { firestore } from "@/lib/firebase";
 import type { User, Bet } from "@/types";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -42,17 +41,16 @@ export function UserDashboard() {
 
         const fetchData = async () => {
             setLoading(true);
-            const db = getFirestore(getFirebaseApp());
-
+            
             // Fetch User Profile
-            const userDocRef = doc(db, "users", authUser.uid);
+            const userDocRef = doc(firestore, "users", authUser.uid);
             const userDocSnap = await getDoc(userDocRef);
             if (userDocSnap.exists()) {
                 setUserProfile({ id: userDocSnap.id, ...userDocSnap.data() } as User);
             }
             
             // Fetch all bets where user is creator OR taker
-            const betsRef = collection(db, "bets");
+            const betsRef = collection(firestore, "bets");
             const q = query(
                 betsRef, 
                 or(

@@ -1,9 +1,8 @@
-
 "use client";
 
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import type { User as FirebaseUser } from 'firebase/auth';
-import { auth, signOut, getFirebaseApp, storage } from '@/lib/firebase';
+import { auth, signOut as firebaseSignOut, storage } from '@/lib/firebase';
 import { onAuthStateChanged, getIdTokenResult, updateProfile } from 'firebase/auth';
 import { doc, getDoc, getFirestore, Timestamp, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -14,14 +13,21 @@ interface AuthContextType {
   loading: boolean;
   claims: { [key: string]: any } | null;
   updateUserProfileImage: (file: File) => Promise<void>;
+  signOut: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType>({ user: null, loading: true, claims: null, updateUserProfileImage: async () => {} });
+const AuthContext = createContext<AuthContextType>({ 
+    user: null, 
+    loading: true, 
+    claims: null, 
+    updateUserProfileImage: async () => {},
+    signOut: async () => {}
+});
 
 // Helper to check self-exclusion status
 const checkSelfExclusion = async (uid: string): Promise<boolean> => {
     try {
-        const db = getFirestore(getFirebaseApp());
+        const db = getFirestore();
         const userDocRef = doc(db, "users", uid);
         const userDocSnap = await getDoc(userDocRef);
 
@@ -51,6 +57,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [claims, setClaims] = useState<{ [key: string]: any } | null>(null);
   const { toast } = useToast();
 
+  const handleSignOut = async () => {
+    try {
+        await firebaseSignOut(auth);
+        setUser(null);
+        setClaims(null);
+    } catch (error) {
+        console.error("Error signing out: ", error);
+        toast({ title: "Error", description: "Failed to sign out.", variant: "destructive" });
+    }
+  };
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
@@ -58,7 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (isExcluded) {
             setUser(null);
             setClaims(null);
-            await signOut();
+            await firebaseSignOut(auth);
             toast({
                 title: "Account Suspended",
                 description: "You are currently in a self-exclusion period.",
@@ -101,7 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await updateProfile(user, { photoURL: downloadURL });
 
         // Update Firestore user document
-        const db = getFirestore(getFirebaseApp());
+        const db = getFirestore();
         const userDocRef = doc(db, 'users', user.uid);
         await updateDoc(userDocRef, { photoURL: downloadURL });
         
@@ -118,7 +135,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, claims, updateUserProfileImage }}>
+    <AuthContext.Provider value={{ user, loading, claims, updateUserProfileImage, signOut: handleSignOut }}>
       {children}
     </AuthContext.Provider>
   );

@@ -7,9 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { getFirebaseApp } from '@/lib/firebase';
+import { app } from '@/lib/firebase';
 
-const functions = getFunctions(getFirebaseApp());
+const functions = getFunctions(app);
 const getConsensusOdds = httpsCallable(functions, 'getConsensusOdds');
 
 export default function ConsensusCheckerPage() {

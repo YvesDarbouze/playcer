@@ -8,7 +8,6 @@ import { Logo } from "./icons";
 import { LoginButton } from "./login-button";
 import { Button } from "./ui/button";
 import { Search, Bot } from "lucide-react";
-import { Input } from "./ui/input";
 import {
   DropdownMenu,
   DropdownMenuContent,

@@ -1,6 +1,5 @@
 import { collection, getDocs, query, orderBy, Timestamp } from "firebase/firestore";
-import { getFirebaseApp } from "@/lib/firebase";
-import { getFirestore as getClientFirestore } from "firebase/firestore";
+import { firestore } from "@/lib/firebase";
 import type { Game } from "@/types";
 
 // This file is intended for client-side data fetching.
@@ -9,7 +8,6 @@ import type { Game } from "@/types";
 // Client-side function
 export async function getClientGames(): Promise<Game[]> {
   try {
-    const firestore = getClientFirestore(getFirebaseApp());
     const gamesRef = collection(firestore, "games");
     const q = query(
       gamesRef,

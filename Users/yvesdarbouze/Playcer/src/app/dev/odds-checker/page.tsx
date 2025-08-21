@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { getFirebaseApp } from '@/lib/firebase';
+import { app } from '@/lib/firebase';
 
 type Game = {
     id: string;
@@ -25,7 +25,7 @@ type Game = {
     }[];
 };
 
-const functions = getFunctions(getFirebaseApp());
+const functions = getFunctions(app);
 const getUpcomingOdds = httpsCallable(functions, 'getUpcomingOdds');
 
 export default function OddsCheckerPage() {

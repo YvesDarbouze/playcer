@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { getFirebaseApp } from '@/lib/firebase';
+import { app } from '@/lib/firebase';
 import { format } from "date-fns";
 
 type ArbitrageOpportunity = {
@@ -25,7 +25,7 @@ type ArbitrageOpportunity = {
     }[];
 };
 
-const functions = getFunctions(getFirebaseApp());
+const functions = getFunctions(app);
 const getArbitrageOpportunities = httpsCallable(functions, 'getArbitrageOpportunities');
 
 export default function ArbitrageFinderPage() {
@@ -105,5 +105,3 @@ export default function ArbitrageFinderPage() {
         </main>
     );
 }
-
-    

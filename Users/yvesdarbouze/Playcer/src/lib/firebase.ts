@@ -6,7 +6,7 @@ import { getStorage } from "firebase/storage";
 
 const firebaseConfig: FirebaseOptions = {
   apiKey: "AIzaSyCi9pZNU7MmgHXoYOXyS3GWJHaYQa40Etk",
-  authDomain: "playcer.app",
+  authDomain: "playcer-xbv5e.firebaseapp.com",
   projectId: "playcer-xbv5e",
   storageBucket: "playcer-xbv5e.appspot.com",
   messagingSenderId: "484911120701",
@@ -15,12 +15,7 @@ const firebaseConfig: FirebaseOptions = {
 
 
 // Initialize Firebase
-let app: FirebaseApp;
-if (getApps().length === 0) {
-  app = initializeApp(firebaseConfig);
-} else {
-  app = getApp();
-}
+const app: FirebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
 const auth = getAuth(app);
 const firestore = getFirestore(app);
@@ -31,7 +26,4 @@ const signOut = () => {
   return firebaseSignOut(auth);
 }
 
-// Export the initialized app instance
-export const getFirebaseApp = () => app;
-export { auth, firestore, storage, twitterProvider, signOut };
-
+export { app, auth, firestore, storage, twitterProvider, signOut };

@@ -1,18 +1,28 @@
-
 import { collection, getDocs, query, where, orderBy, Timestamp } from "firebase/firestore";
-import { firestore as getFirestore } from "@/lib/firebase-admin";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { format } from "date-fns";
 import type { Game } from "@/types";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
+import * as admin from 'firebase-admin';
+
+// Correctly initialize Firebase Admin SDK for server-side use
+if (!admin.apps.length) {
+  try {
+      admin.initializeApp({
+        projectId: "playcer-xbv5e",
+      });
+  } catch (error: any) {
+    console.error('Firebase admin initialization error', error.stack);
+  }
+}
 
 async function getGames(sportKey: string): Promise<Game[]> {
   try {
-    const firestore = getFirestore();
+    const firestore = admin.firestore();
     if (!firestore) {
         console.log("Firestore not initialized");
         return [];
@@ -24,13 +34,7 @@ async function getGames(sportKey: string): Promise<Game[]> {
       orderBy("commence_time", "asc")
     );
     const querySnapshot = await getDocs(q);
-    if (querySnapshot.empty) {
-      // For demo, return mock data if nothing in DB
-      return [
-        { id: 'nfl_1', commence_time: new Date().toISOString(), home_team: 'Rams', away_team: '49ers', sport_key: sportKey, sport_title: "NFL", is_complete: false } as Game,
-        { id: 'nfl_2', commence_time: new Date(Date.now() + 86400000).toISOString(), home_team: 'Chiefs', away_team: 'Eagles', sport_key: sportKey, sport_title: "NFL", is_complete: false } as Game,
-      ];
-    }
+    
     return querySnapshot.docs.map(doc => {
       const data = doc.data();
       return {

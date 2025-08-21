@@ -1,16 +1,15 @@
-
 import { collection, getDocs, query, orderBy, Timestamp } from "firebase/firestore";
-import { firestore as getFirestore } from "@/lib/firebase-admin";
+import { getFirebaseApp } from "@/lib/firebase";
+import { getFirestore as getClientFirestore } from "firebase/firestore";
 import type { Game } from "@/types";
 
-export async function getGames(): Promise<Game[]> {
-  try {
-    const firestore = getFirestore();
-    if (!firestore) {
-      console.error("Firestore Admin SDK not initialized.");
-      return [];
-    }
+// This file is intended for client-side data fetching.
+// Do not add Firebase Admin SDK code here.
 
+// Client-side function
+export async function getClientGames(): Promise<Game[]> {
+  try {
+    const firestore = getClientFirestore(getFirebaseApp());
     const gamesRef = collection(firestore, "games");
     const q = query(
       gamesRef,
@@ -33,7 +32,7 @@ export async function getGames(): Promise<Game[]> {
     });
 
   } catch (error) {
-    console.error("Error fetching games:", error);
+    console.error("Error fetching games on client:", error);
     return [];
   }
 }

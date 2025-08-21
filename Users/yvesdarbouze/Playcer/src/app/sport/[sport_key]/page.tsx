@@ -1,15 +1,12 @@
+
 "use client"
 import { collection, getDocs, query, where, orderBy, Timestamp } from "firebase/firestore";
-import { getFirebaseApp } from "@/lib/firebase";
-import { getFirestore as getClientFirestore } from "firebase/firestore";
+import { firestore } from "@/lib/firebase";
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { format } from "date-fns";
+import { notFound, useParams } from "next/navigation";
 import type { Game } from "@/types";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { GameList } from "@/components/game-list";
 import { useEffect, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,7 +14,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 async function getGamesBySport(sportKey: string): Promise<Game[]> {
   try {
-    const firestore = getClientFirestore(getFirebaseApp());
     const gamesRef = collection(firestore, "games");
     const q = query(
       gamesRef,
@@ -40,12 +36,14 @@ async function getGamesBySport(sportKey: string): Promise<Game[]> {
   }
 }
 
-export default function SportPage({ params }: { params: { sport_key: string } }) {
-  const { sport_key } = params;
+export default function SportPage() {
+  const params = useParams();
+  const sport_key = params.sport_key as string;
   const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!sport_key) return;
     const fetchGames = async () => {
         setLoading(true);
         const fetchedGames = await getGamesBySport(sport_key);
