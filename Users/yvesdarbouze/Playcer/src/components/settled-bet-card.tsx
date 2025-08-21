@@ -16,11 +16,12 @@ interface SettledBetCardProps {
 }
 
 const OpponentDetails = ({ bet, profileUserId }: { bet: Bet, profileUserId: string}) => {
-    const isCreator = bet.creatorId === profileUserId;
+    const isChallenger = bet.challengerId === profileUserId;
     
-    const opponent = isCreator
-        ? { id: bet.takerId, username: bet.takerUsername, photoURL: bet.takerPhotoURL }
-        : { id: bet.creatorId, username: bet.creatorUsername, photoURL: bet.creatorPhotoURL };
+    // Simplified: assumes one accepter for settled bets display
+    const opponent = isChallenger && bet.accepters.length > 0
+        ? { id: bet.accepters[0].accepterId, username: bet.accepters[0].accepterUsername, photoURL: bet.accepters[0].accepterPhotoURL }
+        : { id: bet.challengerId, username: bet.challengerUsername, photoURL: bet.challengerPhotoURL };
 
     if (!opponent.id) return null;
 
@@ -61,7 +62,7 @@ export function SettledBetCard({ bet, profileUserId }: SettledBetCardProps) {
                 <div className="flex items-center gap-6">
                     <div className="text-center">
                         <p className="text-xs text-muted-foreground">Wager</p>
-                        <p className="font-bold text-lg">${bet.stakeAmount.toFixed(2)}</p>
+                        <p className="font-bold text-lg">${bet.totalWager.toFixed(2)}</p>
                     </div>
                      <Badge className="text-lg font-bold w-20 justify-center" variant="secondary">
                         Push
@@ -89,7 +90,7 @@ export function SettledBetCard({ bet, profileUserId }: SettledBetCardProps) {
                 <div className="flex items-center gap-6">
                     <div className="text-center">
                         <p className="text-xs text-muted-foreground">Wager</p>
-                        <p className="font-bold text-lg">${bet.stakeAmount.toFixed(2)}</p>
+                        <p className="font-bold text-lg">${bet.totalWager.toFixed(2)}</p>
                     </div>
                      <Badge className={cn("text-lg font-bold w-20 justify-center", outcomeColor)}>
                         <Trophy className="mr-2" />
@@ -100,3 +101,5 @@ export function SettledBetCard({ bet, profileUserId }: SettledBetCardProps) {
         </Card>
     );
 }
+
+    

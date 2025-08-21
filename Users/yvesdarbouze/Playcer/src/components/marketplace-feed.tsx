@@ -19,9 +19,9 @@ export function MarketplaceFeed({ initialBets }: MarketplaceFeedProps) {
             return initialBets;
         }
         return initialBets.filter(bet => 
-            bet.gameDetails.home_team.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            bet.gameDetails.away_team.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            bet.creatorUsername.toLowerCase().includes(searchTerm.toLowerCase())
+            bet.homeTeam.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            bet.awayTeam.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            bet.challengerUsername.toLowerCase().includes(searchTerm.toLowerCase())
         );
     }, [initialBets, searchTerm]);
 
@@ -56,3 +56,5 @@ export function MarketplaceFeed({ initialBets }: MarketplaceFeedProps) {
         </div>
     )
 }
+
+    

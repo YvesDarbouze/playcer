@@ -26,37 +26,34 @@ interface UserBetsTableProps {
 }
 
 const OpponentDisplay = ({ bet, currentUserId }: { bet: Bet, currentUserId: string }) => {
-    const isCreator = bet.creatorId === currentUserId;
+    const isChallenger = bet.challengerId === currentUserId;
     
-    if (bet.isPublic && !bet.takerId && !Object.keys(bet.takers || {}).length) {
+    if (bet.isPublic && bet.accepters.length === 0) {
         return <span className="text-muted-foreground">vs. Public</span>;
     }
 
-    const opponentId = isCreator ? bet.takerId : bet.creatorId;
-    const opponentUsername = isCreator ? bet.takerUsername : bet.creatorUsername;
-    const opponentPhotoURL = isCreator ? bet.takerPhotoURL : bet.creatorPhotoURL;
+    if (bet.accepters.length === 1) {
+        const opponent = bet.accepters[0];
+         return (
+            <Link href={`/profile/${opponent.accepterId}`} className="flex items-center gap-2 hover:underline">
+                <Avatar className="size-6">
+                    <AvatarImage src={opponent.accepterPhotoURL || undefined} alt={opponent.accepterUsername || ''} />
+                    <AvatarFallback>{opponent.accepterUsername ? opponent.accepterUsername.charAt(0) : '?'}</AvatarFallback>
+                </Avatar>
+                <span className="font-medium">@{opponent.accepterUsername}</span>
+            </Link>
+        )
+    }
 
-    if (!opponentId) {
-        if(bet.twitterShareUrl) {
-            const handle = bet.twitterShareUrl?.split('text=')[1]?.split('%20I%20challenge%20you')[0]?.replace('@', '') || 'private';
-            return <span className="text-muted-foreground">vs. @{handle}</span>
-        }
+    if (bet.accepters.length > 1) {
         return <span className="text-muted-foreground">vs. Multiple</span>
     }
     
-    return (
-        <Link href={`/profile/${opponentId}`} className="flex items-center gap-2 hover:underline">
-            <Avatar className="size-6">
-                <AvatarImage src={opponentPhotoURL || undefined} alt={opponentUsername || ''} />
-                <AvatarFallback>{opponentUsername ? opponentUsername.charAt(0) : '?'}</AvatarFallback>
-            </Avatar>
-            <span className="font-medium">@{opponentUsername}</span>
-        </Link>
-    )
+    return <span className="text-muted-foreground">vs. Private</span>
 }
 
 const OutcomeBadge = ({ bet, currentUserId }: { bet: Bet, currentUserId: string }) => {
-    if (bet.status !== 'resolved') return null;
+    if (bet.status !== 'settled') return null;
     if (bet.outcome === 'draw') return <Badge variant="secondary">Push</Badge>;
 
     if (!bet.winnerId) {
@@ -64,9 +61,8 @@ const OutcomeBadge = ({ bet, currentUserId }: { bet: Bet, currentUserId: string 
     }
 
     const isWinner = bet.winnerId === currentUserId;
-    const isTakerInMultiWinner = bet.takers && bet.takers[currentUserId] > 0 && bet.winnerId !== bet.creatorId;
 
-    if (isWinner || isTakerInMultiWinner) {
+    if (isWinner) {
         return <Badge variant="default" className="bg-green-500 hover:bg-green-600">Win</Badge>
     }
     
@@ -132,21 +128,21 @@ export function UserBetsTable({ bets, currentUserId }: UserBetsTableProps) {
                 </TableCell>
                 <TableCell><OpponentDisplay bet={bet} currentUserId={currentUserId} /></TableCell>
                 <TableCell><BetValueDisplay bet={bet} /></TableCell>
-                <TableCell className="text-right font-bold">${bet.stakeAmount.toFixed(2)}</TableCell>
+                <TableCell className="text-right font-bold">${bet.totalWager.toFixed(2)}</TableCell>
                 <TableCell className="text-center">
-                   <Badge variant={bet.status === 'pending_acceptance' ? 'secondary' : 'default'} className={cn({
-                       'bg-green-100 text-green-800': bet.status === 'accepted',
-                       'bg-gray-100 text-gray-800': bet.status === 'resolved',
-                       'bg-yellow-100 text-yellow-800': bet.status === 'pending_acceptance'
+                   <Badge variant={bet.status === 'pending' ? 'secondary' : 'default'} className={cn({
+                       'bg-green-100 text-green-800': bet.status === 'active',
+                       'bg-gray-100 text-gray-800': bet.status === 'settled',
+                       'bg-yellow-100 text-yellow-800': bet.status === 'pending'
                    })}>
-                        {bet.status.replace(/_/g, ' ').toUpperCase()}
+                        {bet.status.replace(/_/g, ' ')}
                     </Badge>
                 </TableCell>
                 <TableCell className="text-center">
                     <OutcomeBadge bet={bet} currentUserId={currentUserId} />
                 </TableCell>
                  <TableCell className="text-right space-x-1">
-                    {bet.status === 'pending_acceptance' && bet.creatorId === currentUserId && (
+                    {bet.status === 'pending' && bet.challengerId === currentUserId && (
                         <Button variant="ghost" size="sm" onClick={() => handleShareLink(bet)}>
                             <Twitter className="mr-2 h-4 w-4" /> Share
                         </Button>
@@ -165,3 +161,5 @@ export function UserBetsTable({ bets, currentUserId }: UserBetsTableProps) {
     </Card>
   );
 }
+
+    

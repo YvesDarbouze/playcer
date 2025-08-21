@@ -50,11 +50,12 @@ export function UserDashboard() {
         const betsQuery = query(
             collection(firestore, "bets"),
             or(
-                where("creatorId", "==", authUser.uid),
-                where("takerId", "==", authUser.uid)
+                where("challengerId", "==", authUser.uid),
+                where("accepters", "array-contains", { accepterId: authUser.uid })
             ),
             orderBy("createdAt", "desc")
         );
+        
 
         const unsubscribeBets = onSnapshot(betsQuery, (snapshot) => {
             const userBets = snapshot.docs.map(convertToBet);
@@ -71,9 +72,9 @@ export function UserDashboard() {
         };
     }, [authUser]);
     
-    const pendingBets = bets.filter(b => b.status === 'pending_acceptance' && b.creatorId === authUser?.uid);
-    const activeBets = bets.filter(b => b.status === 'accepted');
-    const historyBets = bets.filter(b => b.status === 'resolved' || b.status === 'void');
+    const pendingBets = bets.filter(b => b.status === 'pending' && b.challengerId === authUser?.uid);
+    const activeBets = bets.filter(b => b.status === 'active');
+    const historyBets = bets.filter(b => b.status === 'settled' || b.status === 'canceled');
 
     const handleAvatarClick = () => {
         fileInputRef.current?.click();
@@ -237,3 +238,5 @@ export function UserDashboard() {
         </div>
     );
 }
+
+    

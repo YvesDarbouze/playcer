@@ -71,10 +71,10 @@ export function BetChallengeCard({
   const { toast } = useToast();
   const { signIn } = useAuth();
   const [isFinalizing, setIsFinalizing] = React.useState(false);
-  const [acceptedAmount, setAcceptedAmount] = React.useState(bet.remainingStakeAmount || bet.stakeAmount);
+  const [acceptedAmount, setAcceptedAmount] = React.useState(bet.remainingWager || bet.totalWager);
 
-  const isCreator = currentUser && currentUser.uid === bet.creatorId;
-  const canAccept = currentUser && bet.status === 'pending_acceptance' && !isCreator;
+  const isCreator = currentUser && currentUser.uid === bet.challengerId;
+  const canAccept = currentUser && bet.status === 'pending' && !isCreator;
 
   const handleShareBet = () => {
     const shareUrl = bet.twitterShareUrl || `https://twitter.com/intent/tweet?text=${encodeURIComponent(`I just posted a public challenge on Playcer for ${bet.awayTeam} @ ${bet.homeTeam}. Who wants to accept?`)}&url=${window.location.href}`;
@@ -142,7 +142,7 @@ export function BetChallengeCard({
             </div>
         )
     }
-     if (!currentUser && bet.status === 'pending_acceptance') {
+     if (!currentUser && bet.status === 'pending') {
         return (
             <Button onClick={signIn} className="w-full" size="lg">
                 <LogIn className="mr-2" />
@@ -161,12 +161,12 @@ export function BetChallengeCard({
                             type="number"
                             value={acceptedAmount}
                             onChange={(e) => setAcceptedAmount(Number(e.target.value))}
-                            max={bet.remainingStakeAmount}
+                            max={bet.remainingWager}
                             min="1"
                             step="1"
                         />
                          <p className="text-xs text-muted-foreground">
-                            Up to ${bet.remainingStakeAmount?.toFixed(2)} remaining.
+                            Up to ${bet.remainingWager?.toFixed(2)} remaining.
                         </p>
                     </div>
                     <Button onClick={() => onAccept(acceptedAmount)} disabled={isAccepting} className="w-full" size="lg">
@@ -177,13 +177,13 @@ export function BetChallengeCard({
             )
         }
       return (
-        <Button onClick={() => onAccept(bet.stakeAmount)} disabled={isAccepting} className="w-full" size="lg">
+        <Button onClick={() => onAccept(bet.totalWager)} disabled={isAccepting} className="w-full" size="lg">
           {isAccepting ? <Loader2 className="animate-spin mr-2" /> : <Handshake className="mr-2" />}
           {isAccepting ? "Initializing..." : "Accept Challenge"}
         </Button>
       );
     }
-    if (isCreator && bet.status === 'pending_acceptance') {
+    if (isCreator && bet.status === 'pending') {
       return (
         <Button onClick={handleShareBet} className="w-full" size="lg" variant="secondary">
           <Twitter className="mr-2" />
@@ -191,19 +191,21 @@ export function BetChallengeCard({
         </Button>
       );
     }
-    if (bet.status === 'accepted') {
+    if (bet.status === 'active') {
          return <Badge className="text-lg" variant="default">Bet is Active!</Badge>
     }
-    if (bet.status === 'resolved') {
-         return <Badge className="text-lg" variant="secondary">Bet Resolved</Badge>
+    if (bet.status === 'settled') {
+         return <Badge className="text-lg" variant="secondary">Bet Settled</Badge>
     }
     return null; 
   };
 
+  const accepter = bet.accepters && bet.accepters.length > 0 ? bet.accepters[0] : null;
+
   return (
     <Card className="w-full max-w-2xl shadow-2xl">
       <CardHeader className="text-center bg-muted/30 p-4">
-        <Badge variant={bet.status === 'pending_acceptance' ? 'default' : 'secondary'} className="mx-auto w-fit mb-2">
+        <Badge variant={bet.status === 'pending' ? 'default' : 'secondary'} className="mx-auto w-fit mb-2">
             {bet.status.replace(/_/g, ' ').toUpperCase()}
         </Badge>
         <CardTitle className="font-bold text-lg">
@@ -216,17 +218,17 @@ export function BetChallengeCard({
       <CardContent className="p-6">
        <div className={cn(clientSecret && "hidden")}>
             <div className="grid grid-cols-3 items-center text-center mb-6">
-                <UserDisplay username={bet.creatorUsername} photoURL={bet.creatorPhotoURL}/>
+                <UserDisplay username={bet.challengerUsername} photoURL={bet.challengerPhotoURL}/>
                 <div className="flex flex-col items-center">
                     <Swords className="text-muted-foreground my-2 size-8" />
-                    <span className="font-bold text-xl">${bet.stakeAmount.toFixed(2)}</span>
-                    {bet.allowFractionalAcceptance && bet.remainingStakeAmount && (
+                    <span className="font-bold text-xl">${bet.totalWager.toFixed(2)}</span>
+                    {bet.allowFractionalAcceptance && bet.remainingWager && (
                          <span className="text-xs text-muted-foreground">
-                            (${bet.remainingStakeAmount.toFixed(2)} left)
+                            (${bet.remainingWager.toFixed(2)} left)
                         </span>
                     )}
                 </div>
-                <UserDisplay username={bet.takerUsername} photoURL={bet.takerPhotoURL}/>
+                <UserDisplay username={accepter?.accepterUsername} photoURL={accepter?.accepterPhotoURL}/>
             </div>
 
             <Separator className="my-4" />
@@ -246,3 +248,5 @@ export function BetChallengeCard({
     </Card>
   );
 }
+
+    

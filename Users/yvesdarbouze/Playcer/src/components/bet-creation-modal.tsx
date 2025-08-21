@@ -54,7 +54,7 @@ interface BetCreationModalProps {
 }
 
 const createBetSchema = (walletBalance: number = 0) => z.object({
-    stakeAmount: z.coerce
+    totalWager: z.coerce
         .number()
         .min(1, "Stake must be at least $1.")
         .max(10000, "Stake cannot exceed $10,000."),
@@ -99,7 +99,7 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, use
   const form = useForm<BetFormData>({
     resolver: zodResolver(createBetSchema(userProfile?.walletBalance)),
     defaultValues: {
-      stakeAmount: 20,
+      totalWager: 20,
       betVisibility: "public",
       allowFractional: false,
     },
@@ -107,11 +107,11 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, use
 
   const betVisibility = form.watch("betVisibility");
   const opponentTwitterRaw = form.watch("opponentTwitter");
-  const stakeAmount = form.watch("stakeAmount") || 0;
+  const totalWager = form.watch("totalWager") || 0;
   
   const handleModalClose = (open: boolean) => {
     if (!open) {
-        form.reset({ stakeAmount: 20, opponentTwitter: '', betVisibility: 'public', allowFractional: false });
+        form.reset({ totalWager: 20, opponentTwitter: '', betVisibility: 'public', allowFractional: false });
         setBetId(null);
         setStep(1);
         setClientSecret(null);
@@ -155,12 +155,12 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, use
           homeTeam: game.home_team,
           awayTeam: game.away_team,
           betType,
-          stakeAmount: data.stakeAmount,
+          totalWager: data.totalWager,
           chosenOption,
           line,
           isPublic: data.betVisibility === 'public',
           twitterShareUrl: data.betVisibility === 'private' && opponentHandle
-            ? `https://twitter.com/intent/tweet?text=${encodeURIComponent(`@${opponentHandle} I challenge you to a bet on Playcer: ${getBetValueDisplay()} for $${data.stakeAmount.toFixed(2)} in the ${game.away_team} @ ${game.home_team} game!`)}&url=${window.location.origin}/bet/[betId]`
+            ? `https://twitter.com/intent/tweet?text=${encodeURIComponent(`@${opponentHandle} I challenge you to a bet on Playcer: ${getBetValueDisplay()} for $${data.totalWager.toFixed(2)} in the ${game.away_team} @ ${game.home_team} game!`)}&url=${window.location.origin}/bet/[betId]`
             : null,
           bookmakerKey: bookmakerKey,
           odds: odds,
@@ -193,7 +193,7 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, use
       const createBetPaymentIntent = httpsCallable(functions, 'createBetPaymentIntent');
       
       try {
-          const result: any = await createBetPaymentIntent({ wagerAmount: form.getValues("stakeAmount") });
+          const result: any = await createBetPaymentIntent({ wagerAmount: form.getValues("totalWager") });
           if(result.data.success) {
               setClientSecret(result.data.clientSecret);
               setStep(2);
@@ -220,8 +220,8 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, use
     return '';
   }
   
-  const potentialWinnings = (stakeAmount * (odds > 0 ? (odds / 100) : (100 / Math.abs(odds)))).toFixed(2);
-  const potentialPayout = (stakeAmount + parseFloat(potentialWinnings)).toFixed(2);
+  const potentialWinnings = (totalWager * (odds > 0 ? (odds / 100) : (100 / Math.abs(odds)))).toFixed(2);
+  const potentialPayout = (totalWager + parseFloat(potentialWinnings)).toFixed(2);
 
 
   const renderStepContent = () => {
@@ -232,7 +232,7 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, use
                     <form id="bet-details-form" className="space-y-4">
                         <FormField
                             control={form.control}
-                            name="stakeAmount"
+                            name="totalWager"
                             render={({ field }) => (
                                 <FormItem>
                                     <FormLabel>Wager Amount ($)</FormLabel>
@@ -338,8 +338,8 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, use
             case 3:
                 const opponentHandle = opponentTwitterRaw ? opponentTwitterRaw.replace('@','') : null;
                 const betUrl = `${window.location.origin}/bet/${betId}`;
-                const publicTweetText = `I just posted a public challenge on Playcer: ${getBetValueDisplay()} for $${stakeAmount.toFixed(2)} in the ${game.away_team} @ ${game.home_team} game. Who wants to accept?`;
-                const privateTweetText = `@${opponentHandle} I challenge you on Playcer: ${getBetValueDisplay()} for $${stakeAmount.toFixed(2)} in the ${game.away_team} @ ${game.home_team} game!`;
+                const publicTweetText = `I just posted a public challenge on Playcer: ${getBetValueDisplay()} for $${totalWager.toFixed(2)} in the ${game.away_team} @ ${game.home_team} game. Who wants to accept?`;
+                const privateTweetText = `@${opponentHandle} I challenge you on Playcer: ${getBetValueDisplay()} for $${totalWager.toFixed(2)} in the ${game.away_team} @ ${game.home_team} game!`;
                 
                 const tweetText = opponentHandle ? privateTweetText : publicTweetText;
                 const tweetUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}&url=${encodeURIComponent(betUrl)}`;
@@ -397,3 +397,5 @@ export function BetCreationModal(props: BetCreationModalProps) {
         </Elements>
     )
 }
+
+    

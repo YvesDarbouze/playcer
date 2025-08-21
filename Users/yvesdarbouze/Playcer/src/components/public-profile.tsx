@@ -58,3 +58,5 @@ export function PublicProfile({ user, settledBets }: PublicProfileProps) {
 }
 
     
+
+    

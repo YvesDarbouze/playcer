@@ -39,10 +39,10 @@ async function getSettledBets(userId: string): Promise<Bet[]> {
         betsRef,
         and(
             where("isPublic", "==", true),
-            where("status", "==", "resolved"),
+            where("status", "==", "settled"),
             or(
-                where("creatorId", "==", userId),
-                where("takerId", "==", userId)
+                where("challengerId", "==", userId),
+                where("accepters", "array-contains", { accepterId: userId })
             )
         ),
         orderBy("settledAt", "desc"),
@@ -139,3 +139,5 @@ export default function ProfilePage() {
         </main>
     );
 }
+
+    

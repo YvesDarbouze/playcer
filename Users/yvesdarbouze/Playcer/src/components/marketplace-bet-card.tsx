@@ -6,20 +6,19 @@ import { format } from "date-fns";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import { ArrowUpRight, User, Swords } from "lucide-react";
 import Link from "next/link";
 
 const BetValueDisplay = ({ bet }: { bet: Bet }) => {
-    const { betValue, betType } = bet;
+    const { chosenOption, betType, line } = bet;
     if (betType === 'moneyline') {
-        return <>{betValue.team}</>;
+        return <>{chosenOption}</>;
     }
     if (betType === 'spread') {
-        return <>{betValue.team} {betValue.points! > 0 ? `+${betValue.points}` : betValue.points}</>;
+        return <>{chosenOption} {line! > 0 ? `+${line}` : line}</>;
     }
     if (betType === 'totals') {
-        return <>Total {betValue.over_under} {betValue.total}</>;
+        return <>Total {chosenOption} {line}</>;
     }
     return null;
 }
@@ -27,7 +26,7 @@ const BetValueDisplay = ({ bet }: { bet: Bet }) => {
 
 export function MarketplaceBetCard({ bet }: { bet: Bet }) {
     
-    const eventDate = new Date(bet.gameDetails.commence_time);
+    const eventDate = new Date(bet.eventDate);
     
     return (
         <Card className="flex flex-col h-full hover:shadow-lg transition-shadow">
@@ -35,20 +34,20 @@ export function MarketplaceBetCard({ bet }: { bet: Bet }) {
                 <CardDescription>
                     {format(eventDate, "EEE, MMM d, h:mm a")}
                 </CardDescription>
-                <CardTitle className="font-bold text-lg">{bet.gameDetails.away_team} @ {bet.gameDetails.home_team}</CardTitle>
+                <CardTitle className="font-bold text-lg">{bet.awayTeam} @ {bet.homeTeam}</CardTitle>
             </CardHeader>
             <CardContent className="flex-grow space-y-4">
                  <div className="flex justify-between items-center text-center bg-muted p-3 rounded-md">
                      <div className="flex flex-col items-center">
                         <Avatar className="size-10">
-                            <AvatarImage src={bet.creatorPhotoURL} alt={bet.creatorUsername} />
+                            <AvatarImage src={bet.challengerPhotoURL} alt={bet.challengerUsername} />
                             <AvatarFallback><User className="size-5" /></AvatarFallback>
                         </Avatar>
-                        <span className="text-xs font-bold mt-1">@{bet.creatorUsername}</span>
+                        <span className="text-xs font-bold mt-1">@{bet.challengerUsername}</span>
                     </div>
                      <div className="flex flex-col items-center">
                         <Swords className="text-primary size-6" />
-                        <span className="font-bold text-xl">${bet.wagerAmount.toFixed(2)}</span>
+                        <span className="font-bold text-xl">${bet.totalWager.toFixed(2)}</span>
                     </div>
                     <div className="flex flex-col items-center">
                          <Avatar className="size-10">
@@ -73,3 +72,5 @@ export function MarketplaceBetCard({ bet }: { bet: Bet }) {
         </Card>
     )
 }
+
+    
