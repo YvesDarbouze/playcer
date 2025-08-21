@@ -13,6 +13,7 @@ import { getFirestore, collection, onSnapshot, query, limit, Timestamp } from 'f
 import { getFirebaseApp } from '@/lib/firebase';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { Skeleton } from './ui/skeleton';
 
 interface GameCardProps {
     game: Game;
@@ -50,6 +51,7 @@ const OddsValue = ({ value, previousValue }: { value: number, previousValue?: nu
 export function GameCard({ game }: GameCardProps) {
     const [odds, setOdds] = React.useState<BookmakerOdds | null>(null);
     const prevOddsRef = React.useRef<BookmakerOdds | null>(null);
+    const [formattedDate, setFormattedDate] = React.useState<string | null>(null);
     
     React.useEffect(() => {
         prevOddsRef.current = odds;
@@ -70,9 +72,12 @@ export function GameCard({ game }: GameCardProps) {
             console.error("Error fetching odds:", error);
         });
 
+        // Format date on client-side to avoid hydration mismatch
+        setFormattedDate(format(new Date(game.commence_time), "EEE, MMM d, h:mm a"));
+
         return () => unsubscribe();
 
-    }, [game.id]);
+    }, [game.id, game.commence_time]);
 
     const homeLogo = getTeamLogoUrl(game.home_team, game.sport_key);
     const awayLogo = getTeamLogoUrl(game.away_team, game.sport_key);
@@ -91,11 +96,9 @@ export function GameCard({ game }: GameCardProps) {
         >
              <Link href={`/game/${game.id}`} passHref className="flex-grow">
                 <CardContent className="p-4 flex-grow flex flex-col items-center justify-center transition-all duration-300 cursor-pointer">
-                    {game.commence_time && (
-                        <div className="text-center text-muted-foreground text-sm w-full">
-                            <p>{format(new Date(game.commence_time), "EEE, MMM d, h:mm a")}</p>
-                        </div>
-                    )}
+                    <div className="text-center text-muted-foreground text-sm w-full h-5">
+                        {formattedDate ? <p>{formattedDate}</p> : <Skeleton className="h-5 w-3/4 mx-auto" />}
+                    </div>
                     <div className="flex items-center justify-around text-center w-full flex-grow space-x-2 my-4">
                         <div className="flex flex-col items-center text-center">
                             <Image src={awayLogo} alt={`${game.away_team} logo`} width={80} height={80} className="h-16 w-auto transition-all"/>
