@@ -677,12 +677,15 @@ async function processPayout(data: { betId: string, winnerId: string | null, los
         }
 
     } else {
-        // --- This is a PUSH. Cancel both authorizations. ---
+        // --- This is a PUSH. Cancel all authorizations. ---
         try {
             const cancellationPromises = [stripe.paymentIntents.cancel(challengerPaymentIntentId)];
-            betData.accepters.forEach((accepter: any) => {
-                cancellationPromises.push(stripe.paymentIntents.cancel(accepter.paymentIntentId));
-            });
+            if(betData.accepters && betData.accepters.length > 0) {
+                 betData.accepters.forEach((accepter: any) => {
+                    cancellationPromises.push(stripe.paymentIntents.cancel(accepter.paymentIntentId));
+                });
+            }
+            
             await Promise.all(cancellationPromises);
 
             functions.logger.log(`Push for bet ${betId}. Canceled all payment intents.`);
@@ -928,5 +931,3 @@ async function createNotification(userId: string, message: string, link: string)
         createdAt: Timestamp.now()
     });
 }
-
-    
