@@ -103,7 +103,7 @@ export type Bet = {
   line?: number; // e.g., -7.5 for spread, 210.5 for totals
   odds: number; // American odds, e.g., -110
   bookmakerKey: string;
-  status: "pending" | "active" | "settled" | "disputed" | "canceled";
+  status: "pending" | "active" | "settled" | "disputed" | "canceled" | "expired";
   isPublic: boolean;
   twitterShareUrl: string | null;
   winnerId: string | null;
@@ -154,3 +154,5 @@ export type Notification = {
   isRead: boolean;
   createdAt: Timestamp;
 };
+
+    

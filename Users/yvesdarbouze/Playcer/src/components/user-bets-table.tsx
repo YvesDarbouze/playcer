@@ -169,7 +169,7 @@ export function UserBetsTable({ bets, currentUserId }: UserBetsTableProps) {
                        'bg-green-100 text-green-800': bet.status === 'active',
                        'bg-gray-100 text-gray-800': bet.status === 'settled',
                        'bg-yellow-100 text-yellow-800': bet.status === 'pending',
-                       'bg-red-100 text-red-800': bet.status === 'canceled',
+                       'bg-red-100 text-red-800': bet.status === 'canceled' || bet.status === 'expired',
                    })}>
                         {bet.status.replace(/_/g, ' ')}
                     </Badge>
@@ -202,3 +202,5 @@ export function UserBetsTable({ bets, currentUserId }: UserBetsTableProps) {
     </Card>
   );
 }
+
+    
