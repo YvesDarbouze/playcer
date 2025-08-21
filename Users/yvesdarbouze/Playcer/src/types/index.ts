@@ -105,6 +105,8 @@ export type Bet = {
   stakeAmount: number;
   betType: "moneyline" | "spread" | "totals";
   betValue: MoneylineBetValue | SpreadBetValue | TotalsBetValue;
+  chosenOption: string; // e.g., 'Los Angeles Lakers' or 'Over'
+  line?: number; // e.g., -7.5 for spread, 210.5 for totals
   odds: number; // American odds, e.g., -110
   bookmakerKey: string;
   status: "pending_acceptance" | "accepted" | "resolved" | "void";

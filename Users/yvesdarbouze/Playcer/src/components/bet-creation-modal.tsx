@@ -156,12 +156,16 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet }: B
         const createBet = httpsCallable(functions, 'createBet');
         
         let betValue: any;
+        let chosenOption: string;
         if (data.betType === 'moneyline') {
             betValue = { team: data.teamSelection };
+            chosenOption = data.teamSelection!;
         } else if (data.betType === 'spread') {
             betValue = { team: data.teamSelection, points: data.line };
+            chosenOption = data.teamSelection!;
         } else { // totals
             betValue = { over_under: data.overUnderSelection, total: data.line };
+            chosenOption = data.overUnderSelection!;
         }
 
         const betPayload = {
@@ -171,7 +175,9 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet }: B
           awayTeam: game.away_team,
           betType: data.betType,
           stakeAmount: data.stake,
+          chosenOption, // Pass the simplified chosen option
           betValue,
+          line: data.line,
           isPublic: !data.opponentTwitter,
           twitterShareUrl: data.opponentTwitter ? `https://twitter.com/intent/tweet?text=${encodeURIComponent(`@${data.opponentTwitter.replace('@','')} I challenge you to a bet on Playcer!`)}` : null,
           bookmakerKey: bookmakerKey,
