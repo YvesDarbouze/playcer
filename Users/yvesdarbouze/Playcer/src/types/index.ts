@@ -79,6 +79,8 @@ export type Game = {
 
 export type BetAcceptance = {
     accepterId: string;
+    accepterUsername: string;
+    accepterPhotoURL: string;
     amount: number;
     createdAt: Timestamp;
 };
@@ -90,14 +92,11 @@ export type Bet = {
   homeTeam: string;
   awayTeam: string;
   challengerId: string;
-  accepterId: string | null; // Represents the first or primary accepter if not fractional
-  accepters?: BetAcceptance[]; // Array of acceptance records for fractional bets
-  creatorUsername: string;
-  creatorPhotoURL: string;
-  takerUsername: string | null;
-  takerPhotoURL: string | null;
+  accepters: BetAcceptance[];
+  challengerUsername: string;
+  challengerPhotoURL: string;
   totalWager: number;
-  remainingWager?: number;
+  remainingWager: number;
   betType: "moneyline" | "spread" | "totals";
   chosenOption: string; // e.g., 'Los Angeles Lakers' or 'Over'
   line?: number; // e.g., -7.5 for spread, 210.5 for totals

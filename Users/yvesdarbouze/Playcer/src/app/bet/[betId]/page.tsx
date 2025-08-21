@@ -70,7 +70,7 @@ export default function BetChallengePage() {
   const handleAcceptBet = async (acceptedAmount: number) => {
     if (!user || !bet) return;
     
-    if (user.uid === bet.creatorId) {
+    if (user.uid === bet.challengerId) {
         toast({
             title: "Cannot Accept Bet",
             description: "You cannot accept your own challenge.",
@@ -79,7 +79,7 @@ export default function BetChallengePage() {
         return;
     }
 
-    if (bet.remainingStakeAmount && acceptedAmount > bet.remainingStakeAmount) {
+    if (bet.remainingWager && acceptedAmount > bet.remainingWager) {
         toast({
             title: "Invalid Amount",
             description: "You cannot accept more than the remaining wager.",

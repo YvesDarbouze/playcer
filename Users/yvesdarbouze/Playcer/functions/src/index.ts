@@ -138,7 +138,7 @@ export const getAlgoliaSearchKey = onCall((request) => {
     const searchKey = algoliasearch.generateSecuredApiKey(
         process.env.ALGOLIA_SEARCH_ONLY_API_KEY!,
         {
-             filters: 'status:pending_acceptance OR isPublic:true'
+             filters: 'status:pending'
         }
     );
 
@@ -224,14 +224,14 @@ export const createBet = onCall(async (request) => {
         throw new HttpsError('unauthenticated', 'You must be logged in to create a bet.');
     }
 
-    const { uid: creatorId } = request.auth;
+    const { uid: challengerId } = request.auth;
     const {
         eventId,
         eventDate,
         homeTeam,
         awayTeam,
         betType,
-        stakeAmount,
+        totalWager,
         chosenOption,
         line,
         isPublic,
@@ -242,7 +242,7 @@ export const createBet = onCall(async (request) => {
     } = request.data;
     
     // Basic validation
-    if (!eventId || !eventDate || !homeTeam || !awayTeam || !betType || !chosenOption || stakeAmount === undefined || !bookmakerKey || odds === undefined) {
+    if (!eventId || !eventDate || !homeTeam || !awayTeam || !betType || !chosenOption || totalWager === undefined || !bookmakerKey || odds === undefined) {
         throw new HttpsError('invalid-argument', 'Missing required bet information.');
     }
 
@@ -250,11 +250,11 @@ export const createBet = onCall(async (request) => {
         throw new HttpsError('invalid-argument', 'A twitter handle is required for a private challenge.');
     }
     
-    if (typeof stakeAmount !== 'number' || stakeAmount <= 0) {
+    if (typeof totalWager !== 'number' || totalWager <= 0) {
         throw new HttpsError('invalid-argument', 'The wager amount must be a positive number.');
     }
 
-    const userDocRef = db.collection('users').doc(creatorId);
+    const userDocRef = db.collection('users').doc(challengerId);
     
     return db.runTransaction(async (transaction) => {
         const userDoc = await transaction.get(userDocRef);
@@ -274,19 +274,16 @@ export const createBet = onCall(async (request) => {
             eventDate: Timestamp.fromDate(new Date(eventDate)),
             homeTeam,
             awayTeam,
-            creatorId: creatorId,
-            takerId: null,
-            takers: {},
-            creatorUsername: userData.username,
-            creatorPhotoURL: userData.photoURL,
-            takerUsername: null,
-            takerPhotoURL: null,
-            stakeAmount,
-            remainingStakeAmount: stakeAmount,
+            challengerId: challengerId,
+            accepters: [],
+            challengerUsername: userData.username,
+            challengerPhotoURL: userData.photoURL,
+            totalWager,
+            remainingWager: totalWager,
             betType,
             chosenOption,
             line,
-            status: 'pending_acceptance',
+            status: 'pending',
             isPublic: isPublic,
             twitterShareUrl: twitterShareUrl ? twitterShareUrl.replace('[betId]', betId) : null,
             winnerId: null,
@@ -302,7 +299,7 @@ export const createBet = onCall(async (request) => {
         const betDocRef = db.collection('bets').doc(betId);
         transaction.set(betDocRef, newBet);
         
-        functions.logger.log(`Bet ${betId} created by user ${creatorId}`);
+        functions.logger.log(`Bet ${betId} created by user ${challengerId}`);
         return { success: true, betId };
     });
 });
@@ -313,7 +310,7 @@ export const acceptBet = onCall(async (request) => {
         throw new HttpsError('unauthenticated', 'You must be logged in to accept a bet.');
     }
 
-    const { uid: takerId } = request.auth;
+    const { uid: accepterId } = request.auth;
     const { betId, acceptedAmount } = request.data;
     if (!betId) throw new HttpsError('invalid-argument', 'The `betId` must be provided.');
     if (typeof acceptedAmount !== 'number' || acceptedAmount <= 0) {
@@ -327,7 +324,7 @@ export const acceptBet = onCall(async (request) => {
             currency: 'usd',
             capture_method: 'manual', // Authorize now, capture later on confirmation
             metadata: {
-                userId: takerId,
+                userId: accepterId,
                 type: 'bet_authorization',
                 betId: betId,
                 acceptedAmount: acceptedAmount
@@ -349,7 +346,7 @@ export const processBetOutcomes = onCall(async (request) => {
     
     const now = Timestamp.now();
     const query = db.collection('bets')
-        .where('status', '==', 'accepted')
+        .where('status', '==', 'active')
         .where('eventDate', '<=', now);
         
     const activeBetsSnap = await query.get();
@@ -372,34 +369,35 @@ export const processBetOutcomes = onCall(async (request) => {
                 let winnerId: string | null = null;
                 const { home_score, away_score } = result;
                 const { homeTeam } = betData;
+                const accepterId = betData.accepters[0]?.accepterId;
 
                 if (betData.betType === 'moneyline') {
                     const winningTeamName = home_score > away_score ? homeTeam : betData.awayTeam;
                     if (betData.chosenOption === winningTeamName) {
-                        winnerId = betData.creatorId;
+                        winnerId = betData.challengerId;
                     } else {
-                        winnerId = betData.takerId;
+                        winnerId = accepterId;
                     }
                 } 
                 
                 if (winnerId) {
-                    const loserId = winnerId === betData.creatorId ? betData.takerId : betData.creatorId;
+                    const loserId = winnerId === betData.challengerId ? accepterId : betData.challengerId;
                     await processPayout({ 
                         betId, 
                         winnerId, 
-                        stake: betData.stakeAmount, 
+                        stake: betData.totalWager, 
                         loserId,
                     });
-                    await betDoc.ref.update({ status: 'resolved', winnerId, loserId, outcome: 'win', settledAt: Timestamp.now() });
+                    await betDoc.ref.update({ status: 'settled', winnerId, loserId, outcome: 'win', settledAt: Timestamp.now() });
                     processedCount++;
                 } else {
                      await processPayout({ 
                         betId, 
                         winnerId: null, 
-                        stake: betData.stakeAmount, 
+                        stake: betData.totalWager, 
                         loserId: null,
                     });
-                    await betDoc.ref.update({ status: 'resolved', outcome: 'draw', settledAt: Timestamp.now() });
+                    await betDoc.ref.update({ status: 'settled', outcome: 'draw', settledAt: Timestamp.now() });
                     processedCount++;
                 }
             }
@@ -448,22 +446,17 @@ async function processPayout(data: { betId: string, winnerId: string | null, los
 
         } else {
             // This is a PUSH. Refund both users.
-            const creatorDocRef = db.collection('users').doc(betData.creatorId);
+            const creatorDocRef = db.collection('users').doc(betData.challengerId);
             transaction.update(creatorDocRef, { walletBalance: FieldValue.increment(stake), totalBets: FieldValue.increment(1) });
-             await createNotification(betData.creatorId, `Your bet on ${betData.awayTeam} @ ${betData.homeTeam} was a push. Your $${stake.toFixed(2)} stake has been returned.`, `/bet/${betId}`);
+             await createNotification(betData.challengerId, `Your bet on ${betData.awayTeam} @ ${betData.homeTeam} was a push. Your $${stake.toFixed(2)} stake has been returned.`, `/bet/${betId}`);
 
             // Handle multiple takers if applicable
-            if(betData.takers && Object.keys(betData.takers).length > 0) {
-                 for (const takerId in betData.takers) {
-                    const takerDocRef = db.collection('users').doc(takerId);
-                    const takerStake = betData.takers[takerId];
-                    transaction.update(takerDocRef, { walletBalance: FieldValue.increment(takerStake), totalBets: FieldValue.increment(1) });
-                    await createNotification(takerId, `Your bet on ${betData.awayTeam} @ ${betData.homeTeam} was a push. Your $${takerStake.toFixed(2)} stake has been returned.`, `/bet/${betId}`);
+            if(betData.accepters && betData.accepters.length > 0) {
+                 for (const accepter of betData.accepters) {
+                    const accepterDocRef = db.collection('users').doc(accepter.accepterId);
+                    transaction.update(accepterDocRef, { walletBalance: FieldValue.increment(accepter.amount), totalBets: FieldValue.increment(1) });
+                    await createNotification(accepter.accepterId, `Your bet on ${betData.awayTeam} @ ${betData.homeTeam} was a push. Your $${accepter.amount.toFixed(2)} stake has been returned.`, `/bet/${betId}`);
                 }
-            } else if (betData.takerId) {
-                const takerDocRef = db.collection('users').doc(betData.takerId);
-                transaction.update(takerDocRef, { walletBalance: FieldValue.increment(stake), totalBets: FieldValue.increment(1) });
-                await createNotification(betData.takerId, `Your bet on ${betData.awayTeam} @ ${betData.homeTeam} was a push. Your $${stake.toFixed(2)} stake has been returned.`, `/bet/${betId}`);
             }
         }
     });
@@ -523,66 +516,62 @@ export const stripeWebhook = functions.https.onRequest(async (request, response)
 
         case 'payment_intent.requires_capture':
             const piToCapture = event.data.object as Stripe.PaymentIntent;
-            const { userId: takerId, betId, acceptedAmount } = piToCapture.metadata;
+            const { userId: accepterId, betId, acceptedAmount } = piToCapture.metadata;
 
-            if (piToCapture.metadata.type === 'bet_authorization' && betId && takerId && acceptedAmount) {
-                functions.logger.info(`Finalizing bet acceptance for bet ${betId} by taker ${takerId} for amount ${acceptedAmount}.`);
+            if (piToCapture.metadata.type === 'bet_authorization' && betId && accepterId && acceptedAmount) {
+                functions.logger.info(`Finalizing bet acceptance for bet ${betId} by taker ${accepterId} for amount ${acceptedAmount}.`);
                 
                 const betDocRef = db.collection('bets').doc(betId);
-                const takerDocRef = db.collection('users').doc(takerId);
-                const acceptanceDocRef = betDocRef.collection('acceptances').doc(takerId);
+                const accepterDocRef = db.collection('users').doc(accepterId);
 
                 await db.runTransaction(async (transaction) => {
                     const betDoc = await transaction.get(betDocRef);
-                    const takerDoc = await transaction.get(takerDocRef);
+                    const accepterDoc = await transaction.get(accepterDocRef);
                     
                     if (!betDoc.exists) throw new Error(`Bet ${betId} not found.`);
-                    if (!takerDoc.exists) throw new Error(`Taker ${takerId} not found.`);
+                    if (!accepterDoc.exists) throw new Error(`Accepter ${accepterId} not found.`);
 
                     const betData = betDoc.data()!;
-                    const takerData = takerDoc.data()!;
-                    const { creatorId, status } = betData;
+                    const accepterData = accepterDoc.data()!;
+                    const { challengerId, status } = betData;
 
-                    if (status !== 'pending_acceptance') throw new Error(`Bet ${betId} is not pending acceptance.`);
-                    if (creatorId === takerId) throw new Error('User cannot accept their own bet.');
-                    if (takerData.kycStatus !== 'verified') throw new Error('Recipient must be KYC verified.');
+                    if (status !== 'pending') throw new Error(`Bet ${betId} is not pending acceptance.`);
+                    if (challengerId === accepterId) throw new Error('User cannot accept their own bet.');
+                    if (accepterData.kycStatus !== 'verified') throw new Error('Recipient must be KYC verified.');
 
                     const numericAcceptedAmount = Number(acceptedAmount);
                     if (isNaN(numericAcceptedAmount) || numericAcceptedAmount <= 0) {
                         throw new Error('Invalid accepted amount.');
                     }
-                    if(numericAcceptedAmount > betData.remainingStakeAmount) {
-                        throw new Error('Accepted amount exceeds remaining stake.');
+                    if(numericAcceptedAmount > betData.remainingWager) {
+                        throw new Error('Accepted amount exceeds remaining wager.');
                     }
                     
                     // Capture the payment
                     await stripe.paymentIntents.capture(piToCapture.id);
 
                     // Update bet document
-                    const newRemainingAmount = betData.remainingStakeAmount - numericAcceptedAmount;
-                    const newStatus = newRemainingAmount <= 0 ? 'accepted' : 'pending_acceptance';
+                    const newRemainingAmount = betData.remainingWager - numericAcceptedAmount;
+                    const newStatus = newRemainingAmount <= 0 ? 'active' : 'pending';
                     
-                    transaction.update(betDocRef, {
-                        remainingStakeAmount: newRemainingAmount,
-                        status: newStatus,
-                        takerId: betData.takerId || takerId, // Set first taker as primary
-                        takerUsername: betData.takerUsername || takerData.username,
-                        takerPhotoURL: betData.takerPhotoURL || takerData.photoURL,
-                        [`takers.${takerId}`]: FieldValue.increment(numericAcceptedAmount)
-                    });
-                    
-                    // Create acceptance record
-                    transaction.set(acceptanceDocRef, {
+                    const newAccepter = {
+                        accepterId,
+                        accepterUsername: accepterData.username,
+                        accepterPhotoURL: accepterData.photoURL,
                         amount: numericAcceptedAmount,
-                        takerUsername: takerData.username,
-                        takerPhotoURL: takerData.photoURL,
                         createdAt: Timestamp.now()
-                    }, { merge: true });
+                    };
+
+                    transaction.update(betDocRef, {
+                        remainingWager: newRemainingAmount,
+                        status: newStatus,
+                        accepters: FieldValue.arrayUnion(newAccepter)
+                    });
                     
                     // Create Notification for the bet creator
                     await createNotification(
-                        creatorId,
-                        `Your challenge for ${betData.awayTeam} @ ${betData.homeTeam} was accepted by @${takerData.username} for $${numericAcceptedAmount.toFixed(2)}!`,
+                        challengerId,
+                        `Your challenge for ${betData.awayTeam} @ ${betData.homeTeam} was accepted by @${accepterData.username} for $${numericAcceptedAmount.toFixed(2)}!`,
                         `/bet/${betId}`
                     );
                 });
@@ -694,5 +683,3 @@ async function createNotification(userId: string, message: string, link: string)
         createdAt: Timestamp.now()
     });
 }
-
-    
