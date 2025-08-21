@@ -502,9 +502,9 @@ export const processBetOutcomes = onCall(async (request) => {
                         betId, 
                         winnerId, 
                         loserId,
-                        stake: betData.totalWager, 
+                        stake: accepter.amount, // Use the accepted amount for payout calculation
                         challengerPaymentIntentId: betData.challengerPaymentIntentId,
-                        accepterPaymentIntentId: accepter.paymentIntentId, // Assumes single accepter
+                        accepterPaymentIntentId: accepter.paymentIntentId,
                     });
                     await betDoc.ref.update({ status: 'settled', winnerId, loserId, outcome: 'win', settledAt: Timestamp.now() });
                     processedCount++;
@@ -514,9 +514,9 @@ export const processBetOutcomes = onCall(async (request) => {
                         betId, 
                         winnerId: null, 
                         loserId: null,
-                        stake: betData.totalWager, 
+                        stake: accepter.amount,
                         challengerPaymentIntentId: betData.challengerPaymentIntentId,
-                        accepterPaymentIntentId: accepter.paymentIntentId, // Assumes single accepter
+                        accepterPaymentIntentId: accepter.paymentIntentId,
                     });
                     await betDoc.ref.update({ status: 'settled', outcome: 'draw', settledAt: Timestamp.now() });
                     processedCount++;
@@ -591,16 +591,18 @@ async function processPayout(data: { betId: string, winnerId: string | null, los
     const { betId, winnerId, loserId, stake, challengerPaymentIntentId, accepterPaymentIntentId } = data;
     const PLATFORM_COMMISSION_RATE = 0.045; // 4.5% vig
     
+    const betDocSnap = await db.collection('bets').doc(betId).get();
+    if (!betDocSnap.exists) {
+        functions.logger.error(`Bet document ${betId} not found during payout.`);
+        return;
+    }
+    const betData = betDocSnap.data()!;
+    
     if(winnerId && loserId) {
-        // --- Determine Winner and Loser Payment Intents ---
-        const betDoc = await db.collection('bets').doc(betId).get();
-        if (!betDoc.exists) {
-            functions.logger.error(`Bet document ${betId} not found during payout.`);
-            return;
-        }
-        const betData = betDoc.data()!;
-
         const winnerIsChallenger = winnerId === betData.challengerId;
+
+        // This logic assumes a single accepter for simplicity of determining winner/loser PI.
+        // For multiple accepters, this would need to iterate through them.
         const winnerPI = winnerIsChallenger ? challengerPaymentIntentId : accepterPaymentIntentId;
         const loserPI = winnerIsChallenger ? accepterPaymentIntentId : challengerPaymentIntentId;
 
@@ -647,17 +649,15 @@ async function processPayout(data: { betId: string, winnerId: string | null, los
     } else {
         // --- This is a PUSH. Cancel both authorizations. ---
         try {
-            await Promise.all([
-                stripe.paymentIntents.cancel(challengerPaymentIntentId),
-                stripe.paymentIntents.cancel(accepterPaymentIntentId)
-            ]);
-            functions.logger.log(`Push for bet ${betId}. Canceled both payment intents.`);
+            const cancellationPromises = [stripe.paymentIntents.cancel(challengerPaymentIntentId)];
+            betData.accepters.forEach((accepter: any) => {
+                cancellationPromises.push(stripe.paymentIntents.cancel(accepter.paymentIntentId));
+            });
+            await Promise.all(cancellationPromises);
+
+            functions.logger.log(`Push for bet ${betId}. Canceled all payment intents.`);
             
              // Notify users
-            const betDoc = await db.collection('bets').doc(betId).get();
-            const betData = betDoc.data();
-            if(!betData) return;
-            
             await createNotification(betData.challengerId, `Your bet on ${betData.awayTeam} @ ${betData.homeTeam} was a push. Your funds authorization has been released.`, `/bet/${betId}`);
             if(betData.accepters && betData.accepters.length > 0) {
                  for (const accepter of betData.accepters) {
@@ -898,5 +898,3 @@ async function createNotification(userId: string, message: string, link: string)
         createdAt: Timestamp.now()
     });
 }
-
-    

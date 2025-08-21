@@ -30,6 +30,7 @@ export type User = {
   walletBalance: number;
   wins: number;
   losses: number;
+  totalBets: number;
   kycStatus: "pending" | "verified" | "rejected" | "in_review";
   responsibleGamingLimits: {
     deposit: {
@@ -82,6 +83,7 @@ export type BetAcceptance = {
     accepterUsername: string;
     accepterPhotoURL: string;
     amount: number;
+    paymentIntentId: string;
     createdAt: Timestamp;
 };
 

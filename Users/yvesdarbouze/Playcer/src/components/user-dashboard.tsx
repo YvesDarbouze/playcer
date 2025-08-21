@@ -74,7 +74,7 @@ export function UserDashboard() {
     
     const pendingBets = bets.filter(b => b.status === 'pending' && b.challengerId === authUser?.uid);
     const activeBets = bets.filter(b => b.status === 'active');
-    const historyBets = bets.filter(b => b.status === 'settled' || b.status === 'canceled');
+    const historyBets = bets.filter(b => b.status === 'settled' || b.status === 'canceled' || b.status === 'expired');
 
     const handleAvatarClick = () => {
         fileInputRef.current?.click();
