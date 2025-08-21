@@ -26,7 +26,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
-import type { Game } from "@/types";
+import type { Game, User } from "@/types";
 import { Twitter, Swords, Loader2 } from "lucide-react";
 import { getFirebaseApp } from "@/lib/firebase";
 import { Separator } from "./ui/separator";
@@ -48,10 +48,17 @@ interface BetCreationModalProps {
   onOpenChange: (isOpen: boolean) => void;
   game: Game;
   selectedBet: SelectedBet | null;
+  userProfile: User | null;
 }
 
-const betSchema = z.object({
-    stake: z.coerce.number().min(1, "Stake must be at least $1."),
+const createBetSchema = (walletBalance: number = 0) => z.object({
+    stakeAmount: z.coerce
+        .number()
+        .min(1, "Stake must be at least $1.")
+        .max(10000, "Stake cannot exceed $10,000.")
+        .refine(val => val <= walletBalance, {
+            message: "Wager cannot exceed your available wallet balance."
+        }),
     opponentTwitter: z.string().optional().refine(val => !val || val.startsWith('@') || /^[a-zA-Z0-9_]{1,15}$/.test(val!), {
         message: "Invalid Twitter handle."
     }),
@@ -70,7 +77,7 @@ const betSchema = z.object({
 });
 
 
-type BetFormData = z.infer<typeof betSchema>;
+type BetFormData = z.infer<ReturnType<typeof createBetSchema>>;
 
 const OddsInfo = ({ label, value }: { label: string, value: React.ReactNode }) => (
     <div className="flex justify-between items-center text-sm">
@@ -81,7 +88,7 @@ const OddsInfo = ({ label, value }: { label: string, value: React.ReactNode }) =
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
-function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet }: BetCreationModalProps) {
+function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, userProfile }: BetCreationModalProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const stripe = useStripe();
@@ -94,14 +101,14 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet }: B
   const [clientSecret, setClientSecret] = React.useState<string | null>(null);
   
   const form = useForm<BetFormData>({
-    resolver: zodResolver(betSchema),
+    resolver: zodResolver(createBetSchema(userProfile?.walletBalance)),
     defaultValues: {
-      stake: 20,
+      stakeAmount: 20,
     },
   });
 
   const opponentTwitter = form.watch("opponentTwitter");
-  const stakeAmount = form.watch("stake") || 0;
+  const stakeAmount = form.watch("stakeAmount") || 0;
   const betType = form.watch("betType");
   
   React.useEffect(() => {
@@ -119,7 +126,7 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet }: B
 
   const handleModalClose = (open: boolean) => {
     if (!open) {
-        form.reset({ stake: 20, opponentTwitter: '' });
+        form.reset({ stakeAmount: 20, opponentTwitter: '' });
         setIsSuccess(false);
         setStep(1);
         setClientSecret(null);
@@ -174,7 +181,7 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet }: B
           homeTeam: game.home_team,
           awayTeam: game.away_team,
           betType: data.betType,
-          stakeAmount: data.stake,
+          stakeAmount: data.stakeAmount,
           chosenOption, // Pass the simplified chosen option
           betValue,
           line: data.line,
@@ -211,7 +218,7 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet }: B
       const createBetPaymentIntent = httpsCallable(functions, 'createBetPaymentIntent');
       
       try {
-          const result: any = await createBetPaymentIntent({ wagerAmount: form.getValues("stake") });
+          const result: any = await createBetPaymentIntent({ wagerAmount: form.getValues("stakeAmount") });
           if(result.data.success) {
               setClientSecret(result.data.clientSecret);
               setStep(2);
@@ -353,7 +360,7 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet }: B
 
 
                         <div className="grid grid-cols-2 gap-4">
-                            <FormField control={form.control} name="stake" render={({ field }) => (
+                            <FormField control={form.control} name="stakeAmount" render={({ field }) => (
                                 <FormItem><FormLabel>Wager ($)</FormLabel>
                                 <FormControl><Input type="number" placeholder="20.00" {...field} /></FormControl>
                                 <FormMessage /></FormItem>

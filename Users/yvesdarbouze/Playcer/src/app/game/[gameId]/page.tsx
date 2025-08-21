@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { collection, doc, getDoc, onSnapshot, Timestamp, query } from "firebase/firestore";
 import { getFirebaseApp } from "@/lib/firebase";
 import { getFunctions, httpsCallable } from "firebase/functions";
-import type { Game } from "@/types";
+import type { Game, User } from "@/types";
 import { format } from "date-fns";
 import {
   Card,
@@ -56,6 +56,7 @@ export default function GameDetailsPage({ params }: { params: { gameId: string }
 
   const [game, setGame] = useState<Game | null>(null);
   const [odds, setOdds] = useState<BookmakerOdds[]>([]);
+  const [userProfile, setUserProfile] = useState<User | null>(null);
   const [consensusData, setConsensusData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [loadingConsensus, setLoadingConsensus] = useState(true);
@@ -84,6 +85,15 @@ export default function GameDetailsPage({ params }: { params: { gameId: string }
       setLoading(false);
     };
 
+     const fetchUserProfile = async () => {
+        if (!user) return;
+        const userDocRef = doc(db, "users", user.uid);
+        const userDocSnap = await getDoc(userDocRef);
+        if (userDocSnap.exists()) {
+            setUserProfile(userDocSnap.data() as User);
+        }
+    };
+
     const fetchConsensusOdds = async () => {
         setLoadingConsensus(true);
         const getConsensusOddsFn = httpsCallable(functions, 'getConsensusOdds');
@@ -101,6 +111,7 @@ export default function GameDetailsPage({ params }: { params: { gameId: string }
 
     fetchGameDetails();
     fetchConsensusOdds();
+    if(user) fetchUserProfile();
 
     const oddsQuery = query(collection(db, `games/${gameId}/bookmaker_odds`));
     const unsubscribe = onSnapshot(oddsQuery, (snapshot) => {
@@ -112,7 +123,7 @@ export default function GameDetailsPage({ params }: { params: { gameId: string }
     });
 
     return () => unsubscribe();
-  }, [gameId]);
+  }, [gameId, user]);
   
   const handleCreateBetClick = (betDetails: SelectedBet) => {
     if (!user) {
@@ -305,6 +316,7 @@ export default function GameDetailsPage({ params }: { params: { gameId: string }
             onOpenChange={setIsBetModalOpen}
             game={game}
             selectedBet={selectedBet}
+            userProfile={userProfile}
           />
       )}
     </>
