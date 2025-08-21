@@ -196,7 +196,6 @@ export const createBet = onCall(async (request) => {
         betType,
         stakeAmount,
         chosenOption,
-        betValue,
         line,
         isPublic,
         twitterShareUrl,
@@ -205,7 +204,7 @@ export const createBet = onCall(async (request) => {
     } = request.data;
     
     // Basic validation
-    if (!eventId || !eventDate || !homeTeam || !awayTeam || !betType || !chosenOption || !stakeAmount || !bookmakerKey || !odds) {
+    if (!eventId || !eventDate || !homeTeam || !awayTeam || !betType || !chosenOption || stakeAmount === undefined || !bookmakerKey || odds === undefined) {
         throw new HttpsError('invalid-argument', 'Missing required bet information.');
     }
 
@@ -246,7 +245,6 @@ export const createBet = onCall(async (request) => {
             stakeAmount,
             betType,
             chosenOption,
-            betValue,
             line,
             status: 'pending_acceptance',
             isPublic: isPublic,
@@ -579,3 +577,5 @@ export const kycWebhook = functions.https.onRequest(async (request, response) =>
 
     response.status(200).send({ received: true });
 });
+
+    

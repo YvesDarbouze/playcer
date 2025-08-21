@@ -32,7 +32,7 @@ import { getFirebaseApp } from "@/lib/firebase";
 import { Separator } from "./ui/separator";
 import { useStripe, useElements, PaymentElement, Elements } from '@stripe/react-stripe-js';
 import { loadStripe } from '@stripe/stripe-js';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 
 
 type SelectedBet = {
@@ -59,21 +59,18 @@ const createBetSchema = (walletBalance: number = 0) => z.object({
         .refine(val => val <= walletBalance, {
             message: "Wager cannot exceed your available wallet balance."
         }),
+    betVisibility: z.enum(["public", "private"]).default("public"),
     opponentTwitter: z.string().optional().refine(val => !val || val.startsWith('@') || /^[a-zA-Z0-9_]{1,15}$/.test(val!), {
         message: "Invalid Twitter handle."
     }),
-    betType: z.enum(["moneyline", "spread", "totals"]),
-    line: z.coerce.number().optional(),
-    teamSelection: z.string().optional(),
-    overUnderSelection: z.string().optional(),
 }).refine(data => {
-    if (data.betType === 'spread') return !!data.teamSelection && data.line !== undefined;
-    if (data.betType === 'totals') return !!data.overUnderSelection && data.line !== undefined;
-    if (data.betType === 'moneyline') return !!data.teamSelection;
+    if (data.betVisibility === 'private') {
+        return !!data.opponentTwitter && data.opponentTwitter.length > 1;
+    }
     return true;
 }, {
-    message: "Please complete all required fields for the selected bet type.",
-    path: ["betType"],
+    message: "A Twitter handle is required for a private challenge.",
+    path: ["opponentTwitter"],
 });
 
 
@@ -104,29 +101,17 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, use
     resolver: zodResolver(createBetSchema(userProfile?.walletBalance)),
     defaultValues: {
       stakeAmount: 20,
+      betVisibility: "public",
     },
   });
 
+  const betVisibility = form.watch("betVisibility");
   const opponentTwitter = form.watch("opponentTwitter");
   const stakeAmount = form.watch("stakeAmount") || 0;
-  const betType = form.watch("betType");
   
-  React.useEffect(() => {
-    if (selectedBet) {
-        form.setValue("betType", selectedBet.betType);
-        if(selectedBet.betType === 'totals') {
-            form.setValue("overUnderSelection", selectedBet.chosenOption);
-        } else {
-            form.setValue("teamSelection", selectedBet.chosenOption);
-        }
-        form.setValue("line", selectedBet.line);
-    }
-  }, [selectedBet, form]);
-
-
   const handleModalClose = (open: boolean) => {
     if (!open) {
-        form.reset({ stakeAmount: 20, opponentTwitter: '' });
+        form.reset({ stakeAmount: 20, opponentTwitter: '', betVisibility: 'public' });
         setIsSuccess(false);
         setStep(1);
         setClientSecret(null);
@@ -139,7 +124,7 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, use
       return null;
   }
 
-  const { odds, bookmakerKey } = selectedBet;
+  const { odds, bookmakerKey, chosenOption, line, betType } = selectedBet;
 
   const onSubmit = async (data: BetFormData) => {
     if (!user) return toast({ title: "Not Authenticated", variant: "destructive" });
@@ -160,39 +145,27 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, use
 
     if (paymentIntent && paymentIntent.status === 'requires_capture') {
         const functions = getFunctions(getFirebaseApp());
-        const createBet = httpsCallable(functions, 'createBet');
+        const createBetFn = httpsCallable(functions, 'createBet');
         
-        let betValue: any;
-        let chosenOption: string;
-        if (data.betType === 'moneyline') {
-            betValue = { team: data.teamSelection };
-            chosenOption = data.teamSelection!;
-        } else if (data.betType === 'spread') {
-            betValue = { team: data.teamSelection, points: data.line };
-            chosenOption = data.teamSelection!;
-        } else { // totals
-            betValue = { over_under: data.overUnderSelection, total: data.line };
-            chosenOption = data.overUnderSelection!;
-        }
-
         const betPayload = {
           eventId: game.id,
           eventDate: game.commence_time,
           homeTeam: game.home_team,
           awayTeam: game.away_team,
-          betType: data.betType,
+          betType,
           stakeAmount: data.stakeAmount,
-          chosenOption, // Pass the simplified chosen option
-          betValue,
-          line: data.line,
-          isPublic: !data.opponentTwitter,
-          twitterShareUrl: data.opponentTwitter ? `https://twitter.com/intent/tweet?text=${encodeURIComponent(`@${data.opponentTwitter.replace('@','')} I challenge you to a bet on Playcer!`)}` : null,
+          chosenOption,
+          line,
+          isPublic: data.betVisibility === 'public',
+          twitterShareUrl: data.betVisibility === 'private' && data.opponentTwitter 
+            ? `https://twitter.com/intent/tweet?text=${encodeURIComponent(`@${data.opponentTwitter.replace('@','')} I challenge you to a bet on Playcer!`)}` 
+            : null,
           bookmakerKey: bookmakerKey,
           odds: odds,
         };
 
         try {
-          const result: any = await createBet(betPayload);
+          const result: any = await createBetFn(betPayload);
           if (result.data.success) {
             setIsSuccess(true);
             setBetId(result.data.betId);
@@ -233,15 +206,14 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, use
   }
 
   const getBetValueDisplay = () => {
-    const data = form.getValues();
-    if (data.betType === 'moneyline') {
-      return data.teamSelection;
+    if (betType === 'moneyline') {
+      return chosenOption;
     }
-    if (data.betType === 'spread' && data.line !== undefined) {
-      return `${data.teamSelection} ${data.line > 0 ? `+${data.line}` : data.line}`;
+    if (betType === 'spread') {
+      return `${chosenOption} ${line! > 0 ? `+${line}` : line}`;
     }
-    if (data.betType === 'totals' && data.line !== undefined) {
-      return `Total ${data.overUnderSelection} ${data.line}`;
+    if (betType === 'totals') {
+      return `Total ${chosenOption} ${line}`;
     }
     return '';
   }
@@ -256,127 +228,65 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, use
               return (
                 <Form {...form}>
                     <form id="bet-details-form" className="space-y-4">
-                        
                         <FormField
                             control={form.control}
-                            name="betType"
+                            name="stakeAmount"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Bet Type</FormLabel>
-                                    <Select onValueChange={(value) => field.onChange(value)} defaultValue={field.value}>
-                                        <FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl>
-                                        <SelectContent>
-                                            <SelectItem value="moneyline">Moneyline</SelectItem>
-                                            <SelectItem value="spread">Point Spread</SelectItem>
-                                            <SelectItem value="totals">Total (Over/Under)</SelectItem>
-                                        </SelectContent>
-                                    </Select>
+                                    <FormLabel>Wager Amount ($)</FormLabel>
+                                    <FormControl><Input type="number" placeholder="20.00" {...field} /></FormControl>
+                                    <FormMessage />
                                 </FormItem>
                             )}
                         />
 
-                        {betType === 'moneyline' && (
-                             <FormField
-                                control={form.control}
-                                name="teamSelection"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Your Pick</FormLabel>
-                                         <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                            <FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl>
-                                            <SelectContent>
-                                                <SelectItem value={game.home_team}>{game.home_team}</SelectItem>
-                                                <SelectItem value={game.away_team}>{game.away_team}</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                        <FormMessage/>
+                        <FormField
+                            control={form.control}
+                            name="betVisibility"
+                            render={({ field }) => (
+                                <FormItem className="space-y-3">
+                                <FormLabel>Challenge Type</FormLabel>
+                                <FormControl>
+                                    <RadioGroup
+                                    onValueChange={field.onChange}
+                                    defaultValue={field.value}
+                                    className="flex space-x-4"
+                                    >
+                                    <FormItem className="flex items-center space-x-2 space-y-0">
+                                        <FormControl>
+                                        <RadioGroupItem value="public" />
+                                        </FormControl>
+                                        <FormLabel className="font-normal">
+                                        List on Marketplace (Public)
+                                        </FormLabel>
                                     </FormItem>
-                                )}/>
-                        )}
+                                    <FormItem className="flex items-center space-x-2 space-y-0">
+                                        <FormControl>
+                                        <RadioGroupItem value="private" />
+                                        </FormControl>
+                                        <FormLabel className="font-normal">
+                                        Direct Challenge (Private)
+                                        </FormLabel>
+                                    </FormItem>
+                                    </RadioGroup>
+                                </FormControl>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                        />
                         
-                        {betType === 'spread' && (
-                            <div className="grid grid-cols-2 gap-4">
-                                <FormField
-                                    control={form.control}
-                                    name="teamSelection"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Your Pick</FormLabel>
-                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                <FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl>
-                                                <SelectContent>
-                                                    <SelectItem value={game.home_team}>{game.home_team}</SelectItem>
-                                                    <SelectItem value={game.away_team}>{game.away_team}</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                            <FormMessage/>
-                                        </FormItem>
-                                    )}/>
-                                <FormField
-                                    control={form.control}
-                                    name="line"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Custom Line</FormLabel>
-                                            <FormControl><Input type="number" step="0.5" {...field} onChange={e => field.onChange(parseFloat(e.target.value))} /></FormControl>
-                                            <FormMessage/>
-                                        </FormItem>
-                                    )}
-                                />
-                            </div>
-                        )}
-                        
-                        {betType === 'totals' && (
-                            <div className="grid grid-cols-2 gap-4">
-                                <FormField
-                                    control={form.control}
-                                    name="overUnderSelection"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Your Pick</FormLabel>
-                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                <FormControl><SelectTrigger><SelectValue/></SelectTrigger></FormControl>
-                                                <SelectContent>
-                                                    <SelectItem value="Over">Over</SelectItem>
-                                                    <SelectItem value="Under">Under</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                            <FormMessage/>
-                                        </FormItem>
-                                    )}/>
-                                <FormField
-                                    control={form.control}
-                                    name="line"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Custom Total</FormLabel>
-                                            <FormControl><Input type="number" step="0.5" {...field} onChange={e => field.onChange(parseFloat(e.target.value))}/></FormControl>
-                                            <FormMessage/>
-                                        </FormItem>
-                                    )}
-                                />
-                            </div>
-                        )}
-
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <FormField control={form.control} name="stakeAmount" render={({ field }) => (
-                                <FormItem><FormLabel>Wager ($)</FormLabel>
-                                <FormControl><Input type="number" placeholder="20.00" {...field} /></FormControl>
-                                <FormMessage /></FormItem>
-                                )}
-                            />
+                        {betVisibility === 'private' && (
                              <FormField control={form.control} name="opponentTwitter" render={({ field }) => (
-                                <FormItem><FormLabel>Opponent (Optional)</FormLabel>
-                                <FormControl><div className="relative"><Twitter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="@handle or public" className="pl-9" {...field} /></div></FormControl>
+                                <FormItem><FormLabel>Opponent's Twitter Handle</FormLabel>
+                                <FormControl><div className="relative"><Twitter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" /><Input placeholder="@handle" className="pl-9" {...field} /></div></FormControl>
                                 <FormMessage /></FormItem>
                                 )}
                             />
-                        </div>
+                        )}
 
                          <div className="p-4 rounded-lg bg-muted text-sm space-y-1">
-                            <OddsInfo label="Original Odds" value={odds > 0 ? `+${odds}`: odds} />
-                            <OddsInfo label="Wager" value={`$${stakeAmount.toFixed(2)}`} />
+                            <h4 className="font-bold">Your Pick: {getBetValueDisplay()}</h4>
+                            <OddsInfo label="Odds" value={odds > 0 ? `+${odds}`: odds} />
                             <OddsInfo label="Potential Winnings" value={`$${potentialWinnings}`} />
                             <Separator />
                             <OddsInfo label="Total Payout" value={`$${potentialPayout}`} />
@@ -458,3 +368,5 @@ export function BetCreationModal(props: BetCreationModalProps) {
         </Elements>
     )
 }
+
+    
