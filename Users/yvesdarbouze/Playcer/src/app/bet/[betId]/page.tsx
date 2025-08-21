@@ -67,7 +67,7 @@ export default function BetChallengePage() {
     return () => unsubscribe();
   }, [betId]);
 
-  const handleAcceptBet = async () => {
+  const handleAcceptBet = async (acceptedAmount: number) => {
     if (!user || !bet) return;
     
     if (user.uid === bet.creatorId) {
@@ -79,13 +79,22 @@ export default function BetChallengePage() {
         return;
     }
 
+    if (bet.remainingStakeAmount && acceptedAmount > bet.remainingStakeAmount) {
+        toast({
+            title: "Invalid Amount",
+            description: "You cannot accept more than the remaining wager.",
+            variant: "destructive",
+        });
+        return;
+    }
+
     setIsAccepting(true);
 
     const functions = getFunctions(app);
     const acceptBetFn = httpsCallable(functions, "acceptBet"); 
 
     try {
-      const result: any = await acceptBetFn({ betId: bet.id });
+      const result: any = await acceptBetFn({ betId: bet.id, acceptedAmount });
       if (result.data.success && result.data.clientSecret) {
         setClientSecret(result.data.clientSecret);
         toast({

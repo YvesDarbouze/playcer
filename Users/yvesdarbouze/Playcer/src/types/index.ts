@@ -83,12 +83,14 @@ export type Bet = {
   homeTeam: string;
   awayTeam: string;
   creatorId: string;
-  takerId: string | null;
+  takerId: string | null; // Represents the first or primary taker if not fractional
+  takers?: Record<string, number>; // Map of takerId to amount accepted
   creatorUsername: string;
   creatorPhotoURL: string;
   takerUsername: string | null;
   takerPhotoURL: string | null;
   stakeAmount: number;
+  remainingStakeAmount?: number;
   betType: "moneyline" | "spread" | "totals";
   chosenOption: string; // e.g., 'Los Angeles Lakers' or 'Over'
   line?: number; // e.g., -7.5 for spread, 210.5 for totals
@@ -104,6 +106,14 @@ export type Bet = {
   settledAt: string | null; // ISO string
   allowFractionalAcceptance: boolean;
 };
+
+export type BetAcceptance = {
+    id: string; // takerId
+    amount: number;
+    takerUsername: string;
+    takerPhotoURL: string;
+    createdAt: Timestamp;
+}
 
 export type UserBet = {
   betRef: string; // In Firestore, this is a DocumentReference, but we use its path string in the app

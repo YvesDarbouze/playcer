@@ -238,11 +238,13 @@ export const createBet = onCall(async (request) => {
             awayTeam,
             creatorId: creatorId,
             takerId: null,
+            takers: {},
             creatorUsername: userData.username,
             creatorPhotoURL: userData.photoURL,
             takerUsername: null,
             takerPhotoURL: null,
             stakeAmount,
+            remainingStakeAmount: stakeAmount,
             betType,
             chosenOption,
             line,
@@ -274,25 +276,22 @@ export const acceptBet = onCall(async (request) => {
     }
 
     const { uid: takerId } = request.auth;
-    const { betId } = request.data;
+    const { betId, acceptedAmount } = request.data;
     if (!betId) throw new HttpsError('invalid-argument', 'The `betId` must be provided.');
    
     const betDocRef = db.collection('bets').doc(betId);
     
-    const betDoc = await betDocRef.get();
-    if (!betDoc.exists) throw new HttpsError('not-found', 'Bet not found.');
-    const betData = betDoc.data()!;
-
     // Create payment intent for the recipient
     try {
         const paymentIntent = await stripe.paymentIntents.create({
-            amount: betData.stakeAmount * 100, // Stripe works in cents
+            amount: acceptedAmount * 100, // Stripe works in cents
             currency: 'usd',
             capture_method: 'manual', // Authorize now, capture later on confirmation
             metadata: {
                 userId: takerId,
                 type: 'bet_authorization',
-                betId: betId
+                betId: betId,
+                acceptedAmount: acceptedAmount
             }
         });
         
@@ -465,12 +464,14 @@ export const stripeWebhook = functions.https.onRequest(async (request, response)
 
         case 'payment_intent.requires_capture':
             const piToCapture = event.data.object as Stripe.PaymentIntent;
-            const { userId: takerId, betId } = piToCapture.metadata;
-            if (betId && takerId) {
-                functions.logger.info(`Finalizing bet ${betId} after taker ${takerId} authorized payment.`);
+            const { userId: takerId, betId, acceptedAmount } = piToCapture.metadata;
+
+            if (piToCapture.metadata.type === 'bet_authorization' && betId && takerId && acceptedAmount) {
+                functions.logger.info(`Finalizing bet acceptance for bet ${betId} by taker ${takerId} for amount ${acceptedAmount}.`);
                 
                 const betDocRef = db.collection('bets').doc(betId);
                 const takerDocRef = db.collection('users').doc(takerId);
+                const acceptanceDocRef = betDocRef.collection('acceptances').doc(takerId);
 
                 await db.runTransaction(async (transaction) => {
                     const betDoc = await transaction.get(betDocRef);
@@ -485,19 +486,42 @@ export const stripeWebhook = functions.https.onRequest(async (request, response)
 
                     if (status !== 'pending_acceptance') throw new Error(`Bet ${betId} is not pending acceptance.`);
                     if (creatorId === takerId) throw new Error('User cannot accept their own bet.');
-                    
                     if (takerData.kycStatus !== 'verified') throw new Error('Recipient must be KYC verified.');
 
+                    const numericAcceptedAmount = Number(acceptedAmount);
+                    if (isNaN(numericAcceptedAmount) || numericAcceptedAmount <= 0) {
+                        throw new Error('Invalid accepted amount.');
+                    }
+                    if(numericAcceptedAmount > betData.remainingStakeAmount) {
+                        throw new Error('Accepted amount exceeds remaining stake.');
+                    }
+                    
+                    // Capture the payment
                     await stripe.paymentIntents.capture(piToCapture.id);
 
+                    // Update bet document
+                    const newRemainingAmount = betData.remainingStakeAmount - numericAcceptedAmount;
+                    const newStatus = newRemainingAmount <= 0 ? 'accepted' : 'pending_acceptance';
+                    
                     transaction.update(betDocRef, {
-                        takerId: takerId,
-                        status: 'accepted',
+                        remainingStakeAmount: newRemainingAmount,
+                        status: newStatus,
+                        takerId: betData.takerId || takerId, // Set first taker as primary
+                        takerUsername: betData.takerUsername || takerData.username,
+                        takerPhotoURL: betData.takerPhotoURL || takerData.photoURL,
+                        [`takers.${takerId}`]: FieldValue.increment(numericAcceptedAmount)
+                    });
+                    
+                    // Create acceptance record
+                    transaction.set(acceptanceDocRef, {
+                        amount: numericAcceptedAmount,
                         takerUsername: takerData.username,
                         takerPhotoURL: takerData.photoURL,
-                    });
+                        createdAt: Timestamp.now()
+                    }, { merge: true });
+
                 });
-                functions.logger.log(`Bet ${betId} successfully activated.`);
+                functions.logger.log(`Bet acceptance for ${betId} successfully processed.`);
             }
             break;
 

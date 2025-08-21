@@ -23,12 +23,14 @@ import { useToast } from "@/hooks/use-toast";
 import { useStripe, useElements, PaymentElement } from "@stripe/react-stripe-js";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/use-auth";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
 
 
 interface BetChallengeCardProps {
   bet: Bet;
   currentUser: FirebaseUser | null;
-  onAccept: () => void;
+  onAccept: (acceptedAmount: number) => void;
   isAccepting: boolean;
   clientSecret: string | null;
 }
@@ -69,9 +71,9 @@ export function BetChallengeCard({
   const { toast } = useToast();
   const { signIn } = useAuth();
   const [isFinalizing, setIsFinalizing] = React.useState(false);
+  const [acceptedAmount, setAcceptedAmount] = React.useState(bet.remainingStakeAmount || bet.stakeAmount);
 
   const isCreator = currentUser && currentUser.uid === bet.creatorId;
-
   const canAccept = currentUser && bet.status === 'pending_acceptance' && !isCreator;
 
   const handleShareBet = () => {
@@ -93,8 +95,8 @@ export function BetChallengeCard({
     return chosenOption;
   }
   
-  const potentialWinnings = (bet.stakeAmount * (bet.odds > 0 ? (bet.odds / 100) : (100 / Math.abs(bet.odds)))).toFixed(2);
-  const potentialPayout = (bet.stakeAmount + parseFloat(potentialWinnings)).toFixed(2);
+  const potentialWinnings = (acceptedAmount * (bet.odds > 0 ? (bet.odds / 100) : (100 / Math.abs(bet.odds)))).toFixed(2);
+  const potentialPayout = (acceptedAmount + parseFloat(potentialWinnings)).toFixed(2);
 
   const handleFinalizeAcceptance = async () => {
       if (!stripe || !elements || !clientSecret) {
@@ -135,7 +137,7 @@ export function BetChallengeCard({
                 <h3 className="text-center font-bold">Authorize Payment to Accept</h3>
                 <PaymentElement />
                 <Button onClick={handleFinalizeAcceptance} disabled={isFinalizing || !stripe} className="w-full">
-                    {isFinalizing ? <Loader2 className="animate-spin" /> : "Confirm & Accept Bet"}
+                    {isFinalizing ? <Loader2 className="animate-spin" /> : `Confirm & Accept Bet for $${acceptedAmount.toFixed(2)}`}
                 </Button>
             </div>
         )
@@ -149,8 +151,33 @@ export function BetChallengeCard({
         );
     }
     if (canAccept) {
+        if (bet.allowFractionalAcceptance) {
+            return (
+                <div className="w-full space-y-4">
+                    <div className="space-y-1">
+                        <Label htmlFor="accept-amount">Accept Amount</Label>
+                        <Input
+                            id="accept-amount"
+                            type="number"
+                            value={acceptedAmount}
+                            onChange={(e) => setAcceptedAmount(Number(e.target.value))}
+                            max={bet.remainingStakeAmount}
+                            min="1"
+                            step="1"
+                        />
+                         <p className="text-xs text-muted-foreground">
+                            Up to ${bet.remainingStakeAmount?.toFixed(2)} remaining.
+                        </p>
+                    </div>
+                    <Button onClick={() => onAccept(acceptedAmount)} disabled={isAccepting} className="w-full" size="lg">
+                        {isAccepting ? <Loader2 className="animate-spin mr-2" /> : <Handshake className="mr-2" />}
+                        {isAccepting ? "Initializing..." : `Accept $${acceptedAmount.toFixed(2)}`}
+                    </Button>
+                </div>
+            )
+        }
       return (
-        <Button onClick={onAccept} disabled={isAccepting} className="w-full" size="lg">
+        <Button onClick={() => onAccept(bet.stakeAmount)} disabled={isAccepting} className="w-full" size="lg">
           {isAccepting ? <Loader2 className="animate-spin mr-2" /> : <Handshake className="mr-2" />}
           {isAccepting ? "Initializing..." : "Accept Challenge"}
         </Button>
@@ -193,6 +220,11 @@ export function BetChallengeCard({
                 <div className="flex flex-col items-center">
                     <Swords className="text-muted-foreground my-2 size-8" />
                     <span className="font-bold text-xl">${bet.stakeAmount.toFixed(2)}</span>
+                    {bet.allowFractionalAcceptance && bet.remainingStakeAmount && (
+                         <span className="text-xs text-muted-foreground">
+                            (${bet.remainingStakeAmount.toFixed(2)} left)
+                        </span>
+                    )}
                 </div>
                 <UserDisplay username={bet.takerUsername} photoURL={bet.takerPhotoURL}/>
             </div>
