@@ -3,7 +3,7 @@
 
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import type { User as FirebaseUser } from 'firebase/auth';
-import { auth, signOut as firebaseSignOut, getFirebaseApp, storage } from '@/lib/firebase';
+import { auth, signOut as firebaseSignOut, storage } from '@/lib/firebase';
 import { onAuthStateChanged, getIdTokenResult, updateProfile } from 'firebase/auth';
 import { doc, getDoc, getFirestore, Timestamp, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -28,7 +28,7 @@ const AuthContext = createContext<AuthContextType>({
 // Helper to check self-exclusion status
 const checkSelfExclusion = async (uid: string): Promise<boolean> => {
     try {
-        const db = getFirestore(getFirebaseApp());
+        const db = getFirestore();
         const userDocRef = doc(db, "users", uid);
         const userDocSnap = await getDoc(userDocRef);
 
@@ -119,7 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await updateProfile(user, { photoURL: downloadURL });
 
         // Update Firestore user document
-        const db = getFirestore(getFirebaseApp());
+        const db = getFirestore();
         const userDocRef = doc(db, 'users', user.uid);
         await updateDoc(userDocRef, { photoURL: downloadURL });
         

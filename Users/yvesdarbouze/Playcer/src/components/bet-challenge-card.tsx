@@ -213,5 +213,3 @@ export function BetChallengeCard({
     </Card>
   );
 }
-
-    

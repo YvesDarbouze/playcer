@@ -68,17 +68,17 @@ const OutcomeBadge = ({ bet, currentUserId }: { bet: Bet, currentUserId: string 
 }
 
 const BetValueDisplay = ({ bet }: { bet: Bet }) => {
-    const { betValue, betType } = bet;
-    if (betType === 'moneyline' && 'team' in betValue) {
-        return <>{betValue.team}</>;
+    const { chosenOption, betType, line } = bet;
+    if (betType === 'moneyline') {
+      return <>{chosenOption}</>;
     }
-    if (betType === 'spread' && 'team' in betValue && 'points' in betValue) {
-        return <>{`${betValue.team} ${betValue.points! > 0 ? `+${betValue.points}` : betValue.points}`}</>;
+    if (betType === 'spread') {
+      return <>{`${chosenOption} ${line! > 0 ? `+${line}` : line}`}</>;
     }
-    if (betType === 'totals' && 'over_under' in betValue && 'total' in betValue) {
-        return <>{`Total ${betValue.over_under} ${betValue.total}`}</>;
+    if (betType === 'totals') {
+      return <>{`Total ${chosenOption} ${line}`}</>;
     }
-    return <>{bet.chosenOption || 'N/A'}</>;
+    return <>{chosenOption || 'N/A'}</>;
 }
 
 export function UserBetsTable({ bets, currentUserId }: UserBetsTableProps) {
