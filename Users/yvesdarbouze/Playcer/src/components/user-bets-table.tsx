@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import {
@@ -29,38 +28,45 @@ interface UserBetsTableProps {
 const OpponentDisplay = ({ bet, currentUserId }: { bet: Bet, currentUserId: string }) => {
     const isCreator = bet.creatorId === currentUserId;
     
-    const opponent = isCreator
-      ? { id: bet.takerId, username: bet.takerUsername, photoURL: bet.takerPhotoURL }
-      : { id: bet.creatorId, username: bet.creatorUsername, photoURL: bet.creatorPhotoURL };
+    if (bet.isPublic && !bet.takerId && !Object.keys(bet.takers || {}).length) {
+        return <span className="text-muted-foreground">vs. Public</span>;
+    }
 
-    if (!opponent.id) {
-        if(bet.isPublic) {
-            return <span className="text-muted-foreground">vs. Public</span>
+    const opponentId = isCreator ? bet.takerId : bet.creatorId;
+    const opponentUsername = isCreator ? bet.takerUsername : bet.creatorUsername;
+    const opponentPhotoURL = isCreator ? bet.takerPhotoURL : bet.creatorPhotoURL;
+
+    if (!opponentId) {
+        if(bet.twitterShareUrl) {
+            const handle = bet.twitterShareUrl?.split('text=')[1]?.split('%20I%20challenge%20you')[0]?.replace('@', '') || 'private';
+            return <span className="text-muted-foreground">vs. @{handle}</span>
         }
-        const handle = bet.twitterShareUrl?.split('text=')[1]?.split('%20I%20challenge%20you')[0]?.replace('@', '') || 'private';
-        return <span className="text-muted-foreground">vs. @{handle}</span>
+        return <span className="text-muted-foreground">vs. Multiple</span>
     }
     
     return (
-        <Link href={`/profile/${opponent.id}`} className="flex items-center gap-2 hover:underline">
+        <Link href={`/profile/${opponentId}`} className="flex items-center gap-2 hover:underline">
             <Avatar className="size-6">
-                <AvatarImage src={opponent.photoURL || undefined} alt={opponent.username || ''} />
-                <AvatarFallback>{opponent.username ? opponent.username.charAt(0) : '?'}</AvatarFallback>
+                <AvatarImage src={opponentPhotoURL || undefined} alt={opponentUsername || ''} />
+                <AvatarFallback>{opponentUsername ? opponentUsername.charAt(0) : '?'}</AvatarFallback>
             </Avatar>
-            <span className="font-medium">@{opponent.username}</span>
+            <span className="font-medium">@{opponentUsername}</span>
         </Link>
     )
 }
 
 const OutcomeBadge = ({ bet, currentUserId }: { bet: Bet, currentUserId: string }) => {
-    if (bet.outcome === 'draw') return <Badge variant="secondary">Push</Badge>;
     if (bet.status !== 'resolved') return null;
+    if (bet.outcome === 'draw') return <Badge variant="secondary">Push</Badge>;
 
     if (!bet.winnerId) {
         return <Badge variant="secondary">?</Badge>;
     }
 
-    if (bet.winnerId === currentUserId) {
+    const isWinner = bet.winnerId === currentUserId;
+    const isTakerInMultiWinner = bet.takers && bet.takers[currentUserId] > 0 && bet.winnerId !== bet.creatorId;
+
+    if (isWinner || isTakerInMultiWinner) {
         return <Badge variant="default" className="bg-green-500 hover:bg-green-600">Win</Badge>
     }
     

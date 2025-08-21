@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { getFirestore, doc, getDoc, collection, query, where, getDocs, orderBy, Timestamp, or } from "firebase/firestore";
+import { getFirestore, doc, onSnapshot, collection, query, where, getDocs, orderBy, Timestamp, or } from "firebase/firestore";
 import { useAuth } from "@/hooks/use-auth";
 import { firestore } from "@/lib/firebase";
 import type { User, Bet } from "@/types";
@@ -11,11 +11,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UserBetsTable } from "./user-bets-table";
-import { Banknote, Trophy, ShieldHalf, Swords, Hourglass, LifeBuoy, ShieldCheck, PlusCircle, Store, Upload, BarChart } from "lucide-react";
+import { Banknote, Trophy, LifeBuoy, PlusCircle, Store, Upload } from "lucide-react";
 import Link from 'next/link';
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { RankingTable } from "./ranking-table";
+import { ShieldCheck, Hourglass } from "lucide-react";
 
 
 const convertToBet = (doc: any): Bet => {
@@ -34,41 +34,39 @@ export function UserDashboard() {
     const { user: authUser, loading: authLoading, updateUserProfileImage } = useAuth();
     const [userProfile, setUserProfile] = React.useState<User | null>(null);
     const [bets, setBets] = React.useState<Bet[]>([]);
-    const [loading, setLoading] = React.useState(true);
+    const [loadingData, setLoadingData] = React.useState(true);
     const fileInputRef = React.useRef<HTMLInputElement>(null);
     
     React.useEffect(() => {
         if (!authUser) return;
 
-        const fetchData = async () => {
-            setLoading(true);
-            
-            // Fetch User Profile
-            const userDocRef = doc(firestore, "users", authUser.uid);
-            const userDocSnap = await getDoc(userDocRef);
-            if (userDocSnap.exists()) {
-                setUserProfile({ id: userDocSnap.id, ...userDocSnap.data() } as User);
+        const userDocRef = doc(firestore, "users", authUser.uid);
+        const unsubscribeUser = onSnapshot(userDocRef, (docSnap) => {
+            if (docSnap.exists()) {
+                setUserProfile({ id: docSnap.id, ...docSnap.data() } as User);
             }
-            
-            // Fetch all bets where user is creator OR taker
-            const betsRef = collection(firestore, "bets");
-            const q = query(
-                betsRef, 
-                or(
-                    where("creatorId", "==", authUser.uid),
-                    where("takerId", "==", authUser.uid)
-                ),
-                orderBy("createdAt", "desc")
-            );
+        });
 
-            const querySnapshot = await getDocs(q);
-            const userBets = querySnapshot.docs.map(convertToBet);
-            
+        const betsQuery = query(
+            collection(firestore, "bets"),
+            or(
+                where("creatorId", "==", authUser.uid),
+                where("takerId", "==", authUser.uid),
+                where("takers", "array-contains", authUser.uid)
+            ),
+            orderBy("createdAt", "desc")
+        );
+
+        const unsubscribeBets = onSnapshot(betsQuery, (snapshot) => {
+            const userBets = snapshot.docs.map(convertToBet);
             setBets(userBets);
-            setLoading(false);
-        };
+            setLoadingData(false);
+        });
 
-        fetchData();
+        return () => {
+            unsubscribeUser();
+            unsubscribeBets();
+        };
     }, [authUser]);
     
     const pendingBets = bets.filter(b => b.status === 'pending_acceptance' && b.creatorId === authUser?.uid);
@@ -85,12 +83,6 @@ export function UserDashboard() {
             updateUserProfileImage(file);
         }
     };
-
-    React.useEffect(() => {
-        if (authUser && userProfile && authUser.photoURL !== userProfile.photoURL) {
-            setUserProfile(prev => prev ? { ...prev, photoURL: authUser.photoURL! } : null);
-        }
-    }, [authUser, userProfile]);
 
     const KYCAlert = () => {
         if (!userProfile) return null;
@@ -124,7 +116,7 @@ export function UserDashboard() {
         }
     }
 
-    if (loading || authLoading) {
+    if (authLoading || loadingData) {
         return (
              <div className="container mx-auto p-4 md:p-8 space-y-8">
                 <Skeleton className="h-40 w-full rounded-lg" />
@@ -194,10 +186,9 @@ export function UserDashboard() {
                 </Card>
             </header>
 
-             <Tabs defaultValue="stats" className="w-full mb-8">
+            <Tabs defaultValue="stats" className="w-full mb-8">
                 <TabsList className="grid w-full grid-cols-2">
                     <TabsTrigger value="stats"><Trophy className="mr-2"/> My Stats</TabsTrigger>
-                    <TabsTrigger value="ranking"><BarChart className="mr-2"/>Global Ranking</TabsTrigger>
                 </TabsList>
                 <TabsContent value="stats">
                     <Card>
@@ -219,9 +210,6 @@ export function UserDashboard() {
                             </div>
                         </CardContent>
                     </Card>
-                </TabsContent>
-                <TabsContent value="ranking">
-                    <RankingTable currentUserId={userProfile.id} />
                 </TabsContent>
             </Tabs>
 
