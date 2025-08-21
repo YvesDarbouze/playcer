@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getFirestore, doc, onSnapshot } from "firebase/firestore";
-import { getFirebaseApp } from "@/lib/firebase";
+import { firestore } from "@/lib/firebase";
 import type { User } from "@/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { IdentityVerification } from "@/components/identity-verification";
@@ -29,8 +29,7 @@ export default function VerifyIdentityPage() {
   useEffect(() => {
     if (!authUser) return;
 
-    const db = getFirestore(getFirebaseApp());
-    const userDocRef = doc(db, "users", authUser.uid);
+    const userDocRef = doc(firestore, "users", authUser.uid);
 
     const unsubscribe = onSnapshot(userDocRef, (docSnap) => {
         if (docSnap.exists()) {

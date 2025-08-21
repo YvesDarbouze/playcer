@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { getFunctions, httpsCallable } from "firebase/functions";
-import { getFirebaseApp } from "@/lib/firebase";
+import { app } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 
 import {
@@ -57,7 +57,7 @@ export function DepositModal({ isOpen, onOpenChange }: DepositModalProps) {
   const onSubmit = async (data: DepositFormData) => {
     setIsLoading(true);
 
-    const functions = getFunctions(getFirebaseApp());
+    const functions = getFunctions(app);
     const handleDeposit = httpsCallable(functions, "handleDeposit");
 
     try {

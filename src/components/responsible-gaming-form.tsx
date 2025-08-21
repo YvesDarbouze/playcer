@@ -6,7 +6,7 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { getFirestore, doc, updateDoc } from "firebase/firestore";
-import { getFirebaseApp } from "@/lib/firebase";
+import { firestore } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import type { User } from "@/types";
 
@@ -73,8 +73,7 @@ export function ResponsibleGamingForm({ user }: { user: User }) {
 
   const onLimitsSubmit = async (data: LimitsFormData) => {
     setIsLoading(true);
-    const db = getFirestore(getFirebaseApp());
-    const userDocRef = doc(db, "users", user.id);
+    const userDocRef = doc(firestore, "users", user.id);
 
     try {
       await updateDoc(userDocRef, {
@@ -107,8 +106,7 @@ export function ResponsibleGamingForm({ user }: { user: User }) {
          return;
      }
     setIsLoading(true);
-    const db = getFirestore(getFirebaseApp());
-    const userDocRef = doc(db, "users", user.id);
+    const userDocRef = doc(firestore, "users", user.id);
 
     const now = new Date();
     let exclusionEndDate: Date | null = new Date(now);

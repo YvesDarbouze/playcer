@@ -5,13 +5,13 @@ import React, { useState, useEffect } from 'react';
 import algoliasearch from 'algoliasearch/lite';
 import { InstantSearch } from 'react-instantsearch';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { getFirebaseApp } from '@/lib/firebase';
+import { app } from '@/lib/firebase';
 import { useAuth } from '@/hooks/use-auth';
 import { SearchBox } from '@/components/search/search-box';
 import { Hits } from '@/components/search/hits';
 import { Skeleton } from '@/components/ui/skeleton';
 
-const functions = getFunctions(getFirebaseApp());
+const functions = getFunctions(app);
 const getAlgoliaSearchKey = httpsCallable(functions, 'getAlgoliaSearchKey');
 
 const appId = process.env.NEXT_PUBLIC_ALGOLIA_APP_ID!;
@@ -57,7 +57,6 @@ export default function SearchPage() {
             <InstantSearch
                 searchClient={searchClient}
                 indexName="bets"
-                insights
             >
                 <header className="mb-8">
                     <h1 className="text-4xl font-headline font-black">Search Bets</h1>
@@ -65,7 +64,9 @@ export default function SearchPage() {
                         Find public challenges matching teams, markets, or users.
                     </p>
                 </header>
-                <SearchBox />
+                <div className="max-w-lg mb-8">
+                    <SearchBox />
+                </div>
                 <Hits />
             </InstantSearch>
         </main>

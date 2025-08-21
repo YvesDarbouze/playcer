@@ -15,7 +15,7 @@ import {
   Timestamp
 } from "firebase/firestore";
 import { useAuth } from "@/hooks/use-auth";
-import { getFirebaseApp } from "@/lib/firebase";
+import { firestore } from "@/lib/firebase";
 import type { User, Transaction } from "@/types";
 import { useRouter } from "next/navigation";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -51,10 +51,8 @@ export default function WalletPage() {
   React.useEffect(() => {
     if (!authUser) return;
 
-    const db = getFirestore(getFirebaseApp());
-
     // Real-time listener for user profile
-    const userDocRef = doc(db, "users", authUser.uid);
+    const userDocRef = doc(firestore, "users", authUser.uid);
     const unsubscribeUser = onSnapshot(userDocRef, (docSnap) => {
         if (docSnap.exists()) {
             setUserProfile({ id: docSnap.id, ...docSnap.data() } as User);
@@ -70,7 +68,7 @@ export default function WalletPage() {
     // Initial fetch for transactions
     const fetchTransactions = async () => {
         const txQuery = query(
-            collection(db, "transactions"),
+            collection(firestore, "transactions"),
             where("userId", "==", authUser.uid),
             orderBy("createdAt", "desc"),
             limit(25)

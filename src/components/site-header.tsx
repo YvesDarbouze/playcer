@@ -7,16 +7,28 @@ import { useRouter } from "next/navigation";
 import { Logo } from "./icons";
 import { LoginButton } from "./login-button";
 import { Button } from "./ui/button";
-import { Search, Bell, Check } from "lucide-react";
-import { Input } from "./ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Search, Bot, Bell } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/use-auth";
-import { collection, query, where, orderBy, onSnapshot, doc, writeBatch } from "firebase/firestore";
-import { getFirestore, Timestamp } from "firebase/firestore";
-import { getFirebaseApp } from "@/lib/firebase";
+import algoliasearch from "algoliasearch/lite";
+import { InstantSearch } from "react-instantsearch";
+import { SearchBox } from "./search/search-box";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { collection, query, where, orderBy, onSnapshot, doc, writeBatch, Timestamp } from "firebase/firestore";
+import { firestore, app } from "@/lib/firebase";
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
-import { getFunctions, httpsCallable } from 'firebase/functions';
+
+const searchClient = algoliasearch(
+  process.env.NEXT_PUBLIC_ALGOLIA_APP_ID!,
+  process.env.NEXT_PUBLIC_ALGOLIA_SEARCH_ONLY_API_KEY!
+);
 
 type Notification = {
     id: string;
@@ -47,7 +59,6 @@ const NotificationItem = ({ notification, onSelect }: { notification: Notificati
 
 export function SiteHeader() {
   const router = useRouter();
-  const [searchTerm, setSearchTerm] = React.useState("");
   const { user } = useAuth();
   const [notifications, setNotifications] = React.useState<Notification[]>([]);
   const [isPopoverOpen, setIsPopoverOpen] = React.useState(false);
@@ -58,9 +69,8 @@ export function SiteHeader() {
         return;
     }
 
-    const db = getFirestore(getFirebaseApp());
     const q = query(
-      collection(db, "users", user.uid, "notifications"),
+      collection(firestore, "users", user.uid, "notifications"),
       orderBy("createdAt", "desc")
     );
 
@@ -75,18 +85,11 @@ export function SiteHeader() {
     return () => unsubscribe();
   }, [user]);
 
-  const handleSearchSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-      e.preventDefault();
-      if (searchTerm.trim()) {
-          router.push(`/search?q=${encodeURIComponent(searchTerm.trim())}`);
-      }
-  }
-
   const handleMarkAsRead = async () => {
     const unreadIds = notifications.filter(n => !n.isRead).map(n => n.id);
-    if (unreadIds.length === 0) return;
+    if (unreadIds.length === 0 || !user) return;
 
-    const functions = getFunctions(getFirebaseApp());
+    const functions = getFunctions(app);
     const markAsReadFn = httpsCallable(functions, 'markNotificationsAsRead');
     try {
         await markAsReadFn({ notificationIds: unreadIds });
@@ -99,6 +102,7 @@ export function SiteHeader() {
     if (isPopoverOpen) {
         handleMarkAsRead();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPopoverOpen]);
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
@@ -130,6 +134,27 @@ export function SiteHeader() {
             >
               Dashboard
             </Link>
+             <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="transition-colors hover:text-foreground/80 text-foreground/60 px-0">
+                        Dev Tools
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                    <DropdownMenuItem onClick={() => router.push('/dev/odds-checker')}>
+                        <Bot className="mr-2 h-4 w-4" />
+                        <span>Game Ingestion Checker</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => router.push('/dev/arbitrage-finder')}>
+                         <Bot className="mr-2 h-4 w-4" />
+                        <span>Arbitrage Finder</span>
+                    </DropdownMenuItem>
+                     <DropdownMenuItem onClick={() => router.push('/dev/consensus-checker')}>
+                         <Bot className="mr-2 h-4 w-4" />
+                        <span>Consensus Checker</span>
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
             <Link
               href="/about"
               className="transition-colors hover:text-foreground/80 text-foreground/60"
@@ -140,17 +165,14 @@ export function SiteHeader() {
         </div>
         
         <div className="flex flex-1 items-center justify-end space-x-2">
-            <form onSubmit={handleSearchSubmit} className="relative w-full max-w-sm hidden md:block">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                <Input
-                    type="search"
-                    placeholder="Search for events, teams, users..."
-                    className="pl-10"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                />
-            </form>
-
+            <div className="relative w-full max-w-sm hidden md:block">
+                <InstantSearch
+                  searchClient={searchClient}
+                  indexName="bets"
+                >
+                  <SearchBox />
+                </InstantSearch>
+            </div>
             {user && (
                  <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
                     <PopoverTrigger asChild>
@@ -177,7 +199,6 @@ export function SiteHeader() {
                     </PopoverContent>
                 </Popover>
             )}
-
             <LoginButton />
         </div>
       </div>
