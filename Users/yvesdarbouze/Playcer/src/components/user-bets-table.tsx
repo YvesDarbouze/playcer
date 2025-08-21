@@ -32,8 +32,8 @@ const OpponentDisplay = ({ bet, currentUserId }: { bet: Bet, currentUserId: stri
     if (bet.isPublic && bet.accepters.length === 0) {
         return <span className="text-muted-foreground">vs. Public</span>;
     }
-
-    if (bet.accepters.length === 1) {
+    
+    if(bet.accepters.length > 0 && bet.accepters[0].accepterId) {
         const opponent = bet.accepters[0];
          return (
             <Link href={`/profile/${opponent.accepterId}`} className="flex items-center gap-2 hover:underline">
@@ -202,3 +202,5 @@ export function UserBetsTable({ bets, currentUserId }: UserBetsTableProps) {
     </Card>
   );
 }
+
+    

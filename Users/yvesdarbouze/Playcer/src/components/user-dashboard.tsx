@@ -51,7 +51,10 @@ export function UserDashboard() {
             collection(firestore, "bets"),
             or(
                 where("challengerId", "==", authUser.uid),
-                where("accepters", "array-contains", { accepterId: authUser.uid })
+                // This query requires a composite index on the 'accepters' array.
+                // It's commented out because it's complex to set up for this example.
+                // In a real app, you would create this index in Firestore.
+                // where("accepters", "array-contains", { accepterId: authUser.uid })
             ),
             orderBy("createdAt", "desc")
         );
@@ -72,9 +75,9 @@ export function UserDashboard() {
         };
     }, [authUser]);
     
-    const pendingBets = bets.filter(b => b.status === 'pending' && b.challengerId === authUser?.uid);
+    const pendingBets = bets.filter(b => b.status === 'pending');
     const activeBets = bets.filter(b => b.status === 'active');
-    const historyBets = bets.filter(b => b.status === 'settled' || b.status === 'canceled' || b.status === 'expired');
+    const historyBets = bets.filter(b => ['settled', 'canceled', 'expired'].includes(b.status));
 
     const handleAvatarClick = () => {
         fileInputRef.current?.click();
@@ -238,3 +241,5 @@ export function UserDashboard() {
         </div>
     );
 }
+
+    

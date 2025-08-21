@@ -468,7 +468,7 @@ export const processBetOutcomes = onSchedule("every 15 minutes", async (event) =
 
     if (activeBetsSnap.empty) {
         functions.logger.log("No active bets found for processing.");
-        return { success: true, message: "No bets to process." };
+        return null;
     }
 
     let processedCount = 0;
@@ -497,21 +497,24 @@ export const processBetOutcomes = onSchedule("every 15 minutes", async (event) =
                 let challengerWon = false;
 
                 if (betData.betType === 'moneyline') {
-                    const winningTeamName = home_score > away_score ? betData.homeTeam : betData.awayTeam;
                     if (home_score === away_score) { // Push condition for moneyline
                         winnerId = null; 
                         loserId = null;
                     } else {
+                        const winningTeamName = home_score > away_score ? betData.homeTeam : betData.awayTeam;
                         challengerWon = (betData.chosenOption === winningTeamName);
                     }
                 } else if (betData.betType === 'spread') {
                     const pickedTeamIsHome = betData.chosenOption === betData.homeTeam;
-                    const effectiveHomeScore = home_score + (pickedTeamIsHome ? betData.line : -betData.line);
+                    // For spread, the line is negative for the favorite and positive for the underdog.
+                    // We add the line to the team that was picked to see if they cover.
+                    const effectiveHomeScore = pickedTeamIsHome ? (home_score + betData.line) : home_score;
+                    const effectiveAwayScore = !pickedTeamIsHome ? (away_score - betData.line) : away_score;
                     
-                    if (effectiveHomeScore > away_score) {
-                        challengerWon = true;
-                    } else if (effectiveHomeScore < away_score) {
-                        challengerWon = false;
+                    if (effectiveHomeScore > effectiveAwayScore) {
+                        challengerWon = pickedTeamIsHome;
+                    } else if (effectiveAwayScore > effectiveHomeScore) {
+                        challengerWon = !pickedTeamIsHome;
                     } else { // Push condition for spreads
                         winnerId = null;
                         loserId = null;
@@ -558,11 +561,11 @@ export const processBetOutcomes = onSchedule("every 15 minutes", async (event) =
     }
     
     functions.logger.log(`Finished processBetOutcomes. Processed ${processedCount} bets.`);
-    return { success: true, processedCount };
+    return null;
 });
 
-export const expirePendingBets = onCall(async (request) => {
-    functions.logger.log("Starting expirePendingBets...");
+export const expirePendingBets = onSchedule("every 15 minutes", async (event) => {
+    functions.logger.log("Starting expirePendingBets scheduled job...");
 
     const now = Timestamp.now();
     const query = db.collection('bets')
@@ -573,7 +576,7 @@ export const expirePendingBets = onCall(async (request) => {
 
     if (expiredBetsSnap.empty) {
         functions.logger.log("No expired pending bets found.");
-        return { success: true, message: "No bets to expire." };
+        return null;
     }
 
     let expiredCount = 0;
@@ -613,7 +616,7 @@ export const expirePendingBets = onCall(async (request) => {
     }
     
     functions.logger.log(`Finished expirePendingBets. Expired ${expiredCount} bets.`);
-    return { success: true, expiredCount };
+    return null;
 });
 
 
@@ -931,3 +934,5 @@ async function createNotification(userId: string, message: string, link: string)
         createdAt: Timestamp.now()
     });
 }
+
+    
