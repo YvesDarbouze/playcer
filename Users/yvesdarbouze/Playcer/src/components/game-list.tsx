@@ -1,20 +1,30 @@
 
 "use client";
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { Input } from "@/components/ui/input";
 import { GameCard } from "./game-card";
 import { Search } from 'lucide-react';
 import { Button } from './ui/button';
 import type { Game } from '@/types';
+import { getClientGames } from '@/lib/games';
+import { Skeleton } from './ui/skeleton';
 
-interface GameListProps {
-    initialGames: Game[];
-}
-
-export function GameList({ initialGames }: GameListProps) {
+export function GameList() {
+    const [initialGames, setInitialGames] = useState<Game[]>([]);
+    const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+
+    useEffect(() => {
+        const fetchGames = async () => {
+            setLoading(true);
+            const games = await getClientGames();
+            setInitialGames(games);
+            setLoading(false);
+        };
+        fetchGames();
+    }, []);
 
     const filteredGames = useMemo(() => {
         if (!searchTerm) {
@@ -31,6 +41,33 @@ export function GameList({ initialGames }: GameListProps) {
             <path d="M8 5v14l11-7z" />
         </svg>
     );
+
+    const renderGameGrid = () => {
+        if (loading) {
+            return (
+                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {[...Array(8)].map((_, i) => <Skeleton key={i} className="h-64 w-full" />)}
+                </div>
+            )
+        }
+        if (filteredGames.length > 0) {
+            return (
+                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {filteredGames.map(game => (
+                        <GameCard game={game} key={game.id} />
+                    ))}
+                </div>
+            )
+        }
+        return (
+            <div className="text-center py-16">
+                <h2 className="text-xl font-bold">No Games Found</h2>
+                <p className="text-muted-foreground mt-2">
+                    There are no upcoming games to display.
+                </p>
+            </div>
+        )
+    }
 
     return (
         <>
@@ -79,20 +116,7 @@ export function GameList({ initialGames }: GameListProps) {
                 
                 <div className="container mx-auto py-12">
                      <h2 className="text-3xl font-bold mb-6">Upcoming Games</h2>
-                    {filteredGames.length > 0 ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                            {filteredGames.map(game => (
-                                <GameCard game={game} key={game.id} />
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="text-center py-16">
-                            <h2 className="text-xl font-bold">No Games Found</h2>
-                            <p className="text-muted-foreground mt-2">
-                                There are no upcoming games to display.
-                            </p>
-                        </div>
-                    )}
+                    {renderGameGrid()}
                 </div>
             </div>
         </>
