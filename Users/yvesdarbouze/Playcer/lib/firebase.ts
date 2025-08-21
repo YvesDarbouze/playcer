@@ -5,8 +5,6 @@ import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "firebase/app-check";
 
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig: FirebaseOptions = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -23,11 +21,12 @@ const app: FirebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) 
 // Initialize App Check
 if (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_RECAPTCHA_ENTERPRISE_SITE_KEY) {
   try {
-    const appCheck = initializeAppCheck(app, {
+    initializeAppCheck(app, {
       provider: new ReCaptchaEnterpriseProvider(process.env.NEXT_PUBLIC_RECAPTCHA_ENTERPRISE_SITE_KEY),
       isTokenAutoRefreshEnabled: true
     });
-    // For local development, you can use a debug token.
+  
+    // For local development, you might want to use a debug token.
     // (self as any).FIREBASE_APPCHECK_DEBUG_TOKEN = true;
   } catch (error) {
     console.error("Failed to initialize Firebase App Check", error);
@@ -44,8 +43,9 @@ const signOut = () => {
   return firebaseSignOut(auth);
 }
 
-// Function to get the initialized Firebase app
-export const getFirebaseApp = () => app;
+export function getFirebaseApp() {
+    return app;
+}
 
 export { app, auth, firestore, storage, twitterProvider, signOut };
 

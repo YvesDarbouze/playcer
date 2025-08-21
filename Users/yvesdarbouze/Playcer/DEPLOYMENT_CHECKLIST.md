@@ -5,9 +5,13 @@ This guide outlines the final steps required in the Firebase Console and third-p
 
 ---
 
-## 1. Configure Environment Variables (Secrets)
+## 1. Configure Environment Variables (Secrets & Client-side)
 
-Your application's Cloud Functions require API keys to communicate with external services. These should be stored as secrets in Google Cloud Secret Manager, which Firebase Functions can access securely at runtime.
+Your application uses two types of environment variables: secure backend secrets and public client-side configurations.
+
+### A. Backend Secrets (Google Cloud Secret Manager)
+
+Your application's Cloud Functions require API keys to communicate with external services. These MUST be stored as secrets in Google Cloud Secret Manager, which Firebase Functions can access securely at runtime.
 
 **Required Secrets:**
 
@@ -45,6 +49,32 @@ After setting all secrets, you must redeploy your functions for them to access t
 ```bash
 firebase deploy --only functions
 ```
+
+### B. Frontend Configuration (Environment File)
+
+Your Next.js frontend needs public keys for Firebase and Stripe. Create a file named `.env.local` in the root of your project directory (next to `package.json`). **This file should NOT be committed to git.**
+
+**Contents of `.env.local`:**
+
+```
+# Firebase Client-side Configuration
+NEXT_PUBLIC_FIREBASE_API_KEY="your-firebase-api-key"
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN="your-project-id.firebaseapp.com"
+NEXT_PUBLIC_FIREBASE_PROJECT_ID="your-project-id"
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET="your-project-id.appspot.com"
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID="your-sender-id"
+NEXT_PUBLIC_FIREBASE_APP_ID="your-app-id"
+
+# Stripe Public Key
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY="pk_live_yourStripePublishableKey"
+
+# Google reCAPTCHA Enterprise Public Key
+NEXT_PUBLIC_RECAPTCHA_ENTERPRISE_SITE_KEY="your-recaptcha-site-key"
+```
+
+**For Staging vs. Production:**
+*   Use your **Production** Firebase project's config and **Live** Stripe key in your production deployment environment.
+*   Use your **Staging** Firebase project's config and **Test** Stripe key in your staging environment.
 
 ---
 
