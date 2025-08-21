@@ -199,7 +199,8 @@ export const createBet = onCall(async (request) => {
         isPublic,
         twitterShareUrl,
         bookmakerKey,
-        odds
+        odds,
+        allowFractionalAcceptance
     } = request.data;
     
     // Basic validation
@@ -255,6 +256,7 @@ export const createBet = onCall(async (request) => {
             outcome: null,
             bookmakerKey,
             odds,
+            allowFractionalAcceptance: allowFractionalAcceptance || false,
         };
 
         const betDocRef = db.collection('bets').doc(betId);

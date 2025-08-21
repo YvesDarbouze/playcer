@@ -102,6 +102,7 @@ export type Bet = {
   outcome: 'win' | 'loss' | 'draw' | null;
   createdAt: string; // ISO string
   settledAt: string | null; // ISO string
+  allowFractionalAcceptance: boolean;
 };
 
 export type UserBet = {

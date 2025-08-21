@@ -33,6 +33,7 @@ import { Separator } from "./ui/separator";
 import { useStripe, useElements, PaymentElement, Elements } from '@stripe/react-stripe-js';
 import { loadStripe } from '@stripe/stripe-js';
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
+import { Switch } from "./ui/switch";
 
 
 type SelectedBet = {
@@ -63,6 +64,7 @@ const createBetSchema = (walletBalance: number = 0) => z.object({
     opponentTwitter: z.string().optional().refine(val => !val || val.startsWith('@') || /^[a-zA-Z0-9_]{1,15}$/.test(val!), {
         message: "Invalid Twitter handle."
     }),
+    allowFractional: z.boolean().default(false),
 }).refine(data => {
     if (data.betVisibility === 'private') {
         return !!data.opponentTwitter && data.opponentTwitter.length > 1;
@@ -102,6 +104,7 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, use
     defaultValues: {
       stakeAmount: 20,
       betVisibility: "public",
+      allowFractional: false,
     },
   });
 
@@ -111,7 +114,7 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, use
   
   const handleModalClose = (open: boolean) => {
     if (!open) {
-        form.reset({ stakeAmount: 20, opponentTwitter: '', betVisibility: 'public' });
+        form.reset({ stakeAmount: 20, opponentTwitter: '', betVisibility: 'public', allowFractional: false });
         setIsSuccess(false);
         setStep(1);
         setClientSecret(null);
@@ -162,6 +165,7 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, use
             : null,
           bookmakerKey: bookmakerKey,
           odds: odds,
+          allowFractionalAcceptance: data.allowFractional,
         };
 
         try {
@@ -275,6 +279,29 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, use
                             )}
                         />
                         
+                        {betVisibility === 'public' && (
+                             <FormField
+                                control={form.control}
+                                name="allowFractional"
+                                render={({ field }) => (
+                                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                                    <div className="space-y-0.5">
+                                      <FormLabel>Allow Fractional Acceptance</FormLabel>
+                                      <FormDescription>
+                                        Allow multiple users to accept parts of your bet.
+                                      </FormDescription>
+                                    </div>
+                                    <FormControl>
+                                      <Switch
+                                        checked={field.value}
+                                        onCheckedChange={field.onChange}
+                                      />
+                                    </FormControl>
+                                  </FormItem>
+                                )}
+                              />
+                        )}
+
                         {betVisibility === 'private' && (
                              <FormField control={form.control} name="opponentTwitter" render={({ field }) => (
                                 <FormItem><FormLabel>Opponent's Twitter Handle</FormLabel>
