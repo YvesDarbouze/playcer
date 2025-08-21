@@ -11,11 +11,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UserBetsTable } from "./user-bets-table";
-import { Banknote, Trophy, LifeBuoy, PlusCircle, Store, Upload } from "lucide-react";
+import { Banknote, Trophy, LifeBuoy, PlusCircle, Store, Upload, BarChart3 } from "lucide-react";
 import Link from 'next/link';
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShieldCheck, Hourglass } from "lucide-react";
+import { RankingTable } from "./ranking-table";
 
 
 const convertToBet = (doc: any): Bet => {
@@ -51,10 +52,7 @@ export function UserDashboard() {
             collection(firestore, "bets"),
             or(
                 where("challengerId", "==", authUser.uid),
-                // This query requires a composite index on the 'accepters' array.
-                // It's commented out because it's complex to set up for this example.
-                // In a real app, you would create this index in Firestore.
-                // where("accepters", "array-contains", { accepterId: authUser.uid })
+                where("accepters", "array-contains", { accepterId: authUser.uid })
             ),
             orderBy("createdAt", "desc")
         );
@@ -75,9 +73,9 @@ export function UserDashboard() {
         };
     }, [authUser]);
     
-    const pendingBets = bets.filter(b => b.status === 'pending');
+    const pendingBets = bets.filter(b => b.status === 'pending' && b.challengerId === authUser?.uid);
     const activeBets = bets.filter(b => b.status === 'active');
-    const historyBets = bets.filter(b => ['settled', 'canceled', 'expired'].includes(b.status));
+    const historyBets = bets.filter(b => b.status === 'settled' || b.status === 'canceled');
 
     const handleAvatarClick = () => {
         fileInputRef.current?.click();
@@ -163,7 +161,7 @@ export function UserDashboard() {
                             <p className="text-muted-foreground text-lg">@{userProfile.username}</p>
                         </div>
                          <div className="grid grid-cols-2 gap-2">
-                             <Link href="/" passHref>
+                             <Link href="/create-bet" passHref>
                                 <Button className="w-full">
                                     <PlusCircle className="mr-2" />
                                     Create Bet
@@ -193,8 +191,9 @@ export function UserDashboard() {
             </header>
 
             <Tabs defaultValue="stats" className="w-full mb-8">
-                <TabsList className="grid w-full grid-cols-1">
+                <TabsList className="grid w-full grid-cols-2">
                     <TabsTrigger value="stats"><Trophy className="mr-2"/> My Stats</TabsTrigger>
+                    <TabsTrigger value="ranking"><BarChart3 className="mr-2"/>Global Ranking</TabsTrigger>
                 </TabsList>
                 <TabsContent value="stats">
                     <Card>
@@ -216,6 +215,9 @@ export function UserDashboard() {
                             </div>
                         </CardContent>
                     </Card>
+                </TabsContent>
+                 <TabsContent value="ranking">
+                    <RankingTable currentUserId={authUser!.uid} />
                 </TabsContent>
             </Tabs>
 
@@ -241,5 +243,3 @@ export function UserDashboard() {
         </div>
     );
 }
-
-    

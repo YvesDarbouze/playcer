@@ -668,7 +668,6 @@ async function processPayout(data: { betId: string, winnerId: string | null, los
     functions.logger.log(`Payout logic for bet ${betId} processed.`);
 }
     
-
 export const stripeWebhook = functions.https.onRequest(async (request, response) => {
     const signature = request.headers['stripe-signature'];
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -894,6 +893,38 @@ async function createNotification(userId: string, message: string, link: string)
     });
 }
 
+export const updateLeaderboard = functionBuilder.pubsub.schedule('every 60 minutes').onRun(async (context) => {
+    functions.logger.log("Starting leaderboard aggregation job.");
+    try {
+        const usersSnapshot = await db.collection('users').orderBy('wins', 'desc').limit(100).get();
+        
+        const leaderboardData = usersSnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                displayName: data.displayName,
+                username: data.username,
+                photoURL: data.photoURL,
+                wins: data.wins,
+                losses: data.losses,
+            };
+        });
+
+        const leaderboardRef = db.collection('leaderboard').doc('main');
+        await leaderboardRef.set({
+            users: leaderboardData,
+            lastUpdated: Timestamp.now(),
+        });
+
+        functions.logger.log(`Successfully updated leaderboard with ${leaderboardData.length} users.`);
+        return null;
+    } catch (error) {
+        functions.logger.error("Error updating leaderboard:", error);
+        return null;
+    }
+});
+
+
 // --- ADMIN FUNCTIONS ---
 
 const ensureIsAdmin = (context: any) => {
@@ -975,7 +1006,3 @@ export const resolveDispute = functionBuilder.https.onCall(async (request) => {
         throw new HttpsError('internal', 'An internal error occurred while resolving the dispute.');
     });
 });
-
-    
-
-    

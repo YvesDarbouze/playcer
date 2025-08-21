@@ -2,8 +2,8 @@
 "use client";
 
 import * as React from "react";
-import { getFirestore, collection, query, orderBy, limit, getDocs } from "firebase/firestore";
-import { getFirebaseApp } from "@/lib/firebase";
+import { getFirestore, doc, onSnapshot } from "firebase/firestore";
+import { firestore } from "@/lib/firebase";
 import type { User } from "@/types";
 import {
   Table,
@@ -22,24 +22,28 @@ interface RankingTableProps {
     currentUserId: string;
 }
 
+type LeaderboardUser = Pick<User, 'id' | 'displayName' | 'username' | 'photoURL' | 'wins' | 'losses'>;
+
 export function RankingTable({ currentUserId }: RankingTableProps) {
-  const [users, setUsers] = React.useState<User[]>([]);
+  const [users, setUsers] = React.useState<LeaderboardUser[]>([]);
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
-    const fetchUsers = async () => {
-      setLoading(true);
-      const db = getFirestore(getFirebaseApp());
-      const usersRef = collection(db, "users");
-      const q = query(usersRef, orderBy("wins", "desc"), limit(100));
-      
-      const querySnapshot = await getDocs(q);
-      const fetchedUsers = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
-      setUsers(fetchedUsers);
-      setLoading(false);
-    };
+    setLoading(true);
+    const leaderboardRef = doc(firestore, "leaderboard", "main");
 
-    fetchUsers();
+    const unsubscribe = onSnapshot(leaderboardRef, (docSnap) => {
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            setUsers(data.users || []);
+        }
+        setLoading(false);
+    }, (error) => {
+        console.error("Error fetching leaderboard: ", error);
+        setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   if (loading) {
@@ -82,7 +86,7 @@ export function RankingTable({ currentUserId }: RankingTableProps) {
                             <div className="flex items-center gap-3">
                                 <Avatar className="size-8">
                                     <AvatarImage src={user.photoURL} alt={user.displayName} />
-                                    <AvatarFallback>{user.username.charAt(0)}</AvatarFallback>
+                                    <AvatarFallback>{user.username?.charAt(0) || 'P'}</AvatarFallback>
                                 </Avatar>
                                 <div>
                                     <p className="font-medium">{user.displayName}</p>
@@ -91,7 +95,7 @@ export function RankingTable({ currentUserId }: RankingTableProps) {
                             </div>
                         </TableCell>
                         <TableCell className="text-center font-bold text-green-500">{user.wins}</TableCell>
-                        <TableCell className="text-center font-bold text-red-500">{user.losses}</TableCell>
+                        <TableCell className="text-center font-bold text-destructive">{user.losses}</TableCell>
                     </TableRow>
                 ))}
                 </TableBody>
