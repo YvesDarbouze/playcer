@@ -36,96 +36,6 @@ const stripe = new Stripe(process.env.STRIPE_API_KEY!, {
 startStreaming();
 
 
-// --- DATABASE TRIGGERS ---
-
-export const onGameWritten = functions.firestore
-    .document('games/{gameId}')
-    .onWrite(async (change, context) => {
-        const { gameId } = context.params;
-
-        if (!change.after.exists()) {
-            // Document was deleted
-            try {
-                await gamesIndex.deleteObject(gameId);
-                functions.logger.log(`[Algolia] Deleted game ${gameId}`);
-            } catch (error) {
-                functions.logger.error(`[Algolia] Error deleting game ${gameId}:`, error);
-            }
-            return;
-        }
-
-        // Document was created or updated
-        const gameData = change.after.data();
-        const record = {
-            objectID: gameId,
-            home_team: gameData.home_team,
-            away_team: gameData.away_team,
-            sport_title: gameData.sport_title,
-            commence_time: gameData.commence_time.toMillis(),
-        };
-
-        try {
-            await gamesIndex.saveObject(record);
-            functions.logger.log(`[Algolia] Saved/updated game ${gameId}`);
-        } catch (error) {
-            functions.logger.error(`[Algolia] Error saving game ${gameId}:`, error);
-        }
-    });
-
-export const onBetWritten = functions.firestore
-    .document('bets/{betId}')
-    .onWrite(async (change, context) => {
-        const { betId } = context.params;
-
-        if (!change.after.exists()) {
-            // Document was deleted
-            try {
-                await betsIndex.deleteObject(betId);
-                functions.logger.log(`[Algolia] Deleted bet ${betId}`);
-            } catch (error) {
-                functions.logger.error(`[Algolia] Error deleting bet ${betId}:`, error);
-            }
-            return;
-        }
-
-        const betData = change.after.data() as any;
-
-        // If the bet is no longer public or pending, remove it from the search index
-        if (!betData.isPublic || betData.status !== 'pending') {
-             try {
-                await betsIndex.deleteObject(betId);
-                functions.logger.log(`[Algolia] Deleted non-public/non-pending bet ${betId}`);
-            } catch (error) {
-                functions.logger.error(`[Algolia] Error deleting bet ${betId} from index:`, error);
-            }
-            return;
-        }
-
-        // Document was created or updated and is searchable
-        const record = {
-            objectID: betId,
-            homeTeam: betData.homeTeam,
-            awayTeam: betData.awayTeam,
-            challengerUsername: betData.challengerUsername,
-            totalWager: betData.totalWager,
-            remainingWager: betData.remainingWager,
-            betType: betData.betType,
-            chosenOption: betData.chosenOption,
-            line: betData.line,
-            odds: betData.odds,
-            allowFractionalAcceptance: betData.allowFractionalAcceptance,
-            createdAt: betData.createdAt.toMillis(),
-        };
-
-        try {
-            await betsIndex.saveObject(record);
-            functions.logger.log(`[Algolia] Saved/updated bet ${betId}`);
-        } catch (error) {
-            functions.logger.error(`[Algolia] Error saving bet ${betId}:`, error);
-        }
-    });
-
-
 // --- THIRD-PARTY SERVICES ---
 
 const sportsDataAPI = {
@@ -143,6 +53,39 @@ const sportsDataAPI = {
         return { home_score: 0, away_score: 0, status: 'InProgress' };
     }
 }
+
+const geolocationAPI = {
+    async verifyLocation(ipAddress?: string): Promise<boolean> {
+        // In a real application, this would call a service like MaxMind or IPinfo.
+        // This is a placeholder to demonstrate the concept.
+        // We will simulate checking against a list of allowed US states.
+        const ALLOWED_STATES = ['NV', 'NJ', 'PA', 'CO', 'IL', 'IN', 'IA', 'MI', 'TN', 'VA', 'WV', 'AZ'];
+
+        if (!ipAddress) {
+            functions.logger.warn("IP address is missing, cannot verify location.");
+            return false; // Fail closed if IP is not available
+        }
+        
+        // Placeholder logic: For demonstration, we'll use a mock response.
+        // A real implementation would involve an API call like:
+        // const response = await fetch(`https://api.ipinfo.io/${ipAddress}?token=YOUR_IPINFO_TOKEN`);
+        // const data = await response.json();
+        // const state = data.region;
+        // return ALLOWED_STATES.includes(state);
+        
+        functions.logger.log(`Simulating geolocation check for IP: ${ipAddress}`);
+        // Simulate a successful check for most cases in a dev environment.
+        // To test a failure, you could temporarily change this to `false`.
+        if (process.env.FUNCTIONS_EMULATOR) {
+            return true;
+        }
+
+        // In a real environment, you'd rely on the API result. This placeholder will fail closed.
+        functions.logger.warn(`Geolocation check is a placeholder. In production, this would fail for IP: ${ipAddress}`);
+        return false;
+    }
+}
+
 
 // --- AUTHENTICATION TRIGGERS ---
 
@@ -282,6 +225,12 @@ export const createBet = onCall(async (request) => {
     if (!request.auth) {
         throw new HttpsError('unauthenticated', 'You must be logged in to create a bet.');
     }
+    
+    // Geolocation check
+    const isAllowedLocation = await geolocationAPI.verifyLocation(request.rawRequest.ip);
+    if (!isAllowedLocation) {
+        throw new HttpsError('permission-denied', 'You must be in a permitted jurisdiction to place a bet.');
+    }
 
     const { uid: challengerId } = request.auth;
     const {
@@ -369,6 +318,12 @@ export const createBet = onCall(async (request) => {
 export const acceptBet = onCall(async (request) => {
     if (!request.auth) {
         throw new HttpsError('unauthenticated', 'You must be logged in to accept a bet.');
+    }
+    
+     // Geolocation check
+    const isAllowedLocation = await geolocationAPI.verifyLocation(request.rawRequest.ip);
+    if (!isAllowedLocation) {
+        throw new HttpsError('permission-denied', 'You must be in a permitted jurisdiction to accept a bet.');
     }
 
     const { uid: accepterId } = request.auth;
