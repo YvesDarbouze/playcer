@@ -34,10 +34,7 @@ async function getOpenBets(): Promise<Bet[]> {
       return {
         ...data,
         id: doc.id,
-        gameDetails: {
-            ...data.gameDetails,
-            commence_time: (data.gameDetails.commence_time as Timestamp).toDate().toISOString(),
-        },
+        eventDate: (data.eventDate as Timestamp).toDate().toISOString(),
         createdAt: (data.createdAt as Timestamp).toDate().toISOString(),
         settledAt: data.settledAt ? (data.settledAt as Timestamp).toDate().toISOString() : null,
       } as unknown as Bet;

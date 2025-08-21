@@ -6,8 +6,8 @@ import Pusher from 'pusher-js';
 
 const db = getFirestore();
 
-const API_KEY = '7ee3cc9f9898b050512990bd2baadddf';
-const API_BASE_URL = 'https://api.sportsgameodds.com/v2';
+const API_KEY = process.env.ODDS_API_KEY || '7ee3cc9f9898b050512990bd2baadddf';
+const API_BASE_URL = 'https://api.the-odds-api.com/v2';
 
 const activeStreams: Record<string, { pusher: Pusher, channel: any }> = {};
 
@@ -132,7 +132,6 @@ async function saveEventsToFirestore(events: any[]) {
 export async function startStreaming() {
     functions.logger.log('[STREAM] Initializing real-time event streaming...');
     try {
-        // 1. Fetch all available sports
         const sportsResponse = await axios.get(`${API_BASE_URL}/sports`, { headers: { 'x-api-key': API_KEY } });
         if (sportsResponse.status !== 200 || !sportsResponse.data.success) {
             throw new Error("Could not fetch sports list from API.");
@@ -140,9 +139,9 @@ export async function startStreaming() {
         const sports = sportsResponse.data.data;
         functions.logger.log(`[STREAM] Found ${sports.length} sports.`);
 
-        // 2. For each sport, fetch its leagues
         for (const sport of sports) {
             try {
+                if (!sport.sportID) continue; // Skip sports without a sportID
                 const leaguesResponse = await axios.get(`${API_BASE_URL}/leagues`, {
                     headers: { 'x-api-key': API_KEY },
                     params: { sportID: sport.sportID }
@@ -155,10 +154,11 @@ export async function startStreaming() {
                 const leagues = leaguesResponse.data.data;
                 functions.logger.log(`[STREAM] Found ${leagues.length} leagues for sport ${sport.name}.`);
 
-                // 3. For each league, connect to the feed
                 for (const league of leagues) {
-                    await connectToFeed(league.leagueID);
-                    await new Promise(resolve => setTimeout(resolve, 500)); // Small delay to avoid rate limiting
+                    if (league.leagueID) {
+                      await connectToFeed(league.leagueID);
+                      await new Promise(resolve => setTimeout(resolve, 500)); 
+                    }
                 }
             } catch (error: any) {
                  functions.logger.error(`[STREAM] Error processing leagues for sport ${sport.name}:`, error.message);

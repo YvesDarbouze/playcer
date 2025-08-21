@@ -1,6 +1,5 @@
 
 
-
 "use client";
 
 import {
@@ -38,7 +37,8 @@ const OpponentDisplay = ({ bet, currentUserId }: { bet: Bet, currentUserId: stri
         if(bet.isPublic) {
             return <span className="text-muted-foreground">vs. Public</span>
         }
-        return <span className="text-muted-foreground">vs. @{bet.twitterShareUrl?.split('text=@')[1].split('%20')[0]}</span>
+        const handle = bet.twitterShareUrl?.split('text=@')[1]?.split('%20')[0] || 'private';
+        return <span className="text-muted-foreground">vs. @{handle}</span>
     }
     
     return (
@@ -128,10 +128,10 @@ export function UserBetsTable({ bets, currentUserId }: UserBetsTableProps) {
                 <TableCell><BetValueDisplay bet={bet} /></TableCell>
                 <TableCell className="text-right font-bold">${bet.stakeAmount.toFixed(2)}</TableCell>
                 <TableCell className="text-center">
-                   <Badge variant={bet.status === 'pending' ? 'secondary' : 'default'} className={cn({
+                   <Badge variant={bet.status === 'pending_acceptance' ? 'secondary' : 'default'} className={cn({
                        'bg-green-100 text-green-800': bet.status === 'accepted',
                        'bg-gray-100 text-gray-800': bet.status === 'resolved',
-                       'bg-yellow-100 text-yellow-800': bet.status === 'pending'
+                       'bg-yellow-100 text-yellow-800': bet.status === 'pending_acceptance'
                    })}>
                         {bet.status.replace(/_/g, ' ').toUpperCase()}
                     </Badge>
@@ -140,7 +140,7 @@ export function UserBetsTable({ bets, currentUserId }: UserBetsTableProps) {
                     <OutcomeBadge bet={bet} currentUserId={currentUserId} />
                 </TableCell>
                  <TableCell className="text-right space-x-1">
-                    {bet.status === 'pending' && bet.creatorId === currentUserId && (
+                    {bet.status === 'pending_acceptance' && bet.creatorId === currentUserId && (
                         <Button variant="ghost" size="sm" onClick={() => handleShareLink(bet)}>
                             <Twitter className="mr-2 h-4 w-4" /> Share
                         </Button>

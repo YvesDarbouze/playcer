@@ -100,5 +100,3 @@ export function SettledBetCard({ bet, profileUserId }: SettledBetCardProps) {
         </Card>
     );
 }
-
-    

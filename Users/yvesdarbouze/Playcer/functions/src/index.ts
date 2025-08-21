@@ -244,7 +244,7 @@ export const createBet = onCall(async (request) => {
             stakeAmount,
             betType,
             chosenOption,
-            status: 'pending',
+            status: 'pending_acceptance',
             isPublic: isPublic,
             twitterShareUrl: twitterShareUrl || null,
             winnerId: null,
@@ -494,7 +494,7 @@ export const stripeWebhook = functions.https.onRequest(async (request, response)
                     const takerData = takerDoc.data()!;
                     const { creatorId, status } = betData;
 
-                    if (status !== 'pending') throw new Error(`Bet ${betId} is not pending acceptance.`);
+                    if (status !== 'pending_acceptance') throw new Error(`Bet ${betId} is not pending acceptance.`);
                     if (creatorId === takerId) throw new Error('User cannot accept their own bet.');
                     
                     if (takerData.kycStatus !== 'verified') throw new Error('Recipient must be KYC verified.');
@@ -575,6 +575,3 @@ export const kycWebhook = functions.https.onRequest(async (request, response) =>
 
     response.status(200).send({ received: true });
 });
-    
-    
-

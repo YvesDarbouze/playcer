@@ -23,13 +23,10 @@ const convertToBet = (doc: any): Bet => {
     return {
         id: doc.id,
         ...data,
-        gameDetails: {
-            ...data.gameDetails,
-            commence_time: (data.gameDetails.commence_time as Timestamp).toDate(),
-        },
-        createdAt: (data.createdAt as Timestamp).toDate(),
-        settledAt: data.settledAt ? (data.settledAt as Timestamp).toDate() : null,
-    } as Bet;
+        eventDate: (data.eventDate as Timestamp).toDate().toISOString(),
+        createdAt: (data.createdAt as Timestamp).toDate().toISOString(),
+        settledAt: data.settledAt ? (data.settledAt as Timestamp).toDate().toISOString() : null,
+    } as unknown as Bet;
 };
 
 
@@ -54,13 +51,13 @@ export function UserDashboard() {
                 setUserProfile({ id: userDocSnap.id, ...userDocSnap.data() } as User);
             }
             
-            // Fetch all bets where user is challenger or recipient
+            // Fetch all bets where user is creator OR taker
             const betsRef = collection(db, "bets");
             const q = query(
                 betsRef, 
                 or(
-                    where("challengerId", "==", authUser.uid),
-                    where("recipientId", "==", authUser.uid)
+                    where("creatorId", "==", authUser.uid),
+                    where("takerId", "==", authUser.uid)
                 ),
                 orderBy("createdAt", "desc")
             );
@@ -75,9 +72,9 @@ export function UserDashboard() {
         fetchData();
     }, [authUser]);
     
-    const pendingBets = bets.filter(b => b.status === 'pending_acceptance');
-    const activeBets = bets.filter(b => b.status === 'active');
-    const historyBets = bets.filter(b => b.status === 'completed' || b.status === 'void' || b.status === 'declined' || b.status === 'expired');
+    const pendingBets = bets.filter(b => b.status === 'pending_acceptance' && b.creatorId === authUser?.uid);
+    const activeBets = bets.filter(b => b.status === 'accepted');
+    const historyBets = bets.filter(b => b.status === 'resolved' || b.status === 'void');
 
     const handleAvatarClick = () => {
         fileInputRef.current?.click();

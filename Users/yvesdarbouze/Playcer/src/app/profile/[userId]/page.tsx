@@ -46,10 +46,7 @@ async function getSettledBets(userId: string): Promise<Bet[]> {
         betsRef,
         and(
             where("isPublic", "==", true),
-            or(
-                where("status", "==", "settled"),
-                where("status", "==", "void")
-            ),
+            where("status", "==", "resolved"),
             or(
                 where("creatorId", "==", userId),
                 where("takerId", "==", userId)
@@ -68,7 +65,6 @@ async function getSettledBets(userId: string): Promise<Bet[]> {
             id: doc.id,
             eventDate: (data.eventDate as Timestamp).toDate().toISOString(),
             createdAt: (data.createdAt as Timestamp).toDate().toISOString(),
-            matchedAt: data.matchedAt ? (data.matchedAt as Timestamp).toDate().toISOString() : null,
             settledAt: data.settledAt ? (data.settledAt as Timestamp).toDate().toISOString() : null,
         } as unknown as Bet;
     });
