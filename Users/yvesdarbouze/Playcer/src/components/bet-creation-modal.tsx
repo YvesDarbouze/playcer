@@ -62,7 +62,7 @@ const createBetSchema = () => z.object({
     opponentTwitter: z.string().optional().refine(val => !val || val.startsWith('@') || /^[a-zA-Z0-9_]{1,15}$/.test(val!), {
         message: "Invalid Twitter handle."
     }),
-    allowFractional: z.boolean().default(false),
+    allowFractionalAcceptance: z.boolean().default(false),
 }).refine(data => {
     if (data.betVisibility === 'private') {
         return !!data.opponentTwitter && data.opponentTwitter.length > 1;
@@ -101,7 +101,7 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, use
     defaultValues: {
       totalWager: 20,
       betVisibility: "public",
-      allowFractional: false,
+      allowFractionalAcceptance: false,
     },
   });
 
@@ -111,7 +111,7 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, use
   
   const handleModalClose = (open: boolean) => {
     if (!open) {
-        form.reset({ totalWager: 20, opponentTwitter: '', betVisibility: 'public', allowFractional: false });
+        form.reset({ totalWager: 20, opponentTwitter: '', betVisibility: 'public', allowFractionalAcceptance: false });
         setBetId(null);
         setStep(1);
         setClientSecret(null);
@@ -164,7 +164,7 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, use
             : null,
           bookmakerKey: bookmakerKey,
           odds: odds,
-          allowFractionalAcceptance: data.allowFractional,
+          allowFractionalAcceptance: data.allowFractionalAcceptance,
         };
 
         try {
@@ -280,7 +280,7 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, use
                         {betVisibility === 'public' && (
                              <FormField
                                 control={form.control}
-                                name="allowFractional"
+                                name="allowFractionalAcceptance"
                                 render={({ field }) => (
                                   <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
                                     <div className="space-y-0.5">
@@ -398,5 +398,3 @@ export function BetCreationModal(props: BetCreationModalProps) {
         </Elements>
     )
 }
-
-    

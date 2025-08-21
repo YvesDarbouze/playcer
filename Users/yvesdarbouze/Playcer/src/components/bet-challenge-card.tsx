@@ -169,7 +169,7 @@ export function BetChallengeCard({
                             Up to ${bet.remainingWager?.toFixed(2)} remaining.
                         </p>
                     </div>
-                    <Button onClick={() => onAccept(acceptedAmount)} disabled={isAccepting} className="w-full" size="lg">
+                    <Button onClick={() => onAccept(acceptedAmount)} disabled={isAccepting || acceptedAmount <= 0 || acceptedAmount > bet.remainingWager} className="w-full" size="lg">
                         {isAccepting ? <Loader2 className="animate-spin mr-2" /> : <Handshake className="mr-2" />}
                         {isAccepting ? "Initializing..." : `Accept $${acceptedAmount.toFixed(2)}`}
                     </Button>
@@ -248,5 +248,3 @@ export function BetChallengeCard({
     </Card>
   );
 }
-
-    
