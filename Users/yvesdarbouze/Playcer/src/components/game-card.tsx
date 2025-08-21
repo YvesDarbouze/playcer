@@ -103,13 +103,13 @@ export function GameCard({ game }: GameCardProps) {
                         <div className="flex flex-col items-center text-center">
                             <Image src={awayLogo} alt={`${game.away_team} logo`} width={80} height={80} className="h-16 w-auto transition-all"/>
                             <p className="font-bold text-lg mt-1">{game.away_team}</p>
-                            {awayTeamOdds && <OddsValue value={awayTeamOdds.price} previousValue={prevAwayTeamOdds?.price} />}
+                            {awayTeamOdds ? <OddsValue value={awayTeamOdds.price} previousValue={prevAwayTeamOdds?.price} /> : <Skeleton className="h-6 w-12 mt-1" />}
                         </div>
                         <div className="text-muted-foreground font-bold text-xl">@</div>
                         <div className="flex flex-col items-center text-center">
                             <Image src={homeLogo} alt={`${game.home_team} logo`} width={80} height={80} className="h-16 w-auto transition-all"/>
                             <p className="font-bold text-lg mt-1">{game.home_team}</p>
-                            {homeTeamOdds && <OddsValue value={homeTeamOdds.price} previousValue={prevHomeTeamOdds?.price} />}
+                            {homeTeamOdds ? <OddsValue value={homeTeamOdds.price} previousValue={prevHomeTeamOdds?.price} /> : <Skeleton className="h-6 w-12 mt-1" />}
                         </div>
                     </div>
                 </CardContent>

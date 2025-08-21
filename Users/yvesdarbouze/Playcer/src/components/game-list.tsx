@@ -38,7 +38,7 @@ export function GameList({ initialGames }: GameListProps) {
                 <header className="relative flex items-center justify-center h-[60vh] md:h-[80vh] text-center overflow-hidden">
                     <div className="absolute top-0 left-0 w-full h-full">
                          <video
-                            src="https://firebasestorage.googleapis.com/v0/b/playcer-xbv5e.appspot.com/o/Make_an_8_202508191324.mp4?alt=media&token=435948f8-379c-4ddd-82e7-64051a84c405"
+                            src="https://firebasestorage.googleapis.com/v0/b/playcer-xbv5e.appspot.com/o/pexels-pavel-danilyuk-5495292%20(2160p).mp4?alt=media&token=27f40776-5a4a-4c27-9005-9942a6c1b353"
                             autoPlay
                             loop
                             muted

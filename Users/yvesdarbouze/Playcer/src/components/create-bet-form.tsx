@@ -21,7 +21,7 @@ export function CreateBetForm() {
             <CardHeader>
                 <CardTitle>Create a Bet</CardTitle>
                 <CardDescription>
-                    Redirecting you to the game list to start a challenge...
+                    Please select a game from the homepage to create a challenge.
                 </CardDescription>
             </CardHeader>
         </Card>
