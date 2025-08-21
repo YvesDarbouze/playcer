@@ -17,7 +17,7 @@ import { startStreaming } from "./stream";
 // Ensure you have set these environment variables in your Firebase project configuration
 const algoliaClient = algoliasearch.default(process.env.ALGOLIA_APP_ID!, process.env.ALGOLIA_API_KEY!);
 const gamesIndex = algoliaClient.initIndex('games');
-const betsIndex = algoliaClient.initIndex('bets');
+const betsIndex = algoliasearch.initIndex('bets');
 
 
 // Initialize Firebase Admin SDK
@@ -222,7 +222,7 @@ export const createBetPaymentIntent = onCall(async (request) => {
         });
 
         functions.logger.log(`Successfully created payment intent ${paymentIntent.id} for user ${uid}.`);
-        return { success: true, clientSecret: paymentIntent.client_secret };
+        return { success: true, clientSecret: paymentIntent.client_secret, paymentIntentId: paymentIntent.id };
     } catch (error: any) {
         functions.logger.error(`Error creating payment intent for user ${uid}:`, error);
         throw new HttpsError('internal', error.message);
@@ -292,11 +292,12 @@ export const createBet = onCall(async (request) => {
         twitterShareUrl,
         bookmakerKey,
         odds,
-        allowFractionalAcceptance
+        allowFractionalAcceptance,
+        challengerPaymentIntentId,
     } = request.data;
     
     // Basic validation
-    if (!eventId || !eventDate || !homeTeam || !awayTeam || !betType || !chosenOption || totalWager === undefined || !bookmakerKey || odds === undefined) {
+    if (!eventId || !eventDate || !homeTeam || !awayTeam || !betType || !chosenOption || totalWager === undefined || !bookmakerKey || odds === undefined || !challengerPaymentIntentId) {
         throw new HttpsError('invalid-argument', 'Missing required bet information.');
     }
 
@@ -329,6 +330,7 @@ export const createBet = onCall(async (request) => {
             homeTeam,
             awayTeam,
             challengerId: challengerId,
+            challengerPaymentIntentId: challengerPaymentIntentId,
             accepters: [],
             challengerUsername: userData.username,
             challengerPhotoURL: userData.photoURL,
@@ -394,6 +396,60 @@ export const acceptBet = onCall(async (request) => {
         throw new HttpsError('internal', error.message);
     }
 });
+
+export const cancelBet = onCall(async (request) => {
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'You must be logged in to cancel a bet.');
+    }
+
+    const { uid } = request.auth;
+    const { betId } = request.data;
+    if (!betId) {
+        throw new HttpsError('invalid-argument', 'A `betId` must be provided.');
+    }
+
+    const betDocRef = db.collection('bets').doc(betId);
+
+    return db.runTransaction(async (transaction) => {
+        const betDoc = await transaction.get(betDocRef);
+        if (!betDoc.exists) {
+            throw new HttpsError('not-found', 'Bet not found.');
+        }
+
+        const betData = betDoc.data()!;
+
+        if (betData.challengerId !== uid) {
+            throw new HttpsError('permission-denied', 'Only the creator can cancel this bet.');
+        }
+
+        if (betData.status !== 'pending') {
+            throw new HttpsError('failed-precondition', `Cannot cancel a bet with status '${betData.status}'.`);
+        }
+        
+        if (betData.accepters && betData.accepters.length > 0) {
+            throw new HttpsError('failed-precondition', 'Cannot cancel a bet that has been partially or fully accepted.');
+        }
+        
+        // If all checks pass, cancel the Stripe Payment Intent
+        try {
+            await stripe.paymentIntents.cancel(betData.challengerPaymentIntentId);
+            functions.logger.log(`Successfully canceled Payment Intent ${betData.challengerPaymentIntentId} for bet ${betId}.`);
+        } catch (error: any) {
+            functions.logger.error(`Failed to cancel Stripe Payment Intent ${betData.challengerPaymentIntentId} for bet ${betId}:`, error);
+            // Even if Stripe fails, we might still want to cancel the bet in our system
+            // to prevent it from being accepted. This depends on business logic.
+            // For now, we'll throw an error and stop.
+            throw new HttpsError('internal', 'Could not cancel payment authorization.');
+        }
+
+        // Update the bet status to 'canceled'
+        transaction.update(betDocRef, { status: 'canceled' });
+        
+        functions.logger.log(`Bet ${betId} has been canceled by user ${uid}.`);
+        return { success: true };
+    });
+});
+
 
 export const processBetOutcomes = onCall(async (request) => {
     functions.logger.log("Starting processBetOutcomes...");
@@ -737,5 +793,3 @@ async function createNotification(userId: string, message: string, link: string)
         createdAt: Timestamp.now()
     });
 }
-
-    

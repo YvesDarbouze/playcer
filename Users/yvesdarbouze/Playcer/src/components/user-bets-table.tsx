@@ -14,15 +14,19 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { Bet } from "@/types";
 import { format } from "date-fns";
-import { ArrowUpRight, Twitter } from "lucide-react";
+import { ArrowUpRight, Twitter, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
+import * as React from "react";
+import { getFunctions, httpsCallable } from "firebase/functions";
+import { app } from "@/lib/firebase";
 
 interface UserBetsTableProps {
   bets: Bet[];
   currentUserId: string;
+  onBetAction?: () => void; // Callback to refresh data after an action
 }
 
 const OpponentDisplay = ({ bet, currentUserId }: { bet: Bet, currentUserId: string }) => {
@@ -83,14 +87,45 @@ const BetValueDisplay = ({ bet }: { bet: Bet }) => {
     return <>{chosenOption || 'N/A'}</>;
 }
 
-export function UserBetsTable({ bets, currentUserId }: UserBetsTableProps) {
+export function UserBetsTable({ bets, currentUserId, onBetAction }: UserBetsTableProps) {
   const { toast } = useToast();
+  const [isCanceling, setIsCanceling] = React.useState<Record<string, boolean>>({});
+  
+  const functions = getFunctions(app);
+  const cancelBetFn = httpsCallable(functions, "cancelBet");
 
   const handleShareLink = (bet: Bet) => {
     const shareUrl = bet.twitterShareUrl || `https://twitter.com/intent/tweet?text=${encodeURIComponent(`I just posted a public challenge on Playcer for ${bet.awayTeam} @ ${bet.homeTeam}. Who wants to accept?`)}&url=${window.location.origin}/bet/${bet.id}`;
     window.open(shareUrl, '_blank');
     toast({ title: "Opening Twitter to share challenge!" });
   };
+  
+  const handleCancelBet = async (betId: string) => {
+      if (!window.confirm("Are you sure you want to cancel this bet? This cannot be undone.")) {
+          return;
+      }
+      setIsCanceling(prev => ({ ...prev, [betId]: true }));
+      try {
+          const result = await cancelBetFn({ betId });
+          if(result.data) { // Check if result.data is not null/undefined
+            toast({
+                title: "Bet Canceled",
+                description: "Your bet has been successfully canceled.",
+            });
+            if (onBetAction) onBetAction();
+          } else {
+             throw new Error("Failed to cancel bet. Please try again.");
+          }
+      } catch (error: any) {
+          toast({
+              title: "Error",
+              description: error.message || "An unexpected error occurred.",
+              variant: "destructive",
+          });
+      } finally {
+          setIsCanceling(prev => ({ ...prev, [betId]: false }));
+      }
+  }
   
   if (bets.length === 0) {
     return (
@@ -100,6 +135,10 @@ export function UserBetsTable({ bets, currentUserId }: UserBetsTableProps) {
             </CardContent>
         </Card>
     )
+  }
+  
+  const isCancelable = (bet: Bet) => {
+      return bet.challengerId === currentUserId && bet.status === 'pending' && bet.accepters.length === 0;
   }
 
   return (
@@ -133,7 +172,8 @@ export function UserBetsTable({ bets, currentUserId }: UserBetsTableProps) {
                    <Badge variant={bet.status === 'pending' ? 'secondary' : 'default'} className={cn({
                        'bg-green-100 text-green-800': bet.status === 'active',
                        'bg-gray-100 text-gray-800': bet.status === 'settled',
-                       'bg-yellow-100 text-yellow-800': bet.status === 'pending'
+                       'bg-yellow-100 text-yellow-800': bet.status === 'pending',
+                       'bg-red-100 text-red-800': bet.status === 'canceled',
                    })}>
                         {bet.status.replace(/_/g, ' ')}
                     </Badge>
@@ -142,7 +182,12 @@ export function UserBetsTable({ bets, currentUserId }: UserBetsTableProps) {
                     <OutcomeBadge bet={bet} currentUserId={currentUserId} />
                 </TableCell>
                  <TableCell className="text-right space-x-1">
-                    {bet.status === 'pending' && bet.challengerId === currentUserId && (
+                    {bet.status === 'pending' && bet.challengerId === currentUserId && bet.accepters.length === 0 && (
+                        <Button variant="destructive" size="sm" onClick={() => handleCancelBet(bet.id)} disabled={isCanceling[bet.id]}>
+                            <XCircle className="mr-2 h-4 w-4" /> Cancel
+                        </Button>
+                    )}
+                    {bet.status === 'pending' && bet.challengerId === currentUserId && bet.isPublic === false && (
                         <Button variant="ghost" size="sm" onClick={() => handleShareLink(bet)}>
                             <Twitter className="mr-2 h-4 w-4" /> Share
                         </Button>
@@ -161,5 +206,3 @@ export function UserBetsTable({ bets, currentUserId }: UserBetsTableProps) {
     </Card>
   );
 }
-
-    

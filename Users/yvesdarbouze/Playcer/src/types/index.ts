@@ -92,6 +92,7 @@ export type Bet = {
   homeTeam: string;
   awayTeam: string;
   challengerId: string;
+  challengerPaymentIntentId: string;
   accepters: BetAcceptance[];
   challengerUsername: string;
   challengerPhotoURL: string;
@@ -153,5 +154,3 @@ export type Notification = {
   isRead: boolean;
   createdAt: Timestamp;
 };
-
-    

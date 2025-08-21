@@ -95,6 +95,7 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, use
   const [betId, setBetId] = React.useState<string | null>(null);
   const [step, setStep] = React.useState(1);
   const [clientSecret, setClientSecret] = React.useState<string | null>(null);
+  const [challengerPaymentIntentId, setChallengerPaymentIntentId] = React.useState<string | null>(null);
   
   const form = useForm<BetFormData>({
     resolver: zodResolver(createBetSchema()),
@@ -115,6 +116,7 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, use
         setBetId(null);
         setStep(1);
         setClientSecret(null);
+        setChallengerPaymentIntentId(null);
     }
     onOpenChange(open);
   }
@@ -165,6 +167,7 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, use
           bookmakerKey: bookmakerKey,
           odds: odds,
           allowFractionalAcceptance: data.betVisibility === 'public' ? data.allowFractionalAcceptance : false,
+          challengerPaymentIntentId: challengerPaymentIntentId,
         };
 
         try {
@@ -196,6 +199,7 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet, use
           const result: any = await createBetPaymentIntent({ wagerAmount: form.getValues("totalWager") });
           if(result.data.success) {
               setClientSecret(result.data.clientSecret);
+              setChallengerPaymentIntentId(result.data.paymentIntentId);
               setStep(2);
           } else {
               throw new Error(result.data.message || "Could not initialize payment.");
@@ -398,5 +402,3 @@ export function BetCreationModal(props: BetCreationModalProps) {
         </Elements>
     )
 }
-
-    
