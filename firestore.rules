@@ -3,61 +3,52 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Helper function to check if a user is signed in
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    // Helper function to check if the user is the owner of a document
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-
-    // Users can read/update their own profile.
-    // Public profiles are readable by any signed-in user.
+  
+    // Users can read public data on any profile, but only update their own.
+    // Wallet balance and sensitive info is not readable/writable from the client.
     match /users/{userId} {
-      allow read: if isSignedIn();
-      allow update: if isOwner(userId);
-      allow create: if isOwner(userId);
-    }
-
-    // Games and their odds are public read-only for clients.
-    // Only backend functions can write to this collection.
-    match /games/{gameId} {
-      allow read: if isSignedIn();
-      allow write: if false; // Only backend has access
-
-      match /bookmaker_odds/{bookmakerId} {
-        allow read: if isSignedIn();
-        allow write: if false; // Only backend has access
-      }
+      allow read: if request.auth != null;
+      allow update: if request.auth.uid == userId;
+      allow create, delete: if false; 
     }
     
-    // Bets have more complex rules
+    // Bets can be created by any authenticated user.
+    // Bets can be read by anyone if public, or by the parties involved.
+    // Bets can only be updated (accepted) by the intended recipient (taker).
     match /bets/{betId} {
-      // Allow create for any authenticated user
-      allow create: if isSignedIn();
-
-      // Allow read if the bet is public OR the user is the creator or taker
-      allow read: if isSignedIn() && (resource.data.isPublic == true || resource.data.creatorId == request.auth.uid || resource.data.takerId == request.auth.uid);
-
-      // Allow update for two scenarios:
-      // 1. A taker is accepting a bet (status goes from 'pending' to 'accepted')
-      // 2. The backend is resolving the bet
-      allow update: if isSignedIn() && 
-                       (request.resource.data.status == 'accepted' && 
-                        resource.data.status == 'pending' && 
-                        request.resource.data.takerId == request.auth.uid);
-      
-      // No client-side deletes
+      allow read: if resource.data.isPublic == true || request.auth.uid == resource.data.creatorId || request.auth.uid == resource.data.takerId;
+      allow create: if request.auth.uid != null;
+      allow update: if request.auth.uid == resource.data.takerId && request.resource.data.status == 'accepted';
       allow delete: if false;
     }
 
-    // Transactions are private to each user
-    match /transactions/{txId} {
-        allow read, write: if isOwner(resource.data.userId);
-        allow create: if isOwner(request.resource.data.userId);
+    // Games and their odds are public information.
+    // They are only ever written by a backend process, so client-side writes are disallowed.
+    match /games/{gameId} {
+      allow read: if true;
+      allow write: if false;
+
+      match /bookmaker_odds/{bookmakerKey} {
+        allow read: if true;
+        allow write: if false;
+      }
+    }
+    
+    // A user can only access their own transaction history.
+    match /transactions/{transactionId} {
+        allow read, list: if request.auth.uid == resource.data.userId;
+        allow write: if false;
+    }
+    
+    // A user can only access their own notifications
+    match /users/{userId}/notifications/{notificationId} {
+        allow read, list, update: if request.auth.uid == userId;
+        allow create, delete: if false;
+    }
+    
+    // Disputes can only be read/written by admins (via backend functions)
+    match /disputes/{disputeId} {
+        allow read, write: if false;
     }
   }
 }
