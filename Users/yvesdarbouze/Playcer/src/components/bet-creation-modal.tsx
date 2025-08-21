@@ -224,10 +224,10 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet }: B
     if (data.betType === 'moneyline') {
       return data.teamSelection;
     }
-    if (data.betType === 'spread') {
-      return `${data.teamSelection} ${data.line! > 0 ? `+${data.line}` : data.line}`;
+    if (data.betType === 'spread' && data.line !== undefined) {
+      return `${data.teamSelection} ${data.line > 0 ? `+${data.line}` : data.line}`;
     }
-    if (data.betType === 'totals') {
+    if (data.betType === 'totals' && data.line !== undefined) {
       return `Total ${data.overUnderSelection} ${data.line}`;
     }
     return '';
@@ -305,7 +305,7 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet }: B
                                     render={({ field }) => (
                                         <FormItem>
                                             <FormLabel>Custom Line</FormLabel>
-                                            <FormControl><Input type="number" step="0.5" {...field} /></FormControl>
+                                            <FormControl><Input type="number" step="0.5" {...field} onChange={e => field.onChange(parseFloat(e.target.value))} /></FormControl>
                                             <FormMessage/>
                                         </FormItem>
                                     )}
@@ -337,7 +337,7 @@ function BetCreationModalInternal({ isOpen, onOpenChange, game, selectedBet }: B
                                     render={({ field }) => (
                                         <FormItem>
                                             <FormLabel>Custom Total</FormLabel>
-                                            <FormControl><Input type="number" step="0.5" {...field} /></FormControl>
+                                            <FormControl><Input type="number" step="0.5" {...field} onChange={e => field.onChange(parseFloat(e.target.value))}/></FormControl>
                                             <FormMessage/>
                                         </FormItem>
                                     )}
