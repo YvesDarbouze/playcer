@@ -17,7 +17,7 @@ import { startStreaming } from "./stream";
 // Ensure you have set these environment variables in your Firebase project configuration
 const algoliaClient = algoliasearch.default(process.env.ALGOLIA_APP_ID!, process.env.ALGOLIA_API_KEY!);
 const gamesIndex = algoliaClient.initIndex('games');
-const betsIndex = algoliasearch.initIndex('bets');
+const betsIndex = algoliaClient.initIndex('bets');
 
 
 // Initialize Firebase Admin SDK
@@ -389,7 +389,7 @@ export const acceptBet = onCall(async (request) => {
         
         // This is a two-step process. First, we send the clientSecret back.
         // The client confirms the payment. A webhook will finalize the bet.
-        return { success: true, clientSecret: paymentIntent.client_secret };
+        return { success: true, clientSecret: paymentIntent.client_secret, paymentIntentId: paymentIntent.id };
 
     } catch (error: any) {
         functions.logger.error(`Error creating recipient payment intent for bet ${betId}:`, error);
@@ -479,33 +479,44 @@ export const processBetOutcomes = onCall(async (request) => {
                 let winnerId: string | null = null;
                 const { home_score, away_score } = result;
                 const { homeTeam } = betData;
-                const accepterId = betData.accepters[0]?.accepterId;
+                
+                // Simplified for now, assumes first accepter is the only one for a non-fractional bet
+                const accepter = betData.accepters[0];
+                if (!accepter) {
+                     functions.logger.warn(`Bet ${betId} is active but has no accepters. Skipping.`);
+                     continue;
+                }
 
                 if (betData.betType === 'moneyline') {
                     const winningTeamName = home_score > away_score ? homeTeam : betData.awayTeam;
                     if (betData.chosenOption === winningTeamName) {
                         winnerId = betData.challengerId;
                     } else {
-                        winnerId = accepterId;
+                        winnerId = accepter.accepterId;
                     }
                 } 
                 
                 if (winnerId) {
-                    const loserId = winnerId === betData.challengerId ? accepterId : betData.challengerId;
+                    const loserId = winnerId === betData.challengerId ? accepter.accepterId : betData.challengerId;
                     await processPayout({ 
                         betId, 
                         winnerId, 
-                        stake: betData.totalWager, 
                         loserId,
+                        stake: betData.totalWager, 
+                        challengerPaymentIntentId: betData.challengerPaymentIntentId,
+                        accepterPaymentIntentId: accepter.paymentIntentId, // Assumes single accepter
                     });
                     await betDoc.ref.update({ status: 'settled', winnerId, loserId, outcome: 'win', settledAt: Timestamp.now() });
                     processedCount++;
                 } else {
-                     await processPayout({ 
+                     // This is a PUSH. We need to release both authorizations.
+                    await processPayout({ 
                         betId, 
                         winnerId: null, 
-                        stake: betData.totalWager, 
                         loserId: null,
+                        stake: betData.totalWager, 
+                        challengerPaymentIntentId: betData.challengerPaymentIntentId,
+                        accepterPaymentIntentId: accepter.paymentIntentId, // Assumes single accepter
                     });
                     await betDoc.ref.update({ status: 'settled', outcome: 'draw', settledAt: Timestamp.now() });
                     processedCount++;
@@ -548,11 +559,10 @@ export const expirePendingBets = onCall(async (request) => {
 
             // Cancel payment intents for any partial accepters
             if (betData.accepters && betData.accepters.length > 0) {
-                // Note: The paymentIntentId for accepters is on the payment intent itself in Stripe metadata.
-                // A more robust solution would be to store accepter paymentIntentIds on the bet doc.
-                // For this implementation, we assume we can find them if needed, or that cancellation
-                // of the bet implies cancellation of associated authorizations.
-                 functions.logger.warn(`Bet ${betId} has partial accepters. Their payment intents should be canceled. This part is not fully implemented in this version.`);
+                 for (const accepter of betData.accepters) {
+                    await stripe.paymentIntents.cancel(accepter.paymentIntentId);
+                    functions.logger.log(`Canceled accepter payment intent ${accepter.paymentIntentId} for expired bet ${betId}.`);
+                }
             }
 
             await betDoc.ref.update({ status: 'expired' });
@@ -577,58 +587,90 @@ export const expirePendingBets = onCall(async (request) => {
 });
 
 
-async function processPayout(data: { betId: string, winnerId: string | null, loserId: string | null, stake: number }) {
-    const { betId, winnerId, loserId, stake } = data;
+async function processPayout(data: { betId: string, winnerId: string | null, loserId: string | null, stake: number, challengerPaymentIntentId: string, accepterPaymentIntentId: string }) {
+    const { betId, winnerId, loserId, stake, challengerPaymentIntentId, accepterPaymentIntentId } = data;
     const PLATFORM_COMMISSION_RATE = 0.045; // 4.5% vig
     
-    const betDoc = await db.collection('bets').doc(betId).get();
-    const betData = betDoc.data();
-    if(!betData) return;
+    if(winnerId && loserId) {
+        // --- Determine Winner and Loser Payment Intents ---
+        const betDoc = await db.collection('bets').doc(betId).get();
+        if (!betDoc.exists) {
+            functions.logger.error(`Bet document ${betId} not found during payout.`);
+            return;
+        }
+        const betData = betDoc.data()!;
 
-    await db.runTransaction(async (transaction) => {
-        if(winnerId && loserId) {
+        const winnerIsChallenger = winnerId === betData.challengerId;
+        const winnerPI = winnerIsChallenger ? challengerPaymentIntentId : accepterPaymentIntentId;
+        const loserPI = winnerIsChallenger ? accepterPaymentIntentId : challengerPaymentIntentId;
+
+        try {
+            // --- Capture Loser's Funds & Release Winner's Funds ---
+            await Promise.all([
+                stripe.paymentIntents.capture(loserPI),
+                stripe.paymentIntents.cancel(winnerPI)
+            ]);
+            functions.logger.log(`Successfully captured loser's PI (${loserPI}) and canceled winner's PI (${winnerPI}) for bet ${betId}.`);
+
+            // --- Database Updates for Payout ---
+            const commission = stake * PLATFORM_COMMISSION_RATE;
+            const payoutToWinner = stake - commission;
+            
             const winnerDocRef = db.collection('users').doc(winnerId);
             const loserDocRef = db.collection('users').doc(loserId);
-            const commission = stake * PLATFORM_COMMISSION_RATE;
-            const payoutToWinner = stake - commission; 
 
-            transaction.update(winnerDocRef, { 
-                walletBalance: FieldValue.increment(payoutToWinner),
-                wins: FieldValue.increment(1),
-                totalBets: FieldValue.increment(1)
-            });
-            transaction.update(loserDocRef, { 
-                losses: FieldValue.increment(1),
-                totalBets: FieldValue.increment(1) 
-            });
+            await db.runTransaction(async (transaction) => {
+                transaction.update(winnerDocRef, { 
+                    walletBalance: FieldValue.increment(payoutToWinner),
+                    wins: FieldValue.increment(1),
+                    totalBets: FieldValue.increment(1)
+                });
+                transaction.update(loserDocRef, { 
+                    losses: FieldValue.increment(1),
+                    totalBets: FieldValue.increment(1) 
+                });
 
-            const payoutTxId = db.collection('transactions').doc().id;
-            transaction.set(db.collection('transactions').doc(payoutTxId), {
-                userId: winnerId, type: 'bet_payout', amount: payoutToWinner, status: 'completed', relatedBetId: betId, createdAt: Timestamp.now()
+                const payoutTxId = db.collection('transactions').doc().id;
+                transaction.set(db.collection('transactions').doc(payoutTxId), {
+                    userId: winnerId, type: 'bet_payout', amount: payoutToWinner, status: 'completed', relatedBetId: betId, createdAt: Timestamp.now()
+                });
             });
 
              // Notify users
             await createNotification(winnerId, `You won $${payoutToWinner.toFixed(2)} on your bet for ${betData.awayTeam} @ ${betData.homeTeam}!`, `/bet/${betId}`);
             await createNotification(loserId, `You lost your $${stake.toFixed(2)} bet for ${betData.awayTeam} @ ${betData.homeTeam}.`, `/bet/${betId}`);
+            
+        } catch(error) {
+             functions.logger.error(`Failed to capture/release funds or process payout for bet ${betId}. Loser PI: ${loserPI}, Winner PI: ${winnerPI}`, error);
+        }
 
-        } else {
-            // This is a PUSH. Refund both users.
-            const creatorDocRef = db.collection('users').doc(betData.challengerId);
-            transaction.update(creatorDocRef, { walletBalance: FieldValue.increment(stake), totalBets: FieldValue.increment(1) });
-             await createNotification(betData.challengerId, `Your bet on ${betData.awayTeam} @ ${betData.homeTeam} was a push. Your $${stake.toFixed(2)} stake has been returned.`, `/bet/${betId}`);
-
-            // Handle multiple takers if applicable
+    } else {
+        // --- This is a PUSH. Cancel both authorizations. ---
+        try {
+            await Promise.all([
+                stripe.paymentIntents.cancel(challengerPaymentIntentId),
+                stripe.paymentIntents.cancel(accepterPaymentIntentId)
+            ]);
+            functions.logger.log(`Push for bet ${betId}. Canceled both payment intents.`);
+            
+             // Notify users
+            const betDoc = await db.collection('bets').doc(betId).get();
+            const betData = betDoc.data();
+            if(!betData) return;
+            
+            await createNotification(betData.challengerId, `Your bet on ${betData.awayTeam} @ ${betData.homeTeam} was a push. Your funds authorization has been released.`, `/bet/${betId}`);
             if(betData.accepters && betData.accepters.length > 0) {
                  for (const accepter of betData.accepters) {
-                    const accepterDocRef = db.collection('users').doc(accepter.accepterId);
-                    transaction.update(accepterDocRef, { walletBalance: FieldValue.increment(accepter.amount), totalBets: FieldValue.increment(1) });
-                    await createNotification(accepter.accepterId, `Your bet on ${betData.awayTeam} @ ${betData.homeTeam} was a push. Your $${accepter.amount.toFixed(2)} stake has been returned.`, `/bet/${betId}`);
+                    await createNotification(accepter.accepterId, `Your bet on ${betData.awayTeam} @ ${betData.homeTeam} was a push. Your funds authorization has been released.`, `/bet/${betId}`);
                 }
             }
-        }
-    });
 
-    functions.logger.log(`Payout for bet ${betId} processed.`);
+        } catch (error) {
+            functions.logger.error(`Failed to cancel payment intents for push on bet ${betId}.`, error);
+        }
+    }
+
+    functions.logger.log(`Payout logic for bet ${betId} processed.`);
 }
     
 
@@ -715,9 +757,6 @@ export const stripeWebhook = functions.https.onRequest(async (request, response)
                         throw new Error('Accepted amount exceeds remaining wager.');
                     }
                     
-                    // Capture the payment
-                    await stripe.paymentIntents.capture(piToCapture.id);
-
                     // Update bet document
                     const newRemainingAmount = betData.remainingWager - numericAcceptedAmount;
                     const newStatus = newRemainingAmount <= 0 ? 'active' : 'pending';
@@ -727,6 +766,7 @@ export const stripeWebhook = functions.https.onRequest(async (request, response)
                         accepterUsername: accepterData.username,
                         accepterPhotoURL: accepterData.photoURL,
                         amount: numericAcceptedAmount,
+                        paymentIntentId: piToCapture.id, // Store the PI for later capture/cancellation
                         createdAt: Timestamp.now()
                     };
 
@@ -858,5 +898,3 @@ async function createNotification(userId: string, message: string, link: string)
         createdAt: Timestamp.now()
     });
 }
-
-    
