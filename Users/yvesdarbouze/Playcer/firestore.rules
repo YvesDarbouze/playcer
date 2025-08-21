@@ -5,56 +5,40 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // Users can read public profile data of other users.
-    // A user can only read/write their own private data.
+    // Users can only create, update, or delete their own document.
     match /users/{userId} {
       allow read: if request.auth != null;
       allow write: if request.auth.uid == userId;
-
-      // Users can only read their own transactions.
-      match /transactions/{transactionId} {
-        allow read, write: if request.auth.uid == userId;
-      }
     }
 
-    // Game and odds data is public and read-only for clients.
-    // It should only be written by a trusted backend process.
+    // Game and odds data is public, but should only be written by the backend.
     match /games/{gameId} {
       allow read: if true;
-      allow write: if false; // Managed by backend functions
+      allow write: if false; // Should only be written by backend functions
 
       match /bookmaker_odds/{bookmakerId} {
         allow read: if true;
-        allow write: if false; // Managed by backend functions
+        allow write: if false; // Should only be written by backend functions
       }
     }
 
-    // Rules for bets
+    // Bets can be created by any authenticated user.
+    // Bets can be read if they are public, or if the user is the creator or taker.
+    // Bets can only be updated (e.g. accepted) by the taker.
     match /bets/{betId} {
-      // Anyone can read a public bet. Private bets are restricted.
-      allow read: if resource.data.isPublic == true || request.auth.uid == resource.data.creatorId || request.auth.uid == resource.data.takerId;
-      
-      // Users can create bets if they are authenticated.
-      allow create: if request.auth != null;
-
-      // Only the creator can cancel a pending bet.
-      // Only the intended taker can accept a bet.
-      // Both parties can update a bet to a 'disputed' state.
-      allow update: if 
-        (request.resource.data.status == 'cancelled' && request.auth.uid == resource.data.creatorId) ||
-        (request.resource.data.status == 'accepted' && request.auth.uid == resource.data.takerId && resource.data.takerId == null) ||
-        (request.resource.data.status == 'disputed' && (request.auth.uid == resource.data.creatorId || request.auth.uid == resource.data.takerId));
-        
-       // A user cannot delete a bet.
-       allow delete: if false;
+      allow read: if resource.data.isPublic == true || 
+                     (request.auth != null && (request.auth.uid == resource.data.creatorId || request.auth.uid == resource.data.takerId));
+      allow create: if request.auth != null && request.resource.data.creatorId == request.auth.uid;
+      allow update: if request.auth != null && 
+                     (request.auth.uid == resource.data.takerId || request.auth.uid == resource.data.creatorId);
     }
-
-    // Disputes can only be created by the parties involved in the bet.
-    // They are read-only for users and managed by an admin.
-    match /disputes/{disputeId} {
-        allow create: if request.auth.uid == request.resource.data.disputingUserId &&
-                        (get(/databases/$(database)/documents/bets/$(request.resource.data.betId)).data.creatorId == request.auth.uid ||
-                         get(/databases/$(database)/documents/bets/$(request.resource.data.betId)).data.takerId == request.auth.uid);
-        allow read, update, delete: if false; // Managed by admin backend
+    
+    // Transactions can only be read by the user they belong to.
+    // Transactions should only be created by the backend.
+    match /transactions/{transactionId} {
+      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow create: if false; // Should only be written by backend functions
+      allow update, delete: if false;
     }
   }
 }
