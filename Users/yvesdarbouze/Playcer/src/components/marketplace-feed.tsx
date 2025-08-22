@@ -1,29 +1,63 @@
 
 "use client";
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import type { Bet } from '@/types';
 import { MarketplaceBetCard } from '@/components/marketplace-bet-card';
 import { Input } from './ui/input';
 import { Search } from 'lucide-react';
+import { onSnapshot, collection, query, where, orderBy, Timestamp, getFirestore } from 'firebase/firestore';
+import { app as firebaseApp } from '@/lib/firebase'; // Use client-side firebase
 
 interface MarketplaceFeedProps {
     initialBets: Bet[];
 }
 
+// Helper to convert Firestore data to Bet type on the client
+const convertToBet = (docSnap: any): Bet => {
+  const data = docSnap.data();
+  return {
+    id: docSnap.id,
+    ...data,
+    eventDate: (data.eventDate as Timestamp).toDate().toISOString(),
+    createdAt: (data.createdAt as Timestamp).toDate().toISOString(),
+    settledAt: data.settledAt ? (data.settledAt as Timestamp).toDate().toISOString() : null,
+  } as unknown as Bet;
+}
+
+
 export function MarketplaceFeed({ initialBets }: MarketplaceFeedProps) {
+    const [bets, setBets] = useState(initialBets);
     const [searchTerm, setSearchTerm] = useState('');
+
+    useEffect(() => {
+        const firestore = getFirestore(firebaseApp);
+        const betsRef = collection(firestore, "bets");
+        const q = query(
+            betsRef,
+            where("isPublic", "==", true),
+            where("status", "==", "pending"),
+            orderBy("createdAt", "desc")
+        );
+        
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const updatedBets = snapshot.docs.map(convertToBet);
+            setBets(updatedBets);
+        });
+
+        return () => unsubscribe();
+    }, []);
 
     const filteredBets = useMemo(() => {
         if (!searchTerm.trim()) {
-            return initialBets;
+            return bets;
         }
-        return initialBets.filter(bet => 
+        return bets.filter(bet => 
             bet.homeTeam.toLowerCase().includes(searchTerm.toLowerCase()) ||
             bet.awayTeam.toLowerCase().includes(searchTerm.toLowerCase()) ||
             bet.challengerUsername.toLowerCase().includes(searchTerm.toLowerCase())
         );
-    }, [initialBets, searchTerm]);
+    }, [bets, searchTerm]);
 
 
     return (
@@ -56,5 +90,3 @@ export function MarketplaceFeed({ initialBets }: MarketplaceFeedProps) {
         </div>
     )
 }
-
-    
