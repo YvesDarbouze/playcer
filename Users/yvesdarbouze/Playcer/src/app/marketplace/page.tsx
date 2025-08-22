@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { collection, getDocs, query, where, orderBy, Timestamp } from "firebase/firestore";
+import { collection, getDocs, query, where, orderBy, Timestamp, onSnapshot } from "firebase/firestore";
 import { firestore } from "@/lib/firebase"; // Using CLIENT-SIDE SDK
 import type { Bet } from "@/types";
 import { MarketplaceFeed } from "@/components/marketplace-feed";
@@ -12,6 +12,18 @@ import { Button } from "@/components/ui/button";
 import { LayoutDashboard } from "lucide-react";
 import { LoginButton } from "@/components/login-button";
 import { Skeleton } from "@/components/ui/skeleton";
+
+// Helper to convert Firestore data to Bet type on the client
+const convertToBet = (docSnap: any): Bet => {
+  const data = docSnap.data();
+  return {
+    id: docSnap.id,
+    ...data,
+    eventDate: (data.eventDate as Timestamp).toDate().toISOString(),
+    createdAt: (data.createdAt as Timestamp).toDate().toISOString(),
+    settledAt: data.settledAt ? (data.settledAt as Timestamp).toDate().toISOString() : null,
+  } as unknown as Bet;
+}
 
 async function getOpenBets(): Promise<Bet[]> {
   try {
@@ -25,17 +37,7 @@ async function getOpenBets(): Promise<Bet[]> {
 
     const querySnapshot = await getDocs(q);
     
-    return querySnapshot.docs.map(doc => {
-      const data = doc.data();
-      // Convert Firestore Timestamps to serializable strings for the client
-      return {
-        ...data,
-        id: doc.id,
-        eventDate: (data.eventDate as Timestamp).toDate().toISOString(),
-        createdAt: (data.createdAt as Timestamp).toDate().toISOString(),
-        settledAt: data.settledAt ? (data.settledAt as Timestamp).toDate().toISOString() : null,
-      } as unknown as Bet;
-    });
+    return querySnapshot.docs.map(convertToBet);
 
   } catch (error) {
     console.error("Error fetching open bets on client:", error);
@@ -54,8 +56,23 @@ export default function MarketplacePage() {
         setOpenBets(bets);
         setLoading(false);
     }
-    fetchBets();
-  }, [])
+    
+    const betsRef = collection(firestore, "bets");
+    const q = query(
+        betsRef,
+        where("isPublic", "==", true),
+        where("status", "==", "pending"),
+        orderBy("createdAt", "desc")
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+        const updatedBets = snapshot.docs.map(convertToBet);
+        setOpenBets(updatedBets);
+        setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   return (
     <main className="bg-muted/40 min-h-screen">
