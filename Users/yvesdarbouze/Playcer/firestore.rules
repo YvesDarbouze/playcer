@@ -5,60 +5,65 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // Helper function to check if a user is authenticated
-    function isSignedIn() {
+    function isAuthenticated() {
       return request.auth != null;
     }
 
-    // Helper function to check if the user is the owner of a document
+    // Helper function to check if the user is the owner of the document
     function isOwner(userId) {
       return request.auth.uid == userId;
     }
-
-    // Users: Can only read their own document. Writes are disabled from the client.
+    
+    // Users Collection
+    // - Allow users to read their own profile
+    // - Allow users to create their own profile (on signup)
+    // - Allow users to update their own profile, but not change protected fields like walletBalance or wins/losses
     match /users/{userId} {
-      allow read: if isSignedIn() && isOwner(userId);
-      allow create, update, delete: if false; // All writes must be done by the backend
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) && !("walletBalance" in request.resource.data) && !("wins" in request.resource.data) && !("losses" in request.resource.data);
     }
     
-    // Notifications: Users can manage their own notifications.
-    match /users/{userId}/notifications/{notificationId} {
-       allow read, write: if isSignedIn() && isOwner(userId);
+    // Bets Collection
+    // - Allow anyone to read public bets
+    // - Allow authenticated users to create bets
+    // - Allow only the backend to update the status of a bet (e.g., to 'active' or 'settled')
+    match /bets/{betId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      allow update, delete: if false; // Only backend can update/delete
     }
 
-    // Games and their subcollections (e.g., bookmaker_odds) are read-only for clients.
+    // Transactions Collection
+    // - Users can only read their own transactions
+    // - Only the backend can create, update or delete transactions
+     match /transactions/{transactionId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create, update, delete: if false; // Only backend can write
+    }
+    
+    // Games and Odds data is public read-only for clients
     match /games/{gameId} {
-      allow read: if isSignedIn();
-      allow write: if false; // All game data is written by the backend stream
+      allow read: if true;
+      allow write: if false; // Only backend can write
       
       match /bookmaker_odds/{bookmakerId} {
-         allow read: if isSignedIn();
-         allow write: if false;
+        allow read: if true;
+        allow write: if false; // Only backend can write
       }
     }
+    
+    // Notifications
+    // - User can only access their own notifications
+    match /users/{userId}/notifications/{notificationId} {
+        allow read, write: if isOwner(userId);
+    }
 
-    // Bets: Read-only for clients. All modifications must go through Cloud Functions.
-    match /bets/{betId} {
-      allow read: if isSignedIn();
-      // Complex write logic (create, accept, settle, cancel) is handled by secure Cloud Functions.
-      // Disallow all client-side writes to prevent tampering with bet status, amounts, or participants.
-      allow create, update, delete: if false;
-    }
-    
-    // Transactions: Users can only read their own financial history. Writes are disabled.
-    match /transactions/{txId} {
-        allow read: if isSignedIn() && isOwner(resource.data.userId);
-        allow write: if false; // All transactions are created by the backend.
-    }
-    
-    // Disputes: Users can create disputes. Reading/updating them is an admin task.
-    match /disputes/{disputeId} {
-        // Allow a user to create a dispute if they are part of the bet.
-        // This requires reading the bet document to verify.
-        allow create: if isSignedIn(); 
-        
-        // Only admins (via backend) should read or resolve disputes.
-        // For simplicity, we deny client reads here. Admins will use the Admin SDK.
-        allow read, update, delete: if false;
+    // Leaderboard
+    // - Publicly readable
+    match /leaderboard/{docId} {
+        allow read: if true;
+        allow write: if false;
     }
   }
 }
