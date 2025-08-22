@@ -48,4 +48,3 @@ export function getFirebaseApp() {
 }
 
 export { app, auth, firestore, storage, twitterProvider, signOut };
-
