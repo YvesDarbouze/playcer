@@ -1,6 +1,9 @@
 
+"use client";
+
+import * as React from "react";
 import { collection, getDocs, query, where, orderBy, Timestamp } from "firebase/firestore";
-import { firestore as getFirestore } from "@/lib/firebase-admin"; // Using admin SDK for server-side fetches
+import { firestore } from "@/lib/firebase"; // Using CLIENT-SIDE SDK
 import type { Bet } from "@/types";
 import { MarketplaceFeed } from "@/components/marketplace-feed";
 import { Logo } from "@/components/icons";
@@ -10,16 +13,8 @@ import { LayoutDashboard } from "lucide-react";
 import { LoginButton } from "@/components/login-button";
 import { Skeleton } from "@/components/ui/skeleton";
 
-export const dynamic = 'force-dynamic';
-export const revalidate = 60; // Revalidate every 60 seconds
-
 async function getOpenBets(): Promise<Bet[]> {
   try {
-    const firestore = getFirestore();
-    if (!firestore) {
-      console.error("Firestore Admin SDK not initialized for server-side render.");
-      return [];
-    }
     const betsRef = collection(firestore, "bets");
     const q = query(
       betsRef,
@@ -43,13 +38,24 @@ async function getOpenBets(): Promise<Bet[]> {
     });
 
   } catch (error) {
-    console.error("Error fetching open bets on server:", error);
+    console.error("Error fetching open bets on client:", error);
     return [];
   }
 }
 
-export default async function MarketplacePage() {
-  const openBets = await getOpenBets();
+export default function MarketplacePage() {
+  const [openBets, setOpenBets] = React.useState<Bet[]>([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    const fetchBets = async () => {
+        setLoading(true);
+        const bets = await getOpenBets();
+        setOpenBets(bets);
+        setLoading(false);
+    }
+    fetchBets();
+  }, [])
 
   return (
     <main className="bg-muted/40 min-h-screen">
@@ -79,13 +85,13 @@ export default async function MarketplacePage() {
                  </div>
             </header>
             
-            <React.Suspense fallback={
+            {loading ? (
                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                     {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-80 w-full" />)}
                 </div>
-            }>
+            ) : (
                 <MarketplaceFeed initialBets={openBets} />
-            </React.Suspense>
+            )}
        </div>
     </main>
   );
