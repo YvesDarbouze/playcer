@@ -20,8 +20,8 @@ const config = {
     },
     extend: {
        fontFamily: {
-        sans: ['var(--font-sans)'],
-        headline: ['var(--font-headline)'],
+        sans: ['"Open Sans"', 'sans-serif'],
+        headline: ['Montserrat', 'sans-serif'],
       },
       colors: {
         border: "hsl(var(--border))",
