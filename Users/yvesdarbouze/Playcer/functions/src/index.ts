@@ -94,7 +94,8 @@ const geolocationAPI = {
 
 // --- AUTHENTICATION TRIGGERS ---
 
-export const onusercreate = functionBuilder.auth.user().onCreate(async (user) => {
+export const onusercreate = onUserCreate(async (event) => {
+  const user = event.data;
   const {uid, displayName, photoURL, email} = user;
 
   const twitterProvider = user.providerData.find(p => p.providerId === 'twitter.com');
@@ -136,7 +137,7 @@ export const onusercreate = functionBuilder.auth.user().onCreate(async (user) =>
 
 // --- HTTP CALLABLE FUNCTIONS ---
 
-export const getAlgoliaSearchKey = functionBuilder.https.onCall((request) => {
+export const getAlgoliaSearchKey = onCall((request) => {
     if (!request.auth) {
         throw new HttpsError('unauthenticated', 'You must be logged in to search.');
     }
@@ -151,7 +152,7 @@ export const getAlgoliaSearchKey = functionBuilder.https.onCall((request) => {
     return { key: searchKey };
 });
 
-export const createBetPaymentIntent = functionBuilder.https.onCall(async (request) => {
+export const createBetPaymentIntent = onCall(async (request) => {
     if (!request.auth) {
         throw new HttpsError('unauthenticated', 'You must be logged in to create a payment intent.');
     }
@@ -182,7 +183,7 @@ export const createBetPaymentIntent = functionBuilder.https.onCall(async (reques
 });
 
 
-export const handleDeposit = functionBuilder.https.onCall(async (request) => {
+export const handleDeposit = onCall(async (request) => {
     if (!request.auth) {
         throw new HttpsError('unauthenticated', 'You must be logged in to make a deposit.');
     }
@@ -225,7 +226,7 @@ export const handleDeposit = functionBuilder.https.onCall(async (request) => {
 });
 
 
-export const createBet = functionBuilder.https.onCall(async (request) => {
+export const createBet = onCall(async (request) => {
     if (!request.auth) {
         throw new HttpsError('unauthenticated', 'You must be logged in to create a bet.');
     }
@@ -319,7 +320,7 @@ export const createBet = functionBuilder.https.onCall(async (request) => {
 });
 
 
-export const acceptBet = functionBuilder.https.onCall(async (request) => {
+export const acceptBet = onCall(async (request) => {
     if (!request.auth) {
         throw new HttpsError('unauthenticated', 'You must be logged in to accept a bet.');
     }
@@ -361,7 +362,7 @@ export const acceptBet = functionBuilder.https.onCall(async (request) => {
     }
 });
 
-export const cancelBet = functionBuilder.https.onCall(async (request) => {
+export const cancelBet = onCall(async (request) => {
     if (!request.auth) {
         throw new HttpsError('unauthenticated', 'You must be logged in to cancel a bet.');
     }
@@ -415,7 +416,7 @@ export const cancelBet = functionBuilder.https.onCall(async (request) => {
 });
 
 
-export const processBetOutcomes = functionBuilder.pubsub.schedule("every 15 minutes").onRun(async (context) => {
+export const processBetOutcomes = onSchedule("every 15 minutes", async (context) => {
     functions.logger.log("Starting processBetOutcomes scheduled job...");
     
     const now = Timestamp.now();
@@ -523,7 +524,7 @@ export const processBetOutcomes = functionBuilder.pubsub.schedule("every 15 minu
     return null;
 });
 
-export const expirePendingBets = functionBuilder.pubsub.schedule("every 15 minutes").onRun(async (context) => {
+export const expirePendingBets = onSchedule("every 15 minutes", async (context) => {
     functions.logger.log("Starting expirePendingBets scheduled job...");
 
     const now = Timestamp.now();
@@ -796,7 +797,7 @@ export const stripeWebhook = functions.https.onRequest(async (request, response)
 });
 
 
-export const kycWebhook = functionBuilder.https.onRequest(async (request, response) => {
+export const kycWebhook = functions.https.onRequest(async (request, response) => {
     const kycWebhookSecret = process.env.KYC_WEBHOOK_SECRET;
 
     const signature = request.headers['x-kyc-provider-signature'];
@@ -852,7 +853,7 @@ export const kycWebhook = functionBuilder.https.onRequest(async (request, respon
     response.status(200).send({ received: true });
 });
 
-export const markNotificationsAsRead = functionBuilder.https.onCall(async (request) => {
+export const markNotificationsAsRead = onCall(async (request) => {
     if (!request.auth) {
         throw new HttpsError('unauthenticated', 'You must be logged in.');
     }
@@ -893,7 +894,7 @@ async function createNotification(userId: string, message: string, link: string)
     });
 }
 
-export const updateLeaderboard = functionBuilder.pubsub.schedule('every 60 minutes').onRun(async (context) => {
+export const updateLeaderboard = onSchedule('every 60 minutes', async (context) => {
     functions.logger.log("Starting leaderboard aggregation job.");
     try {
         const usersSnapshot = await db.collection('users').orderBy('wins', 'desc').limit(100).get();
@@ -936,7 +937,7 @@ const ensureIsAdmin = (context: any) => {
     }
 };
 
-export const resolveDispute = functionBuilder.https.onCall(async (request) => {
+export const resolveDispute = onCall(async (request) => {
     ensureIsAdmin(request);
 
     const { disputeId, ruling, adminNotes } = request.data;

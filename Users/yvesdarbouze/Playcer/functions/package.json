@@ -1,3 +1,4 @@
+
 {
   "name": "functions",
   "private": true,
@@ -10,6 +11,9 @@
     "deploy": "firebase deploy --only functions",
     "logs": "firebase functions:log",
     "lint": "echo 'Lint check passed.'"
+  },
+  "engines": {
+    "node": "20"
   },
   "dependencies": {
     "algoliasearch": "^4.23.3",
