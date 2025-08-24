@@ -14,7 +14,7 @@ const firebaseConfig: FirebaseOptions = {
 
 
 // Initialize Firebase
-const app: FirebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+export const app: FirebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
 const auth = getAuth(app);
 const firestore = getFirestore(app);
@@ -25,4 +25,4 @@ const signOut = () => {
   return firebaseSignOut(auth);
 }
 
-export { app, auth, firestore, storage, twitterProvider, signOut };
+export { auth, firestore, storage, twitterProvider, signOut };

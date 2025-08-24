@@ -1,6 +1,6 @@
 
 import { collection, getDocs, query, where, orderBy, Timestamp } from "firebase/firestore";
-import { firestore as getFirestore } from "@/lib/firebase-admin"; // Using admin SDK for server-side fetches
+import { firestore as getFirestore } from "@/lib/firebase"; // Using admin SDK for server-side fetches
 import type { Bet } from "@/types";
 import { MarketplaceFeed } from "@/components/marketplace-feed";
 import { Logo } from "@/components/icons";
