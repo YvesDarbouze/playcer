@@ -2,8 +2,8 @@
 "use client";
 
 import * as React from "react";
-import { collection, getDocs, query, where, orderBy, Timestamp, onSnapshot } from "firebase/firestore";
-import { firestore } from "@/lib/firebase"; // Using CLIENT-SIDE SDK
+import { collection, query, where, orderBy, Timestamp, onSnapshot, getFirestore } from "firebase/firestore";
+import { app } from "@/lib/firebase"; // Using CLIENT-SIDE SDK
 import type { Bet } from "@/types";
 import { MarketplaceFeed } from "@/components/marketplace-feed";
 import { Logo } from "@/components/icons";
@@ -30,6 +30,7 @@ export default function MarketplacePage() {
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
+    const firestore = getFirestore(app);
     const betsRef = collection(firestore, "bets");
     const q = query(
         betsRef,
