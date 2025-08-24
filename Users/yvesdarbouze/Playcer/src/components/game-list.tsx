@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo, useEffect } from 'react';
@@ -34,6 +35,19 @@ export function GameList() {
             game.away_team.toLowerCase().includes(searchTerm.toLowerCase())
         );
     }, [initialGames, searchTerm]);
+    
+    const gamesByLeague = useMemo(() => {
+        const leagues = ['nfl', 'nba', 'mlb'];
+        const grouped: Record<string, Game[]> = {};
+
+        leagues.forEach(league => {
+            grouped[league] = filteredGames
+                .filter(game => game.sport_key.toLowerCase().includes(league))
+                .slice(0, 2);
+        });
+
+        return grouped;
+    }, [filteredGames]);
 
     const PlayIcon = (props: React.SVGProps<SVGSVGElement>) => (
         <svg {...props} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
@@ -41,31 +55,28 @@ export function GameList() {
         </svg>
     );
 
-    const renderGameGrid = () => {
+    const renderGameGrid = (league: string, title: string) => {
         if (loading) {
             return (
-                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {[...Array(8)].map((_, i) => <Skeleton key={i} className="h-64 w-full" />)}
+                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-64 w-full" />)}
                 </div>
             )
         }
-        if (filteredGames.length > 0) {
+        const leagueGames = gamesByLeague[league];
+        if (leagueGames && leagueGames.length > 0) {
             return (
-                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {filteredGames.map(game => (
-                        <GameCard game={game} key={game.id} />
-                    ))}
-                </div>
+                 <>
+                    <h2 className="text-3xl font-bold mb-4 mt-8">{title}</h2>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-2 gap-4">
+                        {leagueGames.map(game => (
+                            <GameCard game={game} key={game.id} />
+                        ))}
+                    </div>
+                </>
             )
         }
-        return (
-            <div className="text-center py-16">
-                <h2 className="text-xl font-bold">No Games Found</h2>
-                <p className="text-muted-foreground mt-2">
-                    There are no upcoming games to display. Check back later!
-                </p>
-            </div>
-        )
+        return null;
     }
 
     return (
@@ -95,7 +106,7 @@ export function GameList() {
                                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                                 <Input
                                     type="text"
-                                    placeholder="find your game"
+                                    placeholder="Find your game..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                     className="w-full pl-12 pr-4 py-6 text-lg bg-background/20 text-white placeholder:text-muted-foreground border-2 border-transparent focus:border-primary focus:bg-background/30"
@@ -114,8 +125,9 @@ export function GameList() {
                 </header>
                 
                 <div className="container mx-auto py-12">
-                     <h2 className="text-3xl font-bold mb-6">Upcoming Games</h2>
-                    {renderGameGrid()}
+                    {renderGameGrid('nfl', 'Upcoming NFL Games')}
+                    {renderGameGrid('nba', 'Upcoming NBA Games')}
+                    {renderGameGrid('mlb', 'Upcoming MLB Games')}
                 </div>
             </div>
         </>
