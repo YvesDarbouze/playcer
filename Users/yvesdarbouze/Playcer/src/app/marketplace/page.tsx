@@ -25,38 +25,11 @@ const convertToBet = (docSnap: any): Bet => {
   } as unknown as Bet;
 }
 
-async function getOpenBets(): Promise<Bet[]> {
-  try {
-    const betsRef = collection(firestore, "bets");
-    const q = query(
-      betsRef,
-      where("isPublic", "==", true),
-      where("status", "==", "pending"),
-      orderBy("createdAt", "desc")
-    );
-
-    const querySnapshot = await getDocs(q);
-    
-    return querySnapshot.docs.map(convertToBet);
-
-  } catch (error) {
-    console.error("Error fetching open bets on client:", error);
-    return [];
-  }
-}
-
 export default function MarketplacePage() {
   const [openBets, setOpenBets] = React.useState<Bet[]>([]);
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
-    const fetchBets = async () => {
-        setLoading(true);
-        const bets = await getOpenBets();
-        setOpenBets(bets);
-        setLoading(false);
-    }
-    
     const betsRef = collection(firestore, "bets");
     const q = query(
         betsRef,
@@ -68,6 +41,9 @@ export default function MarketplacePage() {
     const unsubscribe = onSnapshot(q, (snapshot) => {
         const updatedBets = snapshot.docs.map(convertToBet);
         setOpenBets(updatedBets);
+        setLoading(false);
+    }, (error) => {
+        console.error("Error fetching open bets on client:", error);
         setLoading(false);
     });
 
