@@ -22,7 +22,7 @@ async function getOpenBets(): Promise<Bet[]> {
     const q = query(
       betsRef,
       where("isPublic", "==", true),
-      where("status", "==", "pending_acceptance"),
+      where("status", "==", "pending"),
       orderBy("createdAt", "desc")
     );
 
